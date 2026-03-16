@@ -10,7 +10,8 @@ from tools.data_retrieval import (
     pubchem_get_compound_properties, 
     mp_search_materials, 
     mp_get_material_properties, 
-    mp_get_detailed_property_data
+    mp_get_detailed_property_data,
+    mp_search_recipe
 )
 
 # Set up logging
@@ -29,6 +30,7 @@ mcp.tool()(pubchem_get_compound_properties)
 mcp.tool()(mp_search_materials)
 mcp.tool()(mp_get_material_properties)
 mcp.tool()(mp_get_detailed_property_data)
+mcp.tool()(mp_search_recipe)
 
 
 if __name__ == "__main__":
