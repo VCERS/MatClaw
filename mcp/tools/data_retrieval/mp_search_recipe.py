@@ -258,7 +258,6 @@ def mp_search_recipe(
         if doi:
             query_params["doi"] = doi
         
-        # Validate that at least one search criterion is provided
         if not query_params:
             return {
                 "success": False,
@@ -270,9 +269,6 @@ def mp_search_recipe(
         
         # Initialize Materials Project API client
         with MPRester(api_key) as mpr:
-            
-            # Try to access synthesis data
-            # Note: The exact API endpoint may vary depending on MP API version
             try:
                 # Attempt to use synthesis endpoint if available
                 if mpr.materials and hasattr(mpr.materials, 'synthesis'):
@@ -312,9 +308,6 @@ def mp_search_recipe(
                     if heating_time_max is not None:
                         search_kwargs['condition_heating_time_max'] = heating_time_max
                     
-                    # Note: elements, year_min, and doi are not supported by the API
-                    # These will be filtered client-side if needed
-                    
                     # Execute search
                     results = synthesis_client.search(**search_kwargs, num_chunks=limit)
                     
@@ -326,7 +319,6 @@ def mp_search_recipe(
                     )
                     
                 else:
-                    # Synthesis endpoint not available in this MP API version
                     return {
                         "success": False,
                         "query": query_params,
@@ -339,7 +331,6 @@ def mp_search_recipe(
                                "Contact Materials Project support or check https://docs.materialsproject.org/"
                     }
                 
-                # Convert results to list if needed
                 if not isinstance(results, list):
                     results = list(results)
                 
@@ -392,22 +383,17 @@ def mp_search_recipe(
                         'not specified'
                     )
                     
-                    # Product information
                     recipe['product_info'] = result_dict.get('product_characterization') or result_dict.get('notes')
-                    
-                    # Citation information
                     recipe['doi'] = result_dict.get('doi')
                     recipe['citation'] = result_dict.get('citation') or result_dict.get('reference')
                     recipe['year'] = result_dict.get('year') or result_dict.get('publication_year')
                     recipe['authors'] = result_dict.get('authors')
                     
-                    # Filter fields if requested
                     if fields:
                         recipe = {k: v for k, v in recipe.items() if k in fields or k == 'recipe_id'}
                     
                     recipes.append(recipe)
                 
-                # Prepare warnings
                 warnings = []
                 if len(results) > limit:
                     warnings.append(f"Found {len(results)} recipes but returning only {limit}. Increase 'limit' parameter to see more.")
@@ -425,7 +411,6 @@ def mp_search_recipe(
                 }
                 
             except AttributeError as e:
-                # Synthesis endpoint doesn't exist
                 return {
                     "success": False,
                     "query": query_params,
