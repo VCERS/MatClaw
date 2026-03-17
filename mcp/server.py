@@ -13,6 +13,13 @@ from tools.data_retrieval import (
     mp_get_detailed_property_data,
     mp_search_recipe
 )
+from tools.ase import (
+    ase_connect_or_create_db,
+    ase_store_result,
+    ase_query_db,
+    ase_get_atoms,
+    ase_list_databases
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -25,12 +32,20 @@ load_dotenv()
 mcp = FastMCP(name="matclaw-mcp-server")
 
 # Add tools
+# Data retrieval tools
 mcp.tool()(pubchem_search_compounds)
 mcp.tool()(pubchem_get_compound_properties)
 mcp.tool()(mp_search_materials)
 mcp.tool()(mp_get_material_properties)
 mcp.tool()(mp_get_detailed_property_data)
 mcp.tool()(mp_search_recipe)
+
+# ASE database tools
+mcp.tool()(ase_connect_or_create_db)
+mcp.tool()(ase_store_result)
+mcp.tool()(ase_query_db)
+mcp.tool()(ase_get_atoms)
+mcp.tool()(ase_list_databases)
 
 
 if __name__ == "__main__":
