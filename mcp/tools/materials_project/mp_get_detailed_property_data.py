@@ -45,9 +45,9 @@ def mp_get_detailed_property_data(
     Available data types:
     - band_structure: Electronic band structure (k-points, band energies, gaps)
     - dos: Density of states (energy grid, DOS values, optional projections)
-    - elastic_tensor: Full elastic tensor (6×6 Cij matrix in GPa)
-    - dielectric_tensor: Full dielectric tensor (3×3 matrix)
-    - piezoelectric_tensor: Full piezoelectric tensor (3×6 matrix in C/m²)
+    - elastic_tensor: Full elastic tensor (6x6 Cij matrix in GPa)
+    - dielectric_tensor: Full dielectric tensor (3x3 matrix)
+    - piezoelectric_tensor: Full piezoelectric tensor (3x6 matrix in C/m²)
     - thermal_displacement_data: Temperature-dependent thermal displacement data
     - phonon_bandstructure: Phonon dispersion (q-points, phonon frequencies)
     - phonon_dos: Phonon density of states
@@ -299,8 +299,8 @@ def _get_elastic_tensor(mpr, material_id: str) -> Dict[str, Any]:
         return {
             "success": True,
             "material_id": material_id,
-            "elastic_tensor": elastic_tensor,  # 6×6 in GPa
-            "compliance_tensor": compliance_tensor,  # 6×6 in GPa⁻¹
+            "elastic_tensor": elastic_tensor,  # 6x6 in GPa
+            "compliance_tensor": compliance_tensor,  # 6x6 in GPa⁻¹
             "units": "GPa",
             "plot_config": {
                 "plot_type": "heatmap",
@@ -360,9 +360,9 @@ def _get_piezoelectric_tensor(mpr, material_id: str) -> Dict[str, Any]:
         return {
             "success": True,
             "material_id": material_id,
-            "total_tensor": _serialize_tuple_tensor(p.total) if hasattr(p, 'total') and p.total else None,  # 3×6
-            "ionic_tensor": _serialize_tuple_tensor(p.ionic) if hasattr(p, 'ionic') and p.ionic else None,  # 3×6
-            "electronic_tensor": _serialize_tuple_tensor(p.electronic) if hasattr(p, 'electronic') and p.electronic else None,  # 3×6
+            "total_tensor": _serialize_tuple_tensor(p.total) if hasattr(p, 'total') and p.total else None,  # 3x6
+            "ionic_tensor": _serialize_tuple_tensor(p.ionic) if hasattr(p, 'ionic') and p.ionic else None,  # 3x6
+            "electronic_tensor": _serialize_tuple_tensor(p.electronic) if hasattr(p, 'electronic') and p.electronic else None,  # 3x6
             "units": "C/m²"
         }
     

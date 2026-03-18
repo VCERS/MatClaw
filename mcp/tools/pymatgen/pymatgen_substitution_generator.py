@@ -141,7 +141,6 @@ def pymatgen_substitution_generator(
     """
     
     try:
-        # Import pymatgen
         try:
             from pymatgen.core import Structure, Composition
             from pymatgen.transformations.standard_transformations import (
