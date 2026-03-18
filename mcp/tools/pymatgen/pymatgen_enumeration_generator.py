@@ -16,71 +16,6 @@ from typing import Dict, Any, Optional, List, Union, Annotated
 from pydantic import Field
 
 
-# ---------------------------------------------------------------------------
-# Private helper: format one ordered structure and append to output lists
-# ---------------------------------------------------------------------------
-def _append_result(
-    ordered_struct,
-    ewald_energy,
-    src_formula: str,
-    parent_struct,
-    n_atoms_parent: int,
-    symm_prec: float,
-    output_format: str,
-    generated_structures: list,
-    metadata_list: list,
-    warnings: list,
-    backend: str,
-) -> None:
-    """Format an ordered structure and append it (with metadata) to the output lists."""
-    sg_number = None
-    sg_symbol = None
-    try:
-        from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-        sga = SpacegroupAnalyzer(ordered_struct, symprec=symm_prec)
-        sg_number = sga.get_space_group_number()
-        sg_symbol = sga.get_space_group_symbol()
-    except Exception:
-        pass
-
-    supercell_size = max(1, round(len(ordered_struct) / n_atoms_parent))
-
-    try:
-        if output_format == "dict":
-            formatted = ordered_struct.as_dict()
-        elif output_format == "poscar":
-            from pymatgen.io.vasp import Poscar
-            formatted = str(Poscar(ordered_struct))
-        elif output_format == "cif":
-            from pymatgen.io.cif import CifWriter
-            formatted = str(CifWriter(ordered_struct))
-        elif output_format == "json":
-            import json
-            formatted = json.dumps(ordered_struct.as_dict())
-        else:
-            warnings.append(f"Unknown output_format '{output_format}' — skipping structure.")
-            return
-    except Exception as e:
-        warnings.append(f"Could not format structure (source: '{src_formula}'): {e}. Skipping.")
-        return
-
-    meta = {
-        "index": len(generated_structures) + 1,
-        "source_structure": src_formula,
-        "formula": ordered_struct.composition.reduced_formula,
-        "n_sites": len(ordered_struct),
-        "supercell_size": supercell_size,
-        "volume": float(ordered_struct.volume),
-        "space_group_number": sg_number,
-        "space_group_symbol": sg_symbol,
-        "ewald_energy": float(ewald_energy) if ewald_energy is not None else None,
-        "is_ordered": ordered_struct.is_ordered,
-        "backend": backend,
-    }
-    generated_structures.append(formatted)
-    metadata_list.append(meta)
-
-
 def pymatgen_enumeration_generator(
     input_structures: Annotated[
         Union[Dict[str, Any], List[Dict[str, Any]], str, List[str]],
@@ -283,7 +218,7 @@ def pymatgen_enumeration_generator(
             "error": f"min_cell_size ({min_cell_size}) must be <= max_cell_size ({max_cell_size})."
         }
 
-    # --- Parse input structures ---
+    # Parse input structures
     if isinstance(input_structures, (dict, str)):
         raw_list = [input_structures]
     elif isinstance(input_structures, list):
@@ -315,7 +250,7 @@ def pymatgen_enumeration_generator(
     if not structures:
         return {"success": False, "error": "No valid input structures provided."}
 
-    # --- Detect enumlib availability ---
+    # Detect enumlib availability
     import shutil
     _enumlib_available = shutil.which("enum.x") is not None
 
@@ -334,7 +269,7 @@ def pymatgen_enumeration_generator(
             "enumlib_available": False,
         }
 
-    # --- Import enumeration class ---
+    # Import enumeration class
     try:
         from pymatgen.transformations.advanced_transformations import (
             EnumerateStructureTransformation,
@@ -348,7 +283,7 @@ def pymatgen_enumeration_generator(
             )
         }
 
-    # --- Main enumeration loop ---
+    # Main enumeration loop
     generated_structures: List[Any] = []
     metadata_list: List[Dict[str, Any]] = []
     warnings: List[str] = []
@@ -425,13 +360,12 @@ def pymatgen_enumeration_generator(
             s = entry["structure"] if isinstance(entry, dict) else entry
             e = entry.get("energy") if isinstance(entry, dict) else None
             _append_result(
-                s, e, src_formula, struct, n_atoms_parent,
+                s, e, src_formula, n_atoms_parent,
                 symm_prec, output_format,
                 generated_structures, metadata_list, warnings,
                 backend="enumlib"
             )
 
-    # --- Build response ---
     if not generated_structures:
         msg = "No ordered structures were generated."
         if skipped_ordered:
@@ -481,3 +415,64 @@ def pymatgen_enumeration_generator(
     if warnings:
         result["warnings"] = warnings
     return result
+
+
+def _append_result(
+    ordered_struct,
+    ewald_energy,
+    src_formula: str,
+    n_atoms_parent: int,
+    symm_prec: float,
+    output_format: str,
+    generated_structures: list,
+    metadata_list: list,
+    warnings: list,
+    backend: str,
+) -> None:
+    """Format an ordered structure and append it (with metadata) to the output lists."""
+    sg_number = None
+    sg_symbol = None
+    try:
+        from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+        sga = SpacegroupAnalyzer(ordered_struct, symprec=symm_prec)
+        sg_number = sga.get_space_group_number()
+        sg_symbol = sga.get_space_group_symbol()
+    except Exception:
+        pass
+
+    supercell_size = max(1, round(len(ordered_struct) / n_atoms_parent))
+
+    try:
+        if output_format == "dict":
+            formatted = ordered_struct.as_dict()
+        elif output_format == "poscar":
+            from pymatgen.io.vasp import Poscar
+            formatted = str(Poscar(ordered_struct))
+        elif output_format == "cif":
+            from pymatgen.io.cif import CifWriter
+            formatted = str(CifWriter(ordered_struct))
+        elif output_format == "json":
+            import json
+            formatted = json.dumps(ordered_struct.as_dict())
+        else:
+            warnings.append(f"Unknown output_format '{output_format}' — skipping structure.")
+            return
+    except Exception as e:
+        warnings.append(f"Could not format structure (source: '{src_formula}'): {e}. Skipping.")
+        return
+
+    meta = {
+        "index": len(generated_structures) + 1,
+        "source_structure": src_formula,
+        "formula": ordered_struct.composition.reduced_formula,
+        "n_sites": len(ordered_struct),
+        "supercell_size": supercell_size,
+        "volume": float(ordered_struct.volume),
+        "space_group_number": sg_number,
+        "space_group_symbol": sg_symbol,
+        "ewald_energy": float(ewald_energy) if ewald_energy is not None else None,
+        "is_ordered": ordered_struct.is_ordered,
+        "backend": backend,
+    }
+    generated_structures.append(formatted)
+    metadata_list.append(meta)
