@@ -1,6 +1,6 @@
 ---
 name: candidate-generator
-description: Generate inorganic crystal structure candidates for computational materials discovery workflows. Use this skill whenever the user wants to build, explore, or diversify a pool of inorganic structures for DFT screening, high-throughput calculations, machine learning dataset construction, or property-guided search. This skill covers the full candidate generation pipeline: seed structure creation -> chemical space exploration -> configurational ordering -> defect generation -> ensemble augmentation.
+description: Generate inorganic crystal structure candidates for computational materials discovery workflows. Use this skill whenever the user wants to build, explore, or diversify a pool of inorganic structures for DFT screening, high-throughput calculations, machine learning dataset construction, or property-guided search. This skill covers the full candidate generation pipeline - seed structure creation -> chemical space exploration -> configurational ordering -> defect generation -> ensemble augmentation.
 ---
 
 # Inorganic Candidate Generation
