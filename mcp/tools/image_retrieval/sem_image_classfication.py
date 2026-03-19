@@ -12,13 +12,31 @@ import copy
 import os
 from os import listdir
 from os.path import isfile, join
+import wget
 
 from PIL import Image
 import matplotlib.pyplot as plt
 import shutil
 import torch.nn.functional as F
 CLASS_NAMES = ['NONSEM', 'SEM']
-MODEL_PATH = './sem_classifier_model.pth'
+
+def download_with_python_wget(url, output_dir="."):
+    print(f"Downloading from {url}...")
+    
+    # Ensure the output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    
+    try:
+        # wget.download returns the filename it saved to
+        filename = wget.download(url, out=output_dir)
+        print(f"\nSuccessfully downloaded to: {filename}")
+    except Exception as e:
+        print(f"\nAn error occurred: {e}")
+
+url = "https://github.com/VCERS/MatClaw/releases/download/v0.0.1/convnextv2_base-finetuned-sem-classifier.pth"
+download_with_python_wget(url, output_dir="./models")
+
+MODEL_PATH = './models/sem_classifier_model.pth'
 
 def load_model():
     """load model"""
