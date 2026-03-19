@@ -36,10 +36,7 @@ def _skip_if_endpoint_unavailable(result: dict) -> None:
             pytest.skip(f"Synthesis endpoint not available: {result['error']}")
 
 
-# ---------------------------------------------------------------------------
 # Missing API key (always runs)
-# ---------------------------------------------------------------------------
-
 class TestMissingApiKey:
 
     def test_missing_api_key_returns_failure(self, monkeypatch):
@@ -56,10 +53,7 @@ class TestMissingApiKey:
         assert "MP_API_KEY" in result["error"]
 
 
-# ---------------------------------------------------------------------------
 # No search criteria (always runs — no network call needed)
-# ---------------------------------------------------------------------------
-
 class TestNoSearchCriteria:
 
     def test_no_criteria_returns_failure(self, monkeypatch):
@@ -82,10 +76,7 @@ class TestNoSearchCriteria:
         assert result["recipes"] == []
 
 
-# ---------------------------------------------------------------------------
 # Top-level response structure
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestResponseStructure:
 
@@ -127,10 +118,7 @@ class TestResponseStructure:
         assert result["success"] is True
 
 
-# ---------------------------------------------------------------------------
 # Query parameter echoing
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestQueryEchoing:
 
@@ -161,10 +149,7 @@ class TestQueryEchoing:
         assert result["query"]["year_min"] == 2015
 
 
-# ---------------------------------------------------------------------------
 # Limit parameter
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestLimit:
 
@@ -181,10 +166,7 @@ class TestLimit:
         assert len(result["recipes"]) <= 1
 
 
-# ---------------------------------------------------------------------------
 # Recipe entry structure
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestRecipeEntryStructure:
 
@@ -229,10 +211,7 @@ class TestRecipeEntryStructure:
             assert recipe["conditions"] is None or isinstance(recipe["conditions"], dict)
 
 
-# ---------------------------------------------------------------------------
 # Target formula search
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestTargetFormulaSearch:
 
@@ -255,10 +234,7 @@ class TestTargetFormulaSearch:
         assert result["success"] is True
 
 
-# ---------------------------------------------------------------------------
 # Keywords search
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestKeywordsSearch:
 
@@ -281,10 +257,7 @@ class TestKeywordsSearch:
         assert isinstance(result["query"]["keywords"], list)
 
 
-# ---------------------------------------------------------------------------
 # Temperature filter
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestTemperatureFilter:
 
@@ -301,10 +274,7 @@ class TestTemperatureFilter:
         assert result["success"] is True
 
 
-# ---------------------------------------------------------------------------
 # Year filter
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestYearFilter:
 
@@ -325,10 +295,7 @@ class TestYearFilter:
                 assert recipe["year"] >= 2015, f"Recipe year {recipe['year']} < year_min 2015"
 
 
-# ---------------------------------------------------------------------------
 # Precursor formula search
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestPrecursorSearch:
 
@@ -345,10 +312,7 @@ class TestPrecursorSearch:
         assert isinstance(result["query"]["precursor_formulas"], list)
 
 
-# ---------------------------------------------------------------------------
 # fields parameter
-# ---------------------------------------------------------------------------
-
 @_requires_api_key
 class TestFieldsFilter:
 

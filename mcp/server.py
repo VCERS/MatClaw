@@ -28,6 +28,8 @@ from tools.pymatgen import (
     pymatgen_ion_exchange_generator,
     pymatgen_perturbation_generator,
     pymatgen_enumeration_generator,
+    pymatgen_defect_generator,
+    pymatgen_sqs_generator,
 )
 
 # Set up logging
@@ -62,6 +64,8 @@ mcp.tool()(pymatgen_substitution_generator)
 mcp.tool()(pymatgen_ion_exchange_generator)
 mcp.tool()(pymatgen_perturbation_generator)
 mcp.tool()(pymatgen_enumeration_generator)
+mcp.tool()(pymatgen_defect_generator)
+mcp.tool()(pymatgen_sqs_generator)
 
 
 if __name__ == "__main__":

@@ -197,7 +197,7 @@ def pymatgen_enumeration_generator(
             "error": f"Failed to import pymatgen: {e}. Install with: pip install pymatgen"
         }
 
-    # --- Validate parameters ---
+    # Validate parameters
     valid_formats = {"dict", "poscar", "cif", "json"}
     if output_format not in valid_formats:
         return {

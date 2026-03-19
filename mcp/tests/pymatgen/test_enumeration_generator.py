@@ -17,9 +17,7 @@ import pytest
 
 from tools.pymatgen.pymatgen_enumeration_generator import pymatgen_enumeration_generator
 
-# ---------------------------------------------------------------------------
 # Detect enumlib availability at module level so skip decorators can use it
-# ---------------------------------------------------------------------------
 _ENUMLIB_AVAILABLE = shutil.which("enum.x") is not None
 _SKIP_NO_ENUMLIB = pytest.mark.skipif(
     not _ENUMLIB_AVAILABLE,
@@ -27,18 +25,14 @@ _SKIP_NO_ENUMLIB = pytest.mark.skipif(
 )
 
 
-# ---------------------------------------------------------------------------
 # Helper
-# ---------------------------------------------------------------------------
 def _is_ordered_dict(structure_dict: dict) -> bool:
     """Return True if the pymatgen Structure dict represents a fully ordered structure."""
     from pymatgen.core import Structure
     return Structure.from_dict(structure_dict).is_ordered
 
 
-# ===========================================================================
 # Basic enumeration
-# ===========================================================================
 @_SKIP_NO_ENUMLIB
 class TestBasicEnumeration:
     """Core success / correctness tests."""
@@ -111,9 +105,7 @@ class TestBasicEnumeration:
         assert len(info["input_formulas"]) == 1
 
 
-# ===========================================================================
 # Sort criteria
-# ===========================================================================
 @_SKIP_NO_ENUMLIB
 class TestSortCriteria:
     """Tests for sort_by parameter behaviour."""
@@ -161,9 +153,7 @@ class TestSortCriteria:
             assert _is_ordered_dict(s)
 
 
-# ===========================================================================
 # Cell size behaviour
-# ===========================================================================
 @_SKIP_NO_ENUMLIB
 class TestCellSize:
     """Tests for min_cell_size / max_cell_size parameters."""
@@ -211,9 +201,7 @@ class TestCellSize:
         assert "min_cell_size" in result["error"]
 
 
-# ===========================================================================
 # check_ordered_input
-# ===========================================================================
 @_SKIP_NO_ENUMLIB
 class TestCheckOrderedInput:
     """Tests for the check_ordered_input parameter."""
@@ -266,9 +254,7 @@ class TestCheckOrderedInput:
         assert result["success"] is True
 
 
-# ===========================================================================
 # Output formats
-# ===========================================================================
 @_SKIP_NO_ENUMLIB
 class TestOutputFormats:
     """Tests for all four supported output formats."""
@@ -327,9 +313,7 @@ class TestOutputFormats:
         assert isinstance(parsed, dict)
 
 
-# ===========================================================================
 # Multiple input structures
-# ===========================================================================
 @_SKIP_NO_ENUMLIB
 class TestMultipleInputStructures:
     """Tests when a list of disordered structures is provided."""
@@ -371,9 +355,7 @@ class TestMultipleInputStructures:
             assert len(m["source_structure"]) > 0
 
 
-# ===========================================================================
 # Metadata completeness
-# ===========================================================================
 @_SKIP_NO_ENUMLIB
 class TestMetadata:
     """Tests that all documented metadata fields are present and sensible."""
@@ -474,9 +456,7 @@ class TestMetadata:
             assert m["n_sites"] > 0
 
 
-# ===========================================================================
 # Error handling — these tests always run (no enumlib required)
-# ===========================================================================
 class TestErrorHandling:
     """Parameter-validation and error-path tests that run without enumlib."""
 
