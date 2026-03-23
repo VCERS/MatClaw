@@ -43,6 +43,9 @@ from tools.analysis import (
     stability_analyzer,
     structure_fingerprinter,
 )
+from tools.selection import (
+    multi_objective_ranker,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -90,6 +93,9 @@ mcp.tool()(composition_analyzer)
 mcp.tool()(structure_analyzer)
 mcp.tool()(stability_analyzer)
 mcp.tool()(structure_fingerprinter)
+
+# Selection and ranking tools
+mcp.tool()(multi_objective_ranker)
 
 
 if __name__ == "__main__":
