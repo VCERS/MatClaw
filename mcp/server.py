@@ -40,6 +40,8 @@ from tools.analysis import (
     structure_validator,
     composition_analyzer,
     structure_analyzer,
+    stability_analyzer,
+    structure_fingerprinter,
 )
 
 # Set up logging
@@ -86,6 +88,8 @@ mcp.tool()(urdf_inspect)
 mcp.tool()(structure_validator)
 mcp.tool()(composition_analyzer)
 mcp.tool()(structure_analyzer)
+mcp.tool()(stability_analyzer)
+mcp.tool()(structure_fingerprinter)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ Analysis tools test fixtures.
 """
 
 import pytest
+import os
 
 
 @pytest.fixture
@@ -79,3 +80,19 @@ def high_coordination_structure():
         [0.45, 0.45, 0.45],
     ]
     return Structure(lattice, species, coords).as_dict()
+
+
+# Materials Project API key fixtures
+@pytest.fixture
+def mp_api_key():
+    """Materials Project API key from environment variable."""
+    api_key = os.environ.get("MP_API_KEY")
+    if not api_key:
+        pytest.skip("MP_API_KEY environment variable not set")
+    return api_key
+
+
+@pytest.fixture
+def mp_api_key_available():
+    """Check if Materials Project API key is available."""
+    return bool(os.environ.get("MP_API_KEY"))
