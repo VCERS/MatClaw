@@ -169,3 +169,5 @@ python -m pytest tests/pymatgen/test_enumeration_generator.py -v
 | `pymatgen_ion_exchange_generator` | Generate ion-exchanged variants of a structure |
 | `pymatgen_perturbation_generator` | Randomly perturb atomic positions and lattice |
 | `pymatgen_enumeration_generator` | Enumerate ordered supercell decorations of disordered structures (**requires enumlib**) |
+| `predict_molecule_binding` | Predict molecule-target binding label with fixed fine-tuned LLM prompt (1 active / 0 inactive) |
+| `predict_molecule_synthesizability` | Predict molecule synthesizability label with fixed fine-tuned LLM prompt (1 yes / 0 no / 2 unknown) |
