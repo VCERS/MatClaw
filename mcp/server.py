@@ -46,6 +46,9 @@ from tools.analysis import (
 from tools.selection import (
     multi_objective_ranker,
 )
+from tools.synthesis_planning import (
+    template_route_generator,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -96,6 +99,9 @@ mcp.tool()(structure_fingerprinter)
 
 # Selection and ranking tools
 mcp.tool()(multi_objective_ranker)
+
+# Experiment planning tools
+mcp.tool()(template_route_generator)
 
 
 if __name__ == "__main__":
