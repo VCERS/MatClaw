@@ -7,7 +7,8 @@ import logging
 from mcp.server.fastmcp import FastMCP
 from tools.pubchem import (
     pubchem_search_compounds, 
-    pubchem_get_compound_properties, 
+    pubchem_get_compound_properties,
+    pubchem_get_safety_data,
 )
 from tools.materials_project import (
     mp_search_materials, 
@@ -64,6 +65,7 @@ mcp = FastMCP(name="matclaw-mcp-server")
 # Data retrieval tools
 mcp.tool()(pubchem_search_compounds)
 mcp.tool()(pubchem_get_compound_properties)
+mcp.tool()(pubchem_get_safety_data)
 mcp.tool()(mp_search_materials)
 mcp.tool()(mp_get_material_properties)
 mcp.tool()(mp_get_detailed_property_data)

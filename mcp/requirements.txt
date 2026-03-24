@@ -2,6 +2,7 @@ mcp
 python-dotenv
 pytest
 pubchempy
+requests
 mp-api
 pymatgen
 ase
