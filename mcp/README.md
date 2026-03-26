@@ -188,6 +188,10 @@ python -m pytest tests/pymatgen/test_enumeration_generator.py -v
 | `pymatgen_enumeration_generator` | Enumerate ordered supercell decorations of disordered structures (**requires enumlib**) |
 | `pymatgen_defect_generator` | Generate point defect supercells (vacancies, substitutions, interstitials) |
 | `pymatgen_sqs_generator` | Generate special quasirandom structures (SQS) for alloy modeling |
+| `urdf_validate` | Validate a URDF file for Isaac Sim / USD compatibility |
+| `urdf_fix` | Auto-fix URDF issues for Isaac Sim / USD compatibility |
+| `urdf_inspect` | Inspect a URDF's structure: kinematic tree, mass distribution, mesh files, materials, and joint breakdown |
+| `lula_generate_robot_description` | Generate a Lula robot description with automatic collision-sphere placement |
 
 ### Analysis
 

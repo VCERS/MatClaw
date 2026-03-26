@@ -32,11 +32,6 @@ from tools.pymatgen import (
     pymatgen_defect_generator,
     pymatgen_sqs_generator,
 )
-from tools.urdf import (
-    urdf_validate,
-    urdf_fix,
-    urdf_inspect,
-)
 from tools.analysis import (
     structure_validator,
     composition_analyzer,
@@ -53,6 +48,14 @@ from tools.synthesis_planning import (
 )
 from tools.ml_prediction import (
     ml_relax_structure
+)
+from tools.urdf import (
+    urdf_validate,
+    urdf_fix,
+    urdf_inspect,
+)
+from tools.lula import (
+    lula_generate_robot_description,
 )
 
 # Set up logging
@@ -91,11 +94,6 @@ mcp.tool()(pymatgen_enumeration_generator)
 mcp.tool()(pymatgen_defect_generator)
 mcp.tool()(pymatgen_sqs_generator)
 
-# URDF validation and fixing tools
-mcp.tool()(urdf_validate)
-mcp.tool()(urdf_fix)
-mcp.tool()(urdf_inspect)
-
 # Analysis tools for materials screening
 mcp.tool()(structure_validator)
 mcp.tool()(composition_analyzer)
@@ -112,6 +110,14 @@ mcp.tool()(synthesis_recipe_quantifier)
 
 # Machine learning prediction tools
 mcp.tool()(ml_relax_structure)
+
+# URDF validation and fixing tools
+mcp.tool()(urdf_validate)
+mcp.tool()(urdf_fix)
+mcp.tool()(urdf_inspect)
+
+# Lula robot description generation
+mcp.tool()(lula_generate_robot_description)
 
 
 if __name__ == "__main__":

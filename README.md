@@ -46,7 +46,8 @@ MatClaw follows a layered architecture:
 | **Pymatgen** | Structure generation (substitution, enumeration, defects, SQS, ion exchange, perturbation, prototypes) |
 | **Analysis** | Structure validation, composition analysis, structure analysis, stability analysis, structure fingerprinting |
 | **Selection** | Multi-objective ranking (Pareto, weighted sum, constraint-based) |
-| **URDF** | Robotics model validation, fixing, and inspection |
+| **URDF** | Validation of Unified Robot Description Format (URDF) files |
+| **Lula** | Generation of Lula robot description files for NVIDIA Isaac Sim |
 
 ## Available Skills
 
@@ -56,6 +57,7 @@ MatClaw follows a layered architecture:
 | **vasp-ase** | Professional workflow for setting up, executing, and debugging VASP DFT calculations using ASE |
 | **urdf-validator** | Workflow for validating and fixing robotics URDF models |
 | **nsys-optimizer** | Performance profiling and optimization for computational workflows |
+| **urdf-validator** | Pre-import validation and auto-fix for URDF files targeting Isaac Sim |
 
 ## Setup
 
