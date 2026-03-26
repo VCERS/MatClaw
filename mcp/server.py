@@ -112,8 +112,6 @@ mcp.tool()(synthesis_recipe_quantifier)
 
 # Machine learning prediction tools
 mcp.tool()(ml_relax_structure)
-mcp.tool()(ml_predict_bandgap)
-mcp.tool()(ml_predict_eform)
 
 
 if __name__ == "__main__":
