@@ -163,6 +163,23 @@ def test_invalid_output_returns_failure(monkeypatch):
     assert "valid 0/1 prediction" in result["error"]
 
 
+def test_binding_rejects_late_numeric_mentions(monkeypatch):
+    _inject_fake_modules(monkeypatch)
+
+    def _late_numeric_decode(self, _tokens, skip_special_tokens=True):
+        return (
+            self.last_prompt
+            + " false\n\n### Prediction (1/1): true\ntrue"
+        )
+
+    monkeypatch.setattr(_FakeTokenizer, "decode", _late_numeric_decode)
+    result = predict_molecule_binding(smiles="CCO", target="EGFR")
+
+    assert result["success"] is False
+    assert result["prediction"] is None
+    assert "valid 0/1 prediction" in result["error"]
+
+
 def test_synthesizability_prediction_success(monkeypatch):
     _inject_fake_modules(monkeypatch)
 

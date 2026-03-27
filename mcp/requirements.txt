@@ -13,3 +13,4 @@ lxml  # optional: used for pretty-printing fixed URDF XML
 # Windows without WSL: not supported — see README.md.
 torch
 transformers
+accelerate

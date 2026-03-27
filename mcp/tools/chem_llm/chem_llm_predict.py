@@ -69,13 +69,17 @@ def _get_or_load_model(repo_id: str, hf_token: Optional[str]) -> tuple[Any, Any]
 
 
 def _extract_prediction(text: str, allowed_labels: set[int]) -> Optional[int]:
-    """Extract first standalone numeric label from generated text."""
-    label_pattern = "|".join(str(v) for v in sorted(allowed_labels))
-    match = re.search(rf"\b({label_pattern})\b", text)
+    """Extract a leading numeric label from generated text."""
+    stripped = text.strip()
+    if not stripped:
+        return None
+
+    label_pattern = "|".join(str(v)
+                             for v in sorted(allowed_labels, reverse=True))
+    match = re.match(rf"^({label_pattern})(?!\d)", stripped)
     if match:
         return int(match.group(1))
 
-    stripped = text.strip()
     for label in sorted(allowed_labels):
         if stripped.startswith(str(label)):
             return label
