@@ -48,6 +48,18 @@ from tools.synthesis_planning import (
     template_route_generator,
     synthesis_recipe_quantifier,
 )
+from tools.active_learning import (
+    arrows_prepare_campaign,
+    arrows_suggest_experiment,
+    arrows_record_result,
+)
+from tools.characterization import (
+    xrd_analyze_pattern,
+    arrows_record_result,
+)
+from tools.characterization import (
+    xrd_analyze_pattern,
+)
 from tools.ml_prediction import (
     ml_relax_structure,
     ml_predict_bandgap,
@@ -115,6 +127,14 @@ mcp.tool()(multi_objective_ranker)
 # Experiment planning tools
 mcp.tool()(template_route_generator)
 mcp.tool()(synthesis_recipe_quantifier)
+
+# Active learning tools (ARROWS)
+mcp.tool()(arrows_prepare_campaign)
+mcp.tool()(arrows_suggest_experiment)
+mcp.tool()(arrows_record_result)
+
+# XRD analysis tools
+mcp.tool()(xrd_analyze_pattern)
 
 # Machine learning prediction tools
 mcp.tool()(ml_relax_structure)
