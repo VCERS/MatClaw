@@ -316,7 +316,7 @@ ELSE IF archiving/visualization:
 ```
 IF N_requested > 20 OR "comprehensive" OR "all possible":
     ↓
-    1. CREATE generation_plan.json FIRST
+    1. CREATE generation_candidates.json FIRST
     2. Organize into scientific batches
     3. PRESENT plan to user
     4. WAIT for approval

@@ -117,7 +117,7 @@ Elements → Compositions → Seed Structures → Chemical Variants → Order/Di
 
 **Next:** For each composition, check MP for structures. If found → Phase 2; if not → Phase 1
 
-**Detailed guidance:** See [references/phase-0-composition-discovery.md](references/phase-0-composition-discovery.md)
+**Detailed guidance:** See [references/composition-discovery.md](references/composition-discovery.md)
 
 ---
 
@@ -353,8 +353,34 @@ for structure in final_structures:
 1. **Create planning file FIRST** (don't execute immediately)
 2. Organize into scientific batches
 3. Present plan to user for approval
-4. Execute with checkpointing
-5. Export final results
+4. **Create project-specific Python script** using examples/batch_generation_example.py as reference
+5. User executes the script to generate structures
+6. Export final results
+
+> **⚠️ CRITICAL: DO NOT EDIT THE EXAMPLE SCRIPT DIRECTLY**
+> 
+> The file `examples/batch_generation_example.py` is a **REFERENCE TEMPLATE** only.
+> **NEVER** edit it directly for project-specific use.
+> 
+> **Instead:** Read the example script, then **CREATE A NEW** project-specific script in the user's
+> working directory (e.g., `matclaw-tests/.../batch_generation.py` or `run_generation.py`).
+> Adapt the logic as needed for the specific project structure and requirements.
+
+**Template Features (Updated):**
+- ✅ **Dynamic tool selection** - Reads tool name from plan (not hardcoded)
+- ✅ **Flexible base structure resolution** - 5 fallback options
+- ✅ **Generic parameter handling** - Works with any tool
+- ✅ **Automatic checkpoint/resume** - Progress tracked in plan file
+- ✅ **Comprehensive customization guide** - Clear adaptation instructions
+
+**Workflow:**
+- Agent creates `generation_candidates.json` with all candidate specifications
+- Agent creates **NEW** project-specific Python script based on the example template
+- User runs the project-specific script:
+  ```bash
+  python run_generation.py  # or project-specific script name
+  ```
+- Script handles: checkpointing, resume, progress tracking, error handling
 
 **See:** [references/large-scale-planning.md](references/large-scale-planning.md) for complete planning workflow
 
@@ -509,7 +535,7 @@ Complete detailed documentation available in `references/` directory:
 
 1. **[tool-catalog.md](references/tool-catalog.md)** — Complete tool specifications with all parameters, returns, examples
 2. **[decision-trees.md](references/decision-trees.md)** — Detailed decision logic and parameter calculation rules
-3. **[phase-0-composition-discovery.md](references/phase-0-composition-discovery.md)** — Complete Phase 0 strategies and examples  
+3. **[composition-discovery.md](references/composition-discovery.md)** — Complete Phase 0 strategies and examples  
 4. **[gotchas.md](references/gotchas.md)** — Troubleshooting guide with common errors and solutions
 5. **[large-scale-planning.md](references/large-scale-planning.md)** — Planning workflow for >20 structures with checkpointing
 

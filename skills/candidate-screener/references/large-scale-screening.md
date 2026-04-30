@@ -193,45 +193,96 @@ Type 'proceed' to start screening.
 
 ### Step 3: Execute with Checkpointing
 
-**Iterate through candidates with status tracking and checkpoint after EVERY candidate:**
+**Production Implementation: Use Batch Client Utility**
+
+For production execution, use the reusable batch client utility instead of manual loops:
 
 ```python
-# Pseudocode for checkpointed screening execution
-plan = load_json("screening_ln_niobates_100.json")
-plan["metadata"]["status"] = "in_progress"
-ase_db = plan["metadata"]["ase_database"]
+from MatClaw.skills.utils.batch_client import MCPBatchClient, setup_logging
+from pathlib import Path
+from datetime import datetime
+import asyncio
 
-# === PHASE 1: VALIDATION ===
-print("Phase 1: Validation (100 candidates)")
-for candidate in plan["candidates"]:
-    if candidate["status"] in ["validated", "properties_complete", "screening_complete", "rejected"]:
-        continue  # Already processed validation
+setup_logging()
+
+class CandidateScreeningClient(MCPBatchClient):
+    """Screening client with multi-phase workflow: validation → properties → screening → ranking"""
     
-    candidate["status"] = "validating"
-    save_json(plan, "screening_ln_niobates_100.json")  # Checkpoint
+    def __init__(self, plan_file: Path, **kwargs):
+        super().__init__(**kwargs)
+        self.plan_file = plan_file
+        self.plan = None
+        self.ase_db = None
+        
+    def load_plan(self):
+        """Load screening plan from JSON file."""
+        with open(self.plan_file) as f:
+            self.plan = json.load(f)
+        self.ase_db = self.plan["metadata"]["ase_database"]
     
-    try:
-        # Step 1.1: Structure validation
-        val_result = structure_validator(input_structure=candidate["input_structure"]["cif"])
+    def save_plan(self):
+        """Save updated plan to JSON file."""
+        with open(self.plan_file, 'w') as f:
+            json.dump(self.plan, f, indent=2)
+    
+    async def process_item(self, candidate: dict, context: dict) -> bool:
+        """
+        Process one candidate through all screening phases.
+        Returns True if processing succeeded, False if failed/rejected.
+        """
+        try:
+            # PHASE 1: Validation (if not already validated)
+            if candidate["status"] == "not_started":
+                if not await self._validate_candidate(candidate):
+                    return False  # Rejected during validation
+            
+            # PHASE 2: Property Retrieval (if not already complete)
+            if candidate["status"] == "validated":
+                if not await self._retrieve_properties(candidate):
+                    return False  # Failed to retrieve properties
+            
+            # PHASE 3: Screening (if properties complete)
+            if candidate["status"] == "properties_complete":
+                await self._apply_screening_criteria(candidate)
+            
+            return True
+            
+        except Exception as e:
+            candidate["status"] = "rejected"
+            candidate["screening_result"]["rejection_reason"] = f"Processing error: {str(e)}"
+            self.plan["execution_log"].append({
+                "timestamp": datetime.now().isoformat(),
+                "candidate_id": candidate["id"],
+                "event": "error",
+                "message": str(e)
+            })
+            return False
+    
+    async def _validate_candidate(self, candidate: dict) -> bool:
+        """Phase 1: Validate structure and composition."""
+        candidate["status"] = "validating"
+        
+        # Structure validation
+        val_result = await self.call_tool(
+            "structure_validator",
+            {"input_structure": candidate["input_structure"]["cif"]}
+        )
+        
         candidate["validation"]["structure_valid"] = val_result["is_valid"]
         
         if not val_result["is_valid"]:
             candidate["status"] = "rejected"
             candidate["validation"]["validation_issues"] = val_result["issues"]
             candidate["screening_result"]["rejection_reason"] = f"Invalid structure: {val_result['issues']}"
-            plan["execution_log"].append({
-                "timestamp": now(),
-                "candidate_id": candidate["id"],
-                "event": "validation_failed",
-                "reason": val_result["issues"]
-            })
-            plan["summary_statistics"]["validation_failed"] += 1
-            save_json(plan, "screening_ln_niobates_100.json")  # Checkpoint
-            print(f"  ✗ {candidate['id']}: REJECTED (invalid structure)")
-            continue
+            self.plan["summary_statistics"]["validation_failed"] += 1
+            return False
         
-        # Step 1.2: Composition analysis
-        comp_result = composition_analyzer(input_structure=candidate["input_structure"]["cif"])
+        # Composition analysis
+        comp_result = await self.call_tool(
+            "composition_analyzer",
+            {"input_structure": candidate["input_structure"]["cif"]}
+        )
+        
         candidate["validation"]["composition_valid"] = not comp_result.get("errors", False)
         candidate["properties"]["space_group"] = comp_result.get("spacegroup", "unknown")
         
@@ -239,283 +290,261 @@ for candidate in plan["candidates"]:
             candidate["status"] = "rejected"
             candidate["validation"]["validation_issues"].append("composition_invalid")
             candidate["screening_result"]["rejection_reason"] = "Invalid composition"
-            plan["summary_statistics"]["validation_failed"] += 1
-            save_json(plan, "screening_ln_niobates_100.json")
-            print(f"  ✗ {candidate['id']}: REJECTED (invalid composition)")
-            continue
+            self.plan["summary_statistics"]["validation_failed"] += 1
+            return False
         
         # Validation passed
         candidate["status"] = "validated"
-        candidate["validation"]["timestamp"] = now()
-        plan["summary_statistics"]["validation_passed"] += 1
-        plan["summary_statistics"]["not_started"] -= 1
-        save_json(plan, "screening_ln_niobates_100.json")  # Checkpoint
-        print(f"  ✓ {candidate['id']}: validated")
+        candidate["validation"]["timestamp"] = datetime.now().isoformat()
+        self.plan["summary_statistics"]["validation_passed"] += 1
+        return True
     
-    except Exception as e:
-        candidate["status"] = "rejected"
-        candidate["screening_result"]["rejection_reason"] = f"Validation error: {str(e)}"
-        plan["execution_log"].append({
-            "timestamp": now(),
-            "candidate_id": candidate["id"],
-            "event": "error",
-            "phase": "validation",
-            "message": str(e)
-        })
-        plan["summary_statistics"]["validation_failed"] += 1
-        save_json(plan, "screening_ln_niobates_100.json")
-        print(f"  ✗ {candidate['id']}: ERROR - {e}")
-
-# === PHASE 2: PROPERTY RETRIEVAL ===
-print("\nPhase 2: Property Retrieval (hierarchical: MP → ASE → ML)")
-for candidate in plan["candidates"]:
-    if candidate["status"] == "rejected":
-        continue  # Skip rejected candidates
-    if candidate["status"] in ["properties_complete", "screening_complete"]:
-        continue  # Already retrieved properties
-    
-    candidate["status"] = "retrieving_properties"
-    save_json(plan, "screening_ln_niobates_100.json")  # Checkpoint
-    
-    try:
-        # Step 2.1: Try Materials Project
-        mp_result = mp_search_materials(formula=candidate["formula"], limit=5)
+    async def _retrieve_properties(self, candidate: dict) -> bool:
+        """Phase 2: Hierarchical property retrieval (MP → ASE → ML)."""
+        candidate["status"] = "retrieving_properties"
         
-        if mp_result["success"] and mp_result["count"] > 0:
+        # Try Materials Project first
+        mp_result = await self.call_tool(
+            "mp_search_materials",
+            {"formula": candidate["formula"], "limit": 5}
+        )
+        
+        if mp_result.get("success") and mp_result.get("count", 0) > 0:
             # Found in MP - retrieve detailed properties
             mp_id = mp_result["materials"][0]["material_id"]
-            props = mp_get_material_properties(
-                material_id=mp_id,
-                properties=["formation_energy_per_atom", "band_gap", "energy_above_hull", "is_stable"]
+            props = await self.call_tool(
+                "mp_get_material_properties",
+                {
+                    "material_ids": [mp_id],
+                    "properties": ["formation_energy_per_atom", "band_gap", "energy_above_hull", "is_stable"]
+                }
             )
             
-            candidate["properties"]["formation_energy_per_atom"] = props["formation_energy_per_atom"]
-            candidate["properties"]["band_gap"] = props["band_gap"]
-            candidate["properties"]["energy_above_hull"] = props["energy_above_hull"]
-            candidate["properties"]["is_stable"] = props["is_stable"]
-            candidate["properties"]["property_sources"]["formation_energy_per_atom"] = "Materials_Project"
-            candidate["properties"]["property_sources"]["band_gap"] = "Materials_Project"
-            candidate["properties"]["property_sources"]["energy_above_hull"] = "Materials_Project"
-            candidate["properties"]["timestamp"] = now()
-            
-            # Cache in ASE database
-            ase_store_result(
-                db_path=ase_db,
-                atoms_dict=candidate["input_structure"],
-                results={"energy": props["formation_energy_per_atom"], "band_gap": props["band_gap"]},
-                key_value_pairs={"source": "Materials_Project", "mp_id": mp_id}
-            )
-            
+            self._store_properties(candidate, props[0], "Materials_Project")
             candidate["status"] = "properties_complete"
-            plan["summary_statistics"]["properties_complete"] += 1
-            plan["summary_statistics"]["property_source_breakdown"]["Materials_Project"] += 1
-            save_json(plan, "screening_ln_niobates_100.json")
-            print(f"  ✓ {candidate['id']}: MP (mp_id={mp_id})")
-            continue
+            self.plan["summary_statistics"]["properties_complete"] += 1
+            self.plan["summary_statistics"]["property_source_breakdown"]["Materials_Project"] += 1
+            return True
         
-        # Step 2.2: Try ASE cache
-        ase_result = ase_query(db_path=ase_db, formula=candidate["formula"])
+        # Try ASE cache
+        ase_result = await self.call_tool(
+            "ase_query",
+            {"db_path": self.ase_db, "formula": candidate["formula"]}
+        )
         
-        if ase_result["success"] and ase_result["count"] > 0:
+        if ase_result.get("count", 0) > 0:
             entry = ase_result["entries"][0]
             candidate["properties"]["formation_energy_per_atom"] = entry.get("energy")
             candidate["properties"]["band_gap"] = entry.get("band_gap")
-            candidate["properties"]["property_sources"]["formation_energy_per_atom"] = "ASE_cached"
-            candidate["properties"]["property_sources"]["band_gap"] = "ASE_cached"
-            candidate["properties"]["timestamp"] = now()
-            
+            candidate["properties"]["property_sources"] = {
+                "formation_energy_per_atom": "ASE_cached",
+                "band_gap": "ASE_cached"
+            }
             candidate["status"] = "properties_complete"
-            plan["summary_statistics"]["properties_complete"] += 1
-            plan["summary_statistics"]["property_source_breakdown"]["ASE_cached"] += 1
-            save_json(plan, "screening_ln_niobates_100.json")
-            print(f"  ✓ {candidate['id']}: ASE cache")
-            continue
+            self.plan["summary_statistics"]["properties_complete"] += 1
+            self.plan["summary_statistics"]["property_source_breakdown"]["ASE_cached"] += 1
+            return True
         
-        # Step 2.3: ML-based calculation (last resort)
-        # Relax structure (REQUIRED)
-        relax_result = matgl_relax_structure(
-            input_structure=candidate["input_structure"]["cif"],
-            fmax=plan["metadata"]["ml_settings"]["relaxation_fmax"],
-            max_steps=plan["metadata"]["ml_settings"]["relaxation_max_steps"]
-        )
-        
-        if not relax_result["converged"]:
-            raise Exception("Structure relaxation failed to converge")
-        
-        relaxed_structure = relax_result["final_structure"]
-        
-        # Formation energy prediction
-        eform_result = matgl_predict_eform(
-            input_structure=relaxed_structure,
-            model=plan["metadata"]["ml_settings"]["eform_model"]
-        )
-        candidate["properties"]["formation_energy_per_atom"] = eform_result["formation_energy_eV_per_atom"]
-        candidate["properties"]["property_sources"]["formation_energy_per_atom"] = "ML_calculated"
-        
-        # Band gap prediction
-        bandgap_result = matgl_predict_bandgap(
-            input_structure=relaxed_structure,
-            model=plan["metadata"]["ml_settings"]["bandgap_model"]
-        )
-        candidate["properties"]["band_gap"] = bandgap_result["band_gap_eV"]
-        candidate["properties"]["property_sources"]["band_gap"] = "ML_calculated"
-        
-        # Stability analysis (energy above hull via MP)
-        stab_result = stability_analyzer(
-            input_structure=relaxed_structure,
-            hull_tolerance=0.1
-        )
-        candidate["properties"]["energy_above_hull"] = stab_result.get("energy_above_hull")
-        candidate["properties"]["is_stable"] = stab_result["stability_category"] == "stable"
-        
-        candidate["properties"]["timestamp"] = now()
-        
-        # Cache in ASE database
-        ase_store_result(
-            db_path=ase_db,
-            atoms_dict=relaxed_structure,
-            results={"energy": eform_result["formation_energy_eV_per_atom"], 
-                    "band_gap": bandgap_result["band_gap_eV"]},
-            key_value_pairs={"source": "ML_calculated", "relaxed": True}
-        )
-        
-        candidate["status"] = "properties_complete"
-        candidate["screening_result"]["requires_dft"] = True  # Flag ML predictions for verification
-        plan["summary_statistics"]["properties_complete"] += 1
-        plan["summary_statistics"]["property_source_breakdown"]["ML_calculated"] += 1
-        save_json(plan, "screening_ln_niobates_100.json")
-        print(f"  ✓ {candidate['id']}: ML calculated (requires DFT verification)")
+        # ML calculation (last resort)
+        try:
+            # Relax structure
+            relax_result = await self.call_tool(
+                "matgl_relax_structure",
+                {
+                    "input_structure": candidate["input_structure"]["cif"],
+                    "fmax": self.plan["metadata"]["ml_settings"]["relaxation_fmax"],
+                    "max_steps": self.plan["metadata"]["ml_settings"]["relaxation_max_steps"]
+                }
+            )
+            
+            if not relax_result["converged"]:
+                raise Exception("Structure relaxation failed to converge")
+            
+            relaxed = relax_result["final_structure"]
+            
+            # Formation energy prediction
+            eform = await self.call_tool(
+                "matgl_predict_eform",
+                {"input_structure": relaxed}
+            )
+            
+            # Band gap prediction
+            bandgap = await self.call_tool(
+                "matgl_predict_bandgap",
+                {"input_structure": relaxed}
+            )
+            
+            # Stability analysis
+            stability = await self.call_tool(
+                "stability_analyzer",
+                {"input_structure": relaxed, "hull_tolerance": 0.1}
+            )
+            
+            candidate["properties"]["formation_energy_per_atom"] = eform["formation_energy_eV_per_atom"]
+            candidate["properties"]["band_gap"] = bandgap["band_gap_eV"]
+            candidate["properties"]["energy_above_hull"] = stability.get("energy_above_hull")
+            candidate["properties"]["is_stable"] = stability["stability_category"] == "stable"
+            candidate["properties"]["property_sources"] = {
+                "formation_energy_per_atom": "ML_calculated",
+                "band_gap": "ML_calculated"
+            }
+            candidate["screening_result"]["requires_dft"] = True
+            candidate["status"] = "properties_complete"
+            
+            # Cache in ASE
+            await self.call_tool(
+                "ase_store_result",
+                {
+                    "db_path": self.ase_db,
+                    "atoms_dict": relaxed,
+                    "key_value_pairs": {"source": "ML_calculated", "candidate_id": candidate["id"]}
+                }
+            )
+            
+            self.plan["summary_statistics"]["properties_complete"] += 1
+            self.plan["summary_statistics"]["property_source_breakdown"]["ML_calculated"] += 1
+            return True
+            
+        except Exception as e:
+            candidate["status"] = "properties_failed"
+            candidate["screening_result"]["rejection_reason"] = f"Property retrieval failed: {str(e)}"
+            self.plan["summary_statistics"]["properties_failed"] += 1
+            return False
     
-    except Exception as e:
-        candidate["status"] = "properties_failed"
-        candidate["screening_result"]["rejection_reason"] = f"Property retrieval failed: {str(e)}"
-        plan["execution_log"].append({
-            "timestamp": now(),
-            "candidate_id": candidate["id"],
-            "event": "error",
-            "phase": "property_retrieval",
-            "message": str(e)
-        })
-        plan["summary_statistics"]["properties_failed"] += 1
-        save_json(plan, "screening_ln_niobates_100.json")
-        print(f"  ✗ {candidate['id']}: FAILED - {e}")
-
-# === PHASE 3: SCREENING (apply criteria) ===
-print("\nPhase 3: Screening (applying criteria)")
-for candidate in plan["candidates"]:
-    if candidate["status"] != "properties_complete":
-        continue  # Skip if properties not available
-    
-    try:
+    async def _apply_screening_criteria(self, candidate: dict):
+        """Phase 3: Apply screening criteria."""
         failed_criteria = []
+        criteria = self.plan["metadata"]["screening_criteria"]
         
         # Essential criteria
         if candidate["properties"]["energy_above_hull"] is None:
             failed_criteria.append("energy_above_hull_missing")
-        elif candidate["properties"]["energy_above_hull"] > plan["metadata"]["screening_criteria"]["essential"]["energy_above_hull_max"]:
-            failed_criteria.append(f"energy_above_hull_too_high ({candidate['properties']['energy_above_hull']:.3f} > 0.3)")
-        
-        if candidate["properties"]["formation_energy_per_atom"] is None:
-            failed_criteria.append("formation_energy_missing")
+        elif candidate["properties"]["energy_above_hull"] > criteria["essential"]["energy_above_hull_max"]:
+            failed_criteria.append(f"energy_above_hull_too_high")
         
         # Application-specific criteria
-        bg_min = plan["metadata"]["screening_criteria"]["application_specific"]["band_gap_min"]
-        bg_max = plan["metadata"]["screening_criteria"]["application_specific"]["band_gap_max"]
+        bg = candidate["properties"]["band_gap"]
+        bg_min = criteria["application_specific"]["band_gap_min"]
+        bg_max = criteria["application_specific"]["band_gap_max"]
         
-        if candidate["properties"]["band_gap"] is None:
+        if bg is None:
             failed_criteria.append("band_gap_missing")
-        elif candidate["properties"]["band_gap"] < bg_min:
-            failed_criteria.append(f"band_gap_too_low ({candidate['properties']['band_gap']:.2f} < {bg_min})")
-        elif candidate["properties"]["band_gap"] > bg_max:
-            failed_criteria.append(f"band_gap_too_high ({candidate['properties']['band_gap']:.2f} > {bg_max})")
+        elif bg < bg_min:
+            failed_criteria.append(f"band_gap_too_low ({bg:.2f} < {bg_min})")
+        elif bg > bg_max:
+            failed_criteria.append(f"band_gap_too_high ({bg:.2f} > {bg_max})")
         
-        # Record screening result
-        if len(failed_criteria) > 0:
+        # Record result
+        if failed_criteria:
             candidate["screening_result"]["passed"] = False
             candidate["screening_result"]["failed_criteria"] = failed_criteria
             candidate["screening_result"]["rejection_reason"] = "; ".join(failed_criteria)
             candidate["status"] = "rejected"
-            plan["summary_statistics"]["screening_failed"] += 1
-            print(f"  ✗ {candidate['id']}: FAILED screening - {failed_criteria[0]}")
+            self.plan["summary_statistics"]["screening_failed"] += 1
         else:
             candidate["screening_result"]["passed"] = True
             candidate["status"] = "screening_complete"
-            plan["summary_statistics"]["screening_passed"] += 1
-            print(f"  ✓ {candidate['id']}: PASSED screening")
-        
-        save_json(plan, "screening_ln_niobates_100.json")  # Checkpoint
+            self.plan["summary_statistics"]["screening_passed"] += 1
     
-    except Exception as e:
-        candidate["status"] = "rejected"
-        candidate["screening_result"]["rejection_reason"] = f"Screening error: {str(e)}"
-        plan["execution_log"].append({
-            "timestamp": now(),
-            "candidate_id": candidate["id"],
-            "event": "error",
-            "phase": "screening",
-            "message": str(e)
-        })
-        save_json(plan, "screening_ln_niobates_100.json")
-        print(f"  ✗ {candidate['id']}: ERROR - {e}")
-
-# === PHASE 4: RANKING ===
-print("\nPhase 4: Multi-Objective Ranking")
-passed_candidates = [c for c in plan["candidates"] if c["screening_result"]["passed"]]
-
-if len(passed_candidates) > 0:
-    ranking_result = multi_objective_ranker(
-        candidates=[
-            {
-                "id": c["id"],
-                "formation_energy_per_atom": c["properties"]["formation_energy_per_atom"],
-                "band_gap": c["properties"]["band_gap"],
-                "energy_above_hull": c["properties"]["energy_above_hull"]
-            }
-            for c in passed_candidates
-        ],
-        objectives={
-            "formation_energy_per_atom": {"weight": 0.3, "direction": "minimize"},
-            "energy_above_hull": {"weight": 0.4, "direction": "minimize"},
-            "band_gap_deviation": {"weight": 0.3, "direction": "minimize", "target": 4.0}
+    def _store_properties(self, candidate: dict, props: dict, source: str):
+        """Helper to store properties with source attribution."""
+        candidate["properties"]["formation_energy_per_atom"] = props.get("formation_energy_per_atom")
+        candidate["properties"]["band_gap"] = props.get("band_gap")
+        candidate["properties"]["energy_above_hull"] = props.get("energy_above_hull")
+        candidate["properties"]["is_stable"] = props.get("is_stable")
+        candidate["properties"]["property_sources"] = {
+            "formation_energy_per_atom": source,
+            "band_gap": source,
+            "energy_above_hull": source
         }
+        candidate["properties"]["timestamp"] = datetime.now().isoformat()
+
+
+async def main():
+    plan_file = Path("screening_ln_niobates_100.json")
+    
+    # Load and start screening
+    client = CandidateScreeningClient(
+        plan_file=plan_file,
+        server_command="python",
+        server_args=[Path("MatClaw/mcp/server.py").absolute()],
+        checkpoint_frequency=1  # Save after every candidate
     )
     
-    for ranked_item in ranking_result["ranked_candidates"]:
-        candidate = next(c for c in plan["candidates"] if c["id"] == ranked_item["id"])
-        candidate["ranking"]["rank"] = ranked_item["rank"]
-        candidate["ranking"]["composite_score"] = ranked_item["composite_score"]
-        candidate["ranking"]["objective_scores"] = ranked_item["objective_scores"]
-        candidate["status"] = "ranked"
+    client.load_plan()
+    candidates = client.plan["candidates"]
     
-    plan["summary_statistics"]["ranked"] = len(passed_candidates)
-    save_json(plan, "screening_ln_niobates_100.json")
-    print(f"  ✓ Ranked {len(passed_candidates)} candidates")
-else:
-    print("  ⚠ No candidates passed screening - cannot rank")
+    async with client:
+        # Process all candidates through phases 1-3
+        summary = await client.batch_process(
+            items=candidates,
+            checkpoint_file=plan_file  # Automatic checkpointing
+        )
+        
+        # Phase 4: Ranking (only if candidates passed screening)
+        passed = [c for c in candidates if c["screening_result"].get("passed")]
+        
+        if passed:
+            ranking = await client.call_tool(
+                "multi_objective_ranker",
+                {
+                    "candidates": [
+                        {
+                            "id": c["id"],
+                            "formation_energy_per_atom": c["properties"]["formation_energy_per_atom"],
+                            "band_gap": c["properties"]["band_gap"],
+                            "energy_above_hull": c["properties"]["energy_above_hull"]
+                        }
+                        for c in passed
+                    ],
+                    "objectives": {
+                        "formation_energy_per_atom": {"weight": 0.3, "direction": "minimize"},
+                        "energy_above_hull": {"weight": 0.4, "direction": "minimize"},
+                        "band_gap_deviation": {"weight": 0.3, "direction": "minimize", "target": 4.0}
+                    }
+                }
+            )
+            
+            for ranked in ranking["ranked_candidates"]:
+                candidate = next(c for c in candidates if c["id"] == ranked["id"])
+                candidate["ranking"]["rank"] = ranked["rank"]
+                candidate["ranking"]["composite_score"] = ranked["composite_score"]
+                candidate["status"] = "ranked"
+            
+            client.plan["summary_statistics"]["ranked"] = len(passed)
+            client.save_plan()
+    
+    print(f"\n{'='*60}")
+    print("Screening Complete!")
+    print(f"{'='*60}")
+    print(f"Validated:        {client.plan['summary_statistics']['validation_passed']}")
+    print(f"Properties:       {client.plan['summary_statistics']['properties_complete']}")
+    print(f"  - MP:           {client.plan['summary_statistics']['property_source_breakdown']['Materials_Project']}")
+    print(f"  - ASE:          {client.plan['summary_statistics']['property_source_breakdown']['ASE_cached']}")
+    print(f"  - ML:           {client.plan['summary_statistics']['property_source_breakdown']['ML_calculated']}")
+    print(f"Passed:           {client.plan['summary_statistics']['screening_passed']}")
+    print(f"Ranked:           {client.plan['summary_statistics']['ranked']}")
 
-plan["metadata"]["status"] = "completed"
-save_json(plan, "screening_ln_niobates_100.json")
 
-print(f"\n{'='*60}")
-print("Screening Complete!")
-print(f"{'='*60}")
-print(f"Input:            {plan['metadata']['total_candidates']}")
-print(f"Validated:        {plan['summary_statistics']['validation_passed']}")
-print(f"Properties retrieved: {plan['summary_statistics']['properties_complete']}")
-print(f"  - From MP:      {plan['summary_statistics']['property_source_breakdown']['Materials_Project']}")
-print(f"  - From ASE:     {plan['summary_statistics']['property_source_breakdown']['ASE_cached']}")
-print(f"  - From ML:      {plan['summary_statistics']['property_source_breakdown']['ML_calculated']}")
-print(f"Passed screening: {plan['summary_statistics']['screening_passed']}")
-print(f"Failed screening: {plan['summary_statistics']['screening_failed']}")
-print(f"Ranked:           {plan['summary_statistics']['ranked']}")
-print(f"\nTop 10 candidates ranked in screening_ln_niobates_100.json")
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-**Critical checkpointing rules:**
-- Save tracking file after **EVERY** candidate in each phase (not just at phase boundaries)
-- Query ASE database before property retrieval to avoid duplicate calculations
-- Log all errors with candidate ID, phase, and timestamp
-- Update `summary_statistics` after each candidate for progress monitoring
+**Why use batch_client?**
+- ✅ Automatic checkpointing after every candidate
+- ✅ Resume from last checkpoint on interruption
+- ✅ Multi-phase workflow (validation → properties → screening) in single item processor
+- ✅ Error handling without stopping batch
+- ✅ Progress tracking and logging
+- ✅ Property source tracking (MP/ASE/ML)
+- ✅ Production-ready MCP client (no server source access)
+
+**Critical checkpointing features:**
+- Batch client saves plan after EVERY candidate automatically via `checkpoint_file` parameter
+- Candidates with `status != "not_started"` are processed based on current phase
+- Errors captured per-candidate without stopping batch
+- All failures logged with timestamps in plan JSON
+- ASE database queries prevent duplicate calculations
 
 ---
 
