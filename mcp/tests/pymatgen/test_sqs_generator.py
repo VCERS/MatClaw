@@ -15,10 +15,10 @@ FAST = dict(n_mc_steps=500, n_shells=2, supercell_size=4)
 """Kwargs that keep every test fast (<1 s for a single candidate)."""
 
 
-def _is_ordered(structure_dict: dict) -> bool:
-    """Return True if every site in a Structure dict has a single species."""
+def _is_ordered(cif_str: str) -> bool:
+    """Return True if every site in a Structure CIF has a single species."""
     from pymatgen.core import Structure
-    s = Structure.from_dict(structure_dict)
+    s = Structure.from_str(cif_str, fmt="cif")
     return all(site.is_ordered for site in s)
 
 
@@ -161,7 +161,7 @@ class TestStoichiometry:
         result = pymatgen_sqs_generator(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
-        s = Structure.from_dict(result["structures"][0])
+        s = Structure.from_str(result["structures"][0], fmt="cif")
         composition = s.composition
         n_li = composition["Li"]
         n_na = composition["Na"]
@@ -175,7 +175,7 @@ class TestStoichiometry:
         result = pymatgen_sqs_generator(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
-        s = Structure.from_dict(result["structures"][0])
+        s = Structure.from_str(result["structures"][0], fmt="cif")
         assert result["metadata"][0]["n_sites"] == len(s)
 
     def test_composition_contains_expected_elements(self, disordered_li_na_cl):
@@ -279,8 +279,8 @@ class TestReproducibility:
         kw = dict(n_structures=1, seed=42, **FAST)
         r1 = pymatgen_sqs_generator(disordered_li_na_cl, **kw)
         r2 = pymatgen_sqs_generator(disordered_li_na_cl, **kw)
-        s1 = Structure.from_dict(r1["structures"][0])
-        s2 = Structure.from_dict(r2["structures"][0])
+        s1 = Structure.from_str(r1["structures"][0], fmt="cif")
+        s2 = Structure.from_str(r2["structures"][0], fmt="cif")
         # Same number of sites and same species at each site
         assert len(s1) == len(s2)
         sp1 = [str(site.specie) for site in s1]
@@ -352,12 +352,11 @@ class TestSupercellControl:
 class TestOutputFormats:
     """Each output_format produces the expected data type."""
 
-    def test_dict_format_is_dict(self, disordered_li_na_cl):
+    def test_cif_is_default_format(self, disordered_li_na_cl):
         result = pymatgen_sqs_generator(
             disordered_li_na_cl, n_structures=1, seed=0,
-            output_format="dict", **FAST
         )
-        assert isinstance(result["structures"][0], dict)
+        assert isinstance(result["structures"][0], str)
 
     def test_poscar_format_is_string(self, disordered_li_na_cl):
         result = pymatgen_sqs_generator(
@@ -389,10 +388,9 @@ class TestOutputFormats:
     def test_dict_format_is_round_trippable(self, disordered_li_na_cl):
         from pymatgen.core import Structure
         result = pymatgen_sqs_generator(
-            disordered_li_na_cl, n_structures=1, seed=0,
-            output_format="dict", **FAST
+            disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
-        s = Structure.from_dict(result["structures"][0])
+        s = Structure.from_str(result["structures"][0], fmt="cif")
         assert len(s) > 0
 
     def test_invalid_output_format_returns_error(self, disordered_li_na_cl):
@@ -518,15 +516,15 @@ class TestPipelineIntegration:
         assert perturb_result["count"] == 2
 
     def test_sqs_output_is_pymatgen_compatible(self, disordered_li_na_cl):
-        """SQS dict output round-trips cleanly through pymatgen Structure."""
+        """SQS CIF output round-trips cleanly through pymatgen Structure."""
         from pymatgen.core import Structure
         result = pymatgen_sqs_generator(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
-        s = Structure.from_dict(result["structures"][0])
-        # Re-serialise and check it still has the right species
-        d = s.as_dict()
-        s2 = Structure.from_dict(d)
+        s = Structure.from_str(result["structures"][0], fmt="cif")
+        # Re-serialise to CIF and check it still has the right species
+        cif_str = s.to(fmt="cif")
+        s2 = Structure.from_str(cif_str, fmt="cif")
         assert len(s2) == len(s)
         elements1 = sorted(str(sp) for sp in s.composition.elements)
         elements2 = sorted(str(sp) for sp in s2.composition.elements)

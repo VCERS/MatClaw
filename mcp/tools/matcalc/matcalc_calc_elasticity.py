@@ -19,12 +19,11 @@ import numpy as np
 
 def matcalc_calc_elasticity(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Structure to calculate elastic properties for as a pymatgen Structure dict "
-                "(from Structure.as_dict()), or a CIF/POSCAR string. Can be output from "
-                "matgl_relax_structure or any pymatgen tool."
+                "Structure to calculate elastic properties for as a CIF or POSCAR string. "
+                "Can be output from matgl_relax_structure or any pymatgen tool."
             )
         )
     ],
@@ -215,46 +214,38 @@ def matcalc_calc_elasticity(
     
     try:
         # Parse input structure
-        if isinstance(input_structure, dict):
-            structure = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            if "data_" in input_structure or "_cell_" in input_structure:
-                # CIF format - write to temporary file and parse
-                import tempfile
-                import os
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
-                    f.write(input_structure)
-                    temp_path = f.name
-                try:
-                    parser = CifParser(temp_path)
-                    structures = parser.get_structures()
-                    if not structures:
-                        return {
-                            "success": False,
-                            "error": "CIF file contains no valid structures"
-                        }
-                    structure = structures[0]
-                except Exception as cif_error:
+        if "data_" in input_structure or "_cell_" in input_structure:
+            # CIF format - write to temporary file and parse
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+                f.write(input_structure)
+                temp_path = f.name
+            try:
+                parser = CifParser(temp_path)
+                structures = parser.get_structures()
+                if not structures:
                     return {
                         "success": False,
-                        "error": f"Failed to parse CIF: {str(cif_error)}"
+                        "error": "CIF file contains no valid structures"
                     }
-                finally:
-                    if os.path.exists(temp_path):
-                        os.unlink(temp_path)
-            else:
-                # Assume POSCAR format
-                poscar = Poscar.from_string(input_structure)
-                structure = poscar.structure
+                structure = structures[0]
+            except Exception as cif_error:
+                return {
+                    "success": False,
+                    "error": f"Failed to parse CIF: {str(cif_error)}"
+                }
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
         else:
-            return {
-                "success": False,
-                "error": f"Unsupported input_structure type: {type(input_structure)}. "
-                        f"Expected dict, CIF string, or POSCAR string."
-            }
+            # Assume POSCAR format
+            poscar = Poscar.from_string(input_structure)
+            structure = poscar.structure
         
         # Store initial structure
-        initial_structure_dict = structure.as_dict()
+        from pymatgen.io.cif import CifWriter
+        initial_structure_cif = str(CifWriter(structure))
         
         # Set default strains if not provided
         # NOTE: matcalc requires non-zero strains, so we skip zero
@@ -389,11 +380,11 @@ def matcalc_calc_elasticity(
         final_structure = results.get("final_structure")
         if final_structure is not None:
             if hasattr(final_structure, 'as_dict'):
-                final_structure_dict = final_structure.as_dict()
+                final_structure_cif = str(CifWriter(final_structure))
             else:
-                final_structure_dict = Structure.from_sites(final_structure).as_dict()
+                final_structure_cif = str(CifWriter(Structure.from_sites(final_structure)))
         else:
-            final_structure_dict = initial_structure_dict
+            final_structure_cif = initial_structure_cif
         
         # Calculate R² score and residuals if available
         residuals_sum = results.get("residuals_sum", 0.0)
@@ -408,8 +399,8 @@ def matcalc_calc_elasticity(
         # Build response dictionary
         response = {
             "success": True,
-            "structure": initial_structure_dict,
-            "final_structure": final_structure_dict,
+            "structure": initial_structure_cif,
+            "final_structure": final_structure_cif,
             "elastic_tensor_voigt": elastic_tensor_voigt.tolist() if hasattr(elastic_tensor_voigt, 'tolist') else elastic_tensor_voigt,
             "elastic_tensor_IEEE": et.voigt.tolist(),
             "compliance_tensor": compliance_tensor.tolist(),

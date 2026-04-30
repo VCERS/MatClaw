@@ -17,12 +17,12 @@ from pydantic import Field
 
 def matcalc_calc_neb(
     images: Annotated[
-        Union[Dict[str, Any], List[Union[Dict[str, Any], str]]],
+        Union[Dict[str, str], List[str]],
         Field(
             description=(
                 "NEB images as either:\n"
-                "1. Dict with keys 'image0', 'image1', etc. containing structure dicts/strings\n"
-                "2. List of structures (dicts, CIF strings, or POSCAR strings)\n"
+                "1. Dict with keys 'image0', 'image1', etc. containing CIF/POSCAR strings\n"
+                "2. List of CIF or POSCAR strings\n"
                 "Must have at least 2 images (initial and final). Intermediate images\n"
                 "can be provided or will be interpolated automatically."
             )
@@ -356,8 +356,6 @@ def _parse_images(
     def parse_structure(struct_input):
         if isinstance(struct_input, Structure):
             return struct_input
-        elif isinstance(struct_input, dict):
-            return Structure.from_dict(struct_input)
         elif isinstance(struct_input, str):
             if "data_" in struct_input or "_cell_" in struct_input:
                 # CIF format
@@ -375,7 +373,7 @@ def _parse_images(
                         os.unlink(temp_path)
             else:
                 # POSCAR format
-                poscar = Poscar.from_string(struct_input)
+                poscar = Poscar.from_str(struct_input)
                 return poscar.structure
         else:
             raise ValueError(f"Unsupported structure type: {type(struct_input)}")

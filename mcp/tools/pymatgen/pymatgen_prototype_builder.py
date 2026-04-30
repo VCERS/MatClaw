@@ -95,12 +95,12 @@ def pymatgen_prototype_builder(
     output_format: Annotated[
         str,
         Field(
-            default="dict",
-            description="Output format: 'dict' (pymatgen Structure.as_dict()), "
-            "'poscar' (VASP POSCAR string), 'cif' (CIF string), "
-            "'ase' (ASE-compatible atoms_dict). Default: 'dict'."
+            default="cif",
+            description="Output format: "
+            "'cif' (CIF string, default), 'poscar' (VASP POSCAR string), "
+            "'ase' (ASE-compatible atoms_dict)."
         )
-    ] = "dict"
+    ] = "cif"
 ) -> Dict[str, Any]:
     """
     Generate ideal crystal structures from crystallographic prototypes.
@@ -355,9 +355,7 @@ def pymatgen_prototype_builder(
                     warnings.append(f"Could not extract Wyckoff information: {str(e)}")
 
                 # Convert to requested output format
-                if output_format == "dict":
-                    structure_out = structure.as_dict()
-                elif output_format == "poscar":
+                if output_format == "poscar":
                     from pymatgen.io.vasp import Poscar
                     structure_out = str(Poscar(structure))
                 elif output_format == "cif":
@@ -392,7 +390,7 @@ def pymatgen_prototype_builder(
                         "gamma": structure.lattice.gamma,
                         "volume": structure.lattice.volume
                     },
-                    "composition": dict(structure.composition.as_dict()),
+                    "composition": {str(el): amt for el, amt in structure.composition.items()},
                     "n_atoms": len(structure),
                     "n_sites": structure.num_sites,
                     "density": structure.density,

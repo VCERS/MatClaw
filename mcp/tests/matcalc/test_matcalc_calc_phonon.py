@@ -5,6 +5,7 @@ Run single test: pytest tests/matcalc/test_matcalc_calc_phonon.py::TestPhononCal
 
 import pytest
 import numpy as np
+from pymatgen.io.cif import CifWriter
 from tools.matcalc.matcalc_calc_phonon import matcalc_calc_phonon
 
 
@@ -14,8 +15,8 @@ class TestPhononCalc:
     def test_basic_phonon_calculation(self, cubic_si_structure):
         """Test basic phonon calculation with Si structure."""
         result = matcalc_calc_phonon(
-            structure_input=cubic_si_structure.as_dict(),
-            calculator="pbe",
+            structure_input=str(CifWriter(cubic_si_structure)),
+        calculator="pbe",
             supercell_matrix=[2, 2, 2],
             t_min=0.0,
             t_max=500.0,
@@ -58,7 +59,7 @@ class TestPhononCalc:
     def test_phonon_with_relaxation(self, cubic_si_structure):
         """Test phonon calculation with structure relaxation."""
         result = matcalc_calc_phonon(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,
@@ -74,7 +75,7 @@ class TestPhononCalc:
     def test_thermodynamic_trends(self, cubic_si_structure):
         """Test that thermodynamic properties follow expected trends."""
         result = matcalc_calc_phonon(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             supercell_matrix=[2, 2, 2],
             t_min=10.0,  # Start above 0 to avoid quantum effects
@@ -106,7 +107,7 @@ class TestPhononCalc:
         results = {}
         for calc in calculators:
             result = matcalc_calc_phonon(
-                structure_input=cubic_si_structure.as_dict(),
+                structure_input=str(CifWriter(cubic_si_structure)),
                 calculator=calc,
                 supercell_matrix=[2, 2, 2],
                 t_max=300.0,
@@ -131,7 +132,7 @@ class TestPhononCalc:
         
         for sc in supercells:
             result = matcalc_calc_phonon(
-                structure_input=cubic_si_structure.as_dict(),
+                structure_input=str(CifWriter(cubic_si_structure)),
                 calculator="pbe",
                 supercell_matrix=sc,
                 t_max=300.0,
@@ -142,7 +143,7 @@ class TestPhononCalc:
     def test_temperature_range(self, cubic_si_structure):
         """Test different temperature ranges."""
         result = matcalc_calc_phonon(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             supercell_matrix=[2, 2, 2],
             t_min=100.0,
@@ -201,7 +202,7 @@ class TestPhononCalc:
     def test_invalid_calculator(self, cubic_si_structure):
         """Test error handling for invalid calculator."""
         result = matcalc_calc_phonon(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="invalid_calculator_xyz",
             supercell_matrix=[2, 2, 2],
         )
@@ -212,7 +213,7 @@ class TestPhononCalc:
     def test_units_documentation(self, cubic_si_structure):
         """Test that units are properly documented in output."""
         result = matcalc_calc_phonon(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,
@@ -236,7 +237,7 @@ class TestPhononCalc:
         
         for disp in displacements:
             result = matcalc_calc_phonon(
-                structure_input=cubic_si_structure.as_dict(),
+                structure_input=str(CifWriter(cubic_si_structure)),
                 calculator="pbe",
                 supercell_matrix=[2, 2, 2],
                 atom_disp=disp,
@@ -248,7 +249,7 @@ class TestPhononCalc:
     def test_stability_detection(self, cubic_si_structure):
         """Test phonon stability analysis."""
         result = matcalc_calc_phonon(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,

@@ -14,17 +14,16 @@ Uses Matminer's structure featurizers to generate ML-ready structural features.
 These features complement composition features for property prediction models.
 """
 
-from typing import Dict, Any, Optional, Union, Annotated, List
+from typing import Dict, Any, Optional, Annotated, List
 from pydantic import Field
 
 
 def structure_analyzer(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
                 "Structure to analyze. Can be:\n"
-                "- Pymatgen Structure dict (from Structure.as_dict())\n"
                 "- CIF string\n"
                 "- POSCAR string\n"
                 "Can be output from pymatgen tools or Materials Project API."
@@ -196,21 +195,13 @@ def structure_analyzer(
     
     # Parse input structure
     try:
-        if isinstance(input_structure, dict):
-            structure = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            from io import StringIO
-            if "data_" in input_structure or "_cell_length" in input_structure:
-                parser = CifParser(StringIO(input_structure))
-                structure = parser.get_structures()[0]
-            else:
-                poscar = Poscar.from_str(input_structure)
-                structure = poscar.structure
+        from io import StringIO
+        if "data_" in input_structure or "_cell_length" in input_structure:
+            parser = CifParser(StringIO(input_structure))
+            structure = parser.get_structures()[0]
         else:
-            return {
-                "success": False,
-                "error": "input_structure must be a Structure dict, CIF string, or POSCAR string."
-            }
+            poscar = Poscar.from_str(input_structure)
+            structure = poscar.structure
     except Exception as e:
         return {
             "success": False,

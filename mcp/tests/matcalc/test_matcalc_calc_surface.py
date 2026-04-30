@@ -7,6 +7,7 @@ Run single test: pytest tests/matcalc/test_matcalc_calc_surface.py::TestSurfaceC
 
 import pytest
 from pymatgen.core import Structure
+from pymatgen.io.cif import CifWriter
 from tools.matcalc.matcalc_calc_surface import matcalc_calc_surface
 
 
@@ -180,10 +181,10 @@ class TestSurfaceCalc:
     def test_surface_dict_input(self):
         """Test surface calculation with Structure dict input."""
         structure = Structure.from_str(SI_POSCAR, fmt='poscar')
-        structure_dict = structure.as_dict()
+        structure_cif = str(CifWriter(structure))
         
         result = matcalc_calc_surface(
-            structure_input=structure_dict,
+            structure_input=structure_cif,
             miller_index=(1, 1, 1),
             calculator="CHGNet",
             min_slab_size=10.0,
@@ -332,9 +333,9 @@ class TestSurfaceCalc:
         assert "slab_structure" in result
         assert "bulk_structure" in result
         
-        # Should be able to reconstruct structures
-        slab_struct = Structure.from_dict(result["slab_structure"])
-        bulk_struct = Structure.from_dict(result["bulk_structure"])
+        # Should be able to reconstruct structures from CIF strings
+        slab_struct = Structure.from_str(result["slab_structure"], fmt='cif')
+        bulk_struct = Structure.from_str(result["bulk_structure"], fmt='cif')
         
         assert len(slab_struct) > 0
         assert len(bulk_struct) > 0

@@ -5,6 +5,7 @@ Run with: pytest tests/matgl/test_matgl_relax_structure.py -v
 """
 
 import pytest
+from pymatgen.io.cif import CifWriter
 from tools.matgl.matgl_relax_structure import matgl_relax_structure
 
 
@@ -24,7 +25,7 @@ class TestMLRelaxStructure:
         )
         
         result = matgl_relax_structure(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="TensorNet-MatPES-PBE-v2025.1-PES",
             relax_cell=True,
             fmax=0.05,  # Relaxed tolerance for faster test
@@ -57,7 +58,7 @@ class TestMLRelaxStructure:
         )
         
         result = matgl_relax_structure(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="TensorNet-MatPES-PBE-v2025.1-PES",
             relax_cell=False,  # Fixed cell
             fmax=0.05,
@@ -119,7 +120,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result = matgl_relax_structure(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="TensorNet-MatPES-PBE-v2025.1-PES",
             fmax=0.05,
             max_steps=100,
@@ -145,7 +146,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result = matgl_relax_structure(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="TensorNet-MatPES-PBE-v2025.1-PES",
             fmax=0.05,
             max_steps=500
@@ -174,7 +175,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         for model in ["TensorNet-MatPES-PBE-v2025.1-PES", "TensorNet-MatPES-r2SCAN-v2025.1-PES"]:
             result = matgl_relax_structure(
-                input_structure=struct.as_dict(),
+                input_structure=str(CifWriter(struct)),
                 model=model,
                 fmax=0.05,
                 max_steps=200
@@ -195,7 +196,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result = matgl_relax_structure(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="TensorNet-MatPES-PBE-v2025.1-PES",
             relax_cell=True,
             fmax=0.05,
@@ -233,7 +234,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result = matgl_relax_structure(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="TensorNet-MatPES-PBE-v2025.1-PES",
             fmax=0.05,
             max_steps=200

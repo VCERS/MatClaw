@@ -18,24 +18,23 @@ from pydantic import Field
 
 def matcalc_calc_adsorption(
     slab_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Slab structure as a pymatgen Structure dict (from Structure.as_dict()), "
-                "or a CIF/POSCAR string. Should already be a slab with vacuum, or use "
+                "Slab structure as a CIF or POSCAR string. "
+                "Should already be a slab with vacuum, or use "
                 "matcalc_calc_surface to generate one from bulk. The adsorbate will be "
                 "placed on this slab surface."
             )
         )
     ],
     adsorbate: Annotated[
-        Union[str, List[float], Dict[str, Any]],
+        Union[str, List[float]],
         Field(
             description=(
                 "Adsorbate to place on the slab. Can be:\n"
                 "- String: Molecular formula like 'CO', 'H2O', 'CH4', 'O', 'H' (will use pymatgen to build)\n"
-                "- List of floats [x, y, z]: Single atom position (will place at this height above surface)\n"
-                "- Dict: pymatgen Molecule.as_dict() for complex molecules"
+                "- List of floats [x, y, z]: Single atom position (will place at this height above surface)"
             )
         )
     ],
@@ -172,9 +171,9 @@ def matcalc_calc_adsorption(
         - slab_energy: Energy of clean slab in eV
         - adsorbate_energy: Energy of isolated adsorbate in eV
         - slab_energy_per_atom: Slab energy per atom in eV/atom
-        - adslab_structure: Final adslab structure as pymatgen dict
-        - slab_structure: Final slab structure as pymatgen dict
-        - adsorbate_structure: Final adsorbate structure as pymatgen dict
+        - adslab_structure: Final adslab structure as CIF string
+        - slab_structure: Final slab structure as CIF string
+        - adsorbate_structure: Final adsorbate structure as XYZ string
         - adsorption_site: Site type used
         - num_slab_atoms: Number of atoms in slab
         - num_adsorbate_atoms: Number of atoms in adsorbate
@@ -308,6 +307,9 @@ def matcalc_calc_adsorption(
     
     # Format output
     try:
+        from pymatgen.io.cif import CifWriter
+        from pymatgen.io.xyz import XYZ
+        
         output = {
             "adsorption_energy": float(results["adsorption_energy"]),
             "adsorption_energy_units": "eV",
@@ -316,9 +318,9 @@ def matcalc_calc_adsorption(
             "adsorbate_energy": float(results["adsorbate_energy"]),
             "slab_energy_per_atom": float(results["slab_energy_per_atom"]),
             "energy_units": "eV",
-            "adslab_structure": results["final_adslab"].as_dict(),
-            "slab_structure": results["final_slab"].as_dict(),
-            "adsorbate_structure": results["final_adsorbate"].as_dict(),
+            "adslab_structure": str(CifWriter(results["final_adslab"])),
+            "slab_structure": str(CifWriter(results["final_slab"])),
+            "adsorbate_structure": str(XYZ(results["final_adsorbate"])),
             "adsorption_site": adsorption_site,
             "distance": distance,
             "num_slab_atoms": len(slab),
@@ -347,12 +349,12 @@ def matcalc_calc_adsorption(
         }
 
 
-def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> "Structure":
+def _parse_structure(structure_input: str) -> "Structure":
     """
-    Parse structure from dict or string format.
+    Parse structure from string format.
     
     Args:
-        structure_input: Structure as dict or CIF/POSCAR string
+        structure_input: Structure as CIF/POSCAR string
         
     Returns:
         pymatgen Structure object
@@ -362,13 +364,7 @@ def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> "Structure"
     """
     from pymatgen.core import Structure
     
-    if isinstance(structure_input, dict):
-        try:
-            return Structure.from_dict(structure_input)
-        except Exception as e:
-            raise ValueError(f"Invalid Structure dict: {e}")
-            
-    elif isinstance(structure_input, str):
+    if isinstance(structure_input, str):
         # Try CIF first, then POSCAR
         for fmt in ['cif', 'poscar']:
             try:
@@ -431,17 +427,10 @@ def _parse_adsorbate(adsorbate: Union[str, List[float], Dict[str, Any]]) -> "Mol
         # Treat as coords for single atom (will use 'X' placeholder)
         if len(adsorbate) == 3:
             # Assume it's just coords, use as position
-            raise ValueError("Adsorbate as list not yet supported. Use molecular formula or Molecule dict.")
+            raise ValueError("Adsorbate as list not yet supported. Use molecular formula.")
         else:
             raise ValueError("Adsorbate list must have 3 coordinates [x, y, z]")
             
-    elif isinstance(adsorbate, dict):
-        # Treat as Molecule dict
-        try:
-            return Molecule.from_dict(adsorbate)
-        except Exception as e:
-            raise ValueError(f"Invalid Molecule dict: {e}")
-            
     else:
-        raise ValueError(f"adsorbate must be str, list, or dict, got {type(adsorbate)}")
+        raise ValueError(f"adsorbate must be str or list, got {type(adsorbate)}")
 

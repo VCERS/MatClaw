@@ -5,6 +5,7 @@ Tests for matcalc interface energy calculation tool.
 import pytest
 from pymatgen.core import Structure, Lattice
 from pymatgen.analysis.interfaces.coherent_interfaces import CoherentInterfaceBuilder
+from pymatgen.io.cif import CifWriter
 
 
 def test_interface_basic():
@@ -29,9 +30,9 @@ def test_interface_basic():
     substrate = Structure.from_spacegroup("Fm-3m", Lattice.cubic(3.61), ["Cu"], [[0, 0, 0]])
     
     result = matcalc_calc_interface(
-        interface_structure=interface.as_dict(),
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        interface_structure=str(CifWriter(interface)),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=False,  # Faster for testing
         relax_interface=False,
@@ -64,9 +65,9 @@ def test_interface_with_relaxation():
     substrate = Structure.from_spacegroup("Fm-3m", Lattice.cubic(3.52), ["Ni"], [[0, 0, 0]])
     
     result = matcalc_calc_interface(
-        interface_structure=interface.as_dict(),
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        interface_structure=str(CifWriter(interface)),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=True,
         relax_interface=True,
@@ -98,8 +99,8 @@ def test_interface_string_input():
     
     result = matcalc_calc_interface(
         interface_structure=cif_string,
-        film_bulk=film.to(fmt='cif'),
-        substrate_bulk=substrate.to(fmt='cif'),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=False,
         relax_interface=False,
@@ -128,9 +129,9 @@ def test_interface_different_optimizers():
     
     for opt in optimizers:
         result = matcalc_calc_interface(
-            interface_structure=interface.as_dict(),
-            film_bulk=film.as_dict(),
-            substrate_bulk=substrate.as_dict(),
+            interface_structure=str(CifWriter(interface)),
+            film_bulk=str(CifWriter(film)),
+            substrate_bulk=str(CifWriter(substrate)),
             calculator="CHGNet",
             relax_bulk=False,
             relax_interface=True,
@@ -160,9 +161,9 @@ def test_interface_different_fmax():
     
     for fmax in fmax_values:
         result = matcalc_calc_interface(
-            interface_structure=interface.as_dict(),
-            film_bulk=film.as_dict(),
-            substrate_bulk=substrate.as_dict(),
+            interface_structure=str(CifWriter(interface)),
+            film_bulk=str(CifWriter(film)),
+            substrate_bulk=str(CifWriter(substrate)),
             calculator="CHGNet",
             relax_bulk=False,
             relax_interface=True,
@@ -189,9 +190,9 @@ def test_interface_stability_interpretation():
     substrate = Structure.from_spacegroup("Fm-3m", Lattice.cubic(3.61), ["Cu"], [[0, 0, 0]])
     
     result = matcalc_calc_interface(
-        interface_structure=interface.as_dict(),
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        interface_structure=str(CifWriter(interface)),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=False,
         relax_interface=False,
@@ -219,9 +220,9 @@ def test_interface_output_structure():
     substrate = Structure.from_spacegroup("Fm-3m", Lattice.cubic(3.61), ["Cu"], [[0, 0, 0]])
     
     result = matcalc_calc_interface(
-        interface_structure=interface.as_dict(),
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        interface_structure=str(CifWriter(interface)),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=False,
         relax_interface=False,
@@ -233,8 +234,10 @@ def test_interface_output_structure():
     assert "num_atoms" in result
     assert "formula" in result
     
-    # Verify structure can be parsed
-    final_struct = Structure.from_dict(result["interface_structure"])
+    # Verify structure can be parsed from CIF string
+    # Use from_str to preserve all atoms (CifParser may apply symmetry reduction)
+    final_struct = Structure.from_str(result["interface_structure"], fmt='cif')
+    
     assert len(final_struct) == result["num_atoms"]
 
 
@@ -247,8 +250,8 @@ def test_interface_invalid_structure():
     
     result = matcalc_calc_interface(
         interface_structure={"invalid": "structure"},
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet"
     )
     
@@ -277,8 +280,8 @@ direct
     
     result = matcalc_calc_interface(
         interface_structure=poscar_string,
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=False,
         relax_interface=False,
@@ -312,9 +315,9 @@ def test_interface_larger_system():
     substrate = Structure.from_spacegroup("Fm-3m", Lattice.cubic(3.61), ["Cu"], [[0, 0, 0]])
     
     result = matcalc_calc_interface(
-        interface_structure=interface.as_dict(),
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        interface_structure=str(CifWriter(interface)),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=False,
         relax_interface=False,
@@ -341,9 +344,9 @@ def test_interface_with_both_relaxations():
     substrate = Structure.from_spacegroup("Fm-3m", Lattice.cubic(3.61), ["Cu"], [[0, 0, 0]])
     
     result = matcalc_calc_interface(
-        interface_structure=interface.as_dict(),
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        interface_structure=str(CifWriter(interface)),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=True,
         relax_interface=True,
@@ -371,9 +374,9 @@ def test_interface_metadata():
     substrate = Structure.from_spacegroup("Fm-3m", Lattice.cubic(3.61), ["Cu"], [[0, 0, 0]])
     
     result = matcalc_calc_interface(
-        interface_structure=interface.as_dict(),
-        film_bulk=film.as_dict(),
-        substrate_bulk=substrate.as_dict(),
+        interface_structure=str(CifWriter(interface)),
+        film_bulk=str(CifWriter(film)),
+        substrate_bulk=str(CifWriter(substrate)),
         calculator="CHGNet",
         relax_bulk=False,
         relax_interface=False,

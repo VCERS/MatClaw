@@ -7,6 +7,7 @@ Run single test: pytest tests/matcalc/test_matcalc_calc_energetics.py::TestEnerg
 
 import pytest
 from pymatgen.core import Structure
+from pymatgen.io.cif import CifWriter
 from tools.matcalc.matcalc_calc_energetics import matcalc_calc_energetics
 
 
@@ -173,10 +174,10 @@ class TestEnergeticsCalc:
     def test_energetics_dict_input(self):
         """Test energetics with structure dict input."""
         structure = Structure.from_str(SI_POSCAR, fmt='poscar')
-        struct_dict = structure.as_dict()
+        structure_cif = str(CifWriter(structure))
         
         result = matcalc_calc_energetics(
-            structure_input=struct_dict,
+            structure_input=structure_cif,
             calculator="M3GNet",
             relax_structure=False,
         )

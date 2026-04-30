@@ -13,17 +13,17 @@ Use this tool to filter out invalid candidate structures before ML prediction
 or DFT calculations, saving computational resources and preventing workflow failures.
 """
 
-from typing import Dict, Any, Optional, Union, Annotated, List
+from typing import Dict, Any, Optional, Annotated, List
 from pydantic import Field
 
 
 def structure_validator(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Structure to validate as a pymatgen Structure dict (from Structure.as_dict()), "
-                "or a CIF/POSCAR string. Can be output from any pymatgen tool or Materials Project API."
+                "Structure to validate as a CIF or POSCAR string. "
+                "Can be output from any pymatgen tool or Materials Project API."
             )
         )
     ],
@@ -200,25 +200,17 @@ def structure_validator(
     
     # Parse input structure
     try:
-        if isinstance(input_structure, dict):
-            structure = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            from io import StringIO
-            # Try CIF first
-            if "data_" in input_structure or "_cell_length" in input_structure:
-                parser = CifParser(StringIO(input_structure))
-                structure = parser.get_structures()[0]
-            else:
-                # Try POSCAR - use StringIO
-                poscar_lines = input_structure.strip().split('\n')
-                # Poscar expects a file-like object or list of lines
-                poscar = Poscar.from_str(input_structure)
-                structure = poscar.structure
+        from io import StringIO
+        # Try CIF first
+        if "data_" in input_structure or "_cell_length" in input_structure:
+            parser = CifParser(StringIO(input_structure))
+            structure = parser.get_structures()[0]
         else:
-            return {
-                "valid": False,
-                "error": "input_structure must be a Structure dict, CIF string, or POSCAR string."
-            }
+            # Try POSCAR - use StringIO
+            poscar_lines = input_structure.strip().split('\n')
+            # Poscar expects a file-like object or list of lines
+            poscar = Poscar.from_str(input_structure)
+            structure = poscar.structure
     except Exception as e:
         return {
             "valid": False,

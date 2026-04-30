@@ -12,17 +12,16 @@ Use this tool to:
 - Filter out highly unfavorable compositions early in discovery workflows
 """
 
-from typing import Dict, Any, Optional, Union, Annotated, Literal
+from typing import Dict, Any, Optional, Annotated, Literal
 from pydantic import Field
 
 
 def matgl_predict_eform(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Structure to predict formation energy for, as a pymatgen Structure dict "
-                "(from Structure.as_dict()), or a CIF/POSCAR string. Can be output from any "
+                "Structure to predict formation energy for, as a CIF or POSCAR string. Can be output from any "
                 "pymatgen tool or Materials Project API."
             )
         )
@@ -70,7 +69,7 @@ def matgl_predict_eform(
         - Highly unstable: > +1 eV/atom (unlikely to exist)
     
     Args:
-        input_structure: Structure as pymatgen dict, CIF, or POSCAR string
+        input_structure: Structure as CIF or POSCAR string
         model: ML model to use for prediction
     
     Returns:
@@ -110,31 +109,22 @@ def matgl_predict_eform(
     
     try:
         # Parse input structure
-        if isinstance(input_structure, dict):
-            structure = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            if "data_" in input_structure or "_cell_" in input_structure:
-                # CIF format - write to temporary file and parse
-                import tempfile
-                import os
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
-                    f.write(input_structure)
-                    temp_path = f.name
-                try:
-                    parser = CifParser(temp_path)
-                    structure = parser.get_structures()[0]
-                finally:
-                    os.unlink(temp_path)
-            else:
-                # Assume POSCAR format
-                poscar = Poscar.from_string(input_structure)
-                structure = poscar.structure
+        if "data_" in input_structure or "_cell_" in input_structure:
+            # CIF format - write to temporary file and parse
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+                f.write(input_structure)
+                temp_path = f.name
+            try:
+                parser = CifParser(temp_path)
+                structure = parser.get_structures()[0]
+            finally:
+                os.unlink(temp_path)
         else:
-            return {
-                "success": False,
-                "error": f"Unsupported input_structure type: {type(input_structure)}. "
-                        f"Expected dict, CIF string, or POSCAR string."
-            }
+            # Assume POSCAR format
+            poscar = Poscar.from_string(input_structure)
+            structure = poscar.structure
         
         # Get structure info
         formula = structure.composition.reduced_formula

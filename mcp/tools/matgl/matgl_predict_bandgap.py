@@ -12,17 +12,16 @@ Use this tool to:
 - Rank materials by predicted optoelectronic properties
 """
 
-from typing import Dict, Any, Union, Annotated, Literal
+from typing import Dict, Any, Annotated, Literal
 from pydantic import Field
 
 
 def matgl_predict_bandgap(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Structure to predict band gap for, as a pymatgen Structure dict "
-                "(from Structure.as_dict()), or a CIF/POSCAR string. Can be output from any "
+                "Structure to predict band gap for, as a CIF or POSCAR string. Can be output from any "
                 "pymatgen tool or Materials Project API."
             )
         )
@@ -69,7 +68,7 @@ def matgl_predict_bandgap(
         (e.g., HSE06 or GW) or use as relative ranking metric only.
     
     Args:
-        input_structure: Structure as pymatgen dict, CIF, or POSCAR string
+        input_structure: Structure as CIF or POSCAR string
         model: ML model to use for prediction (currently only MEGNet-MP-2019.4.1-BandGap-mfi)
     
     Returns:
@@ -110,31 +109,22 @@ def matgl_predict_bandgap(
     
     try:
         # Parse input structure
-        if isinstance(input_structure, dict):
-            structure = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            if "data_" in input_structure or "_cell_" in input_structure:
-                # CIF format - write to temporary file and parse
-                import tempfile
-                import os
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
-                    f.write(input_structure)
-                    temp_path = f.name
-                try:
-                    parser = CifParser(temp_path)
-                    structure = parser.get_structures()[0]
-                finally:
-                    os.unlink(temp_path)
-            else:
-                # Assume POSCAR format
-                poscar = Poscar.from_string(input_structure)
-                structure = poscar.structure
+        if "data_" in input_structure or "_cell_" in input_structure:
+            # CIF format - write to temporary file and parse
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+                f.write(input_structure)
+                temp_path = f.name
+            try:
+                parser = CifParser(temp_path)
+                structure = parser.get_structures()[0]
+            finally:
+                os.unlink(temp_path)
         else:
-            return {
-                "success": False,
-                "error": f"Unsupported input_structure type: {type(input_structure)}. "
-                        f"Expected dict, CIF string, or POSCAR string."
-            }
+            # Assume POSCAR format
+            poscar = Poscar.from_string(input_structure)
+            structure = poscar.structure
         
         # Get structure info
         formula = structure.composition.reduced_formula

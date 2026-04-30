@@ -25,17 +25,13 @@ from pydantic import Field
 
 def pymatgen_disorder_generator(
     input_structures: Annotated[
-        Union[Dict[str, Any], List[Dict[str, Any]], str, List[str]],
+        Union[str, List[str]],
         Field(
             description=(
                 "Input structure(s) to add disorder to. Must be fully ordered structures. "
-                "Can be: single Structure dict (from Structure.as_dict()), "
-                "list of Structure dicts, CIF string, or list of CIF strings. "
+                "CIF string or list of CIF strings. "
                 "Structures with existing partial occupancies will be rejected unless "
-                "allow_existing_disorder=True. "
-                "IMPORTANT FORMAT NOTE:"
-                "- Dict format MUST be pymatgen Structure.as_dict() format (contains '@module' and 'lattice' keys). "
-                "- When using MP structures, convert to CIF string first or use  CIF format for best compatibility."
+                "allow_existing_disorder=True."
             )
         )
     ],
@@ -122,17 +118,15 @@ def pymatgen_disorder_generator(
     output_format: Annotated[
         str,
         Field(
-            default="dict",
+            default="cif",
             description=(
                 "Output format for disordered structures. "
-                "'dict': pymatgen Structure.as_dict() (default, recommended for tool chaining). "
+                "'cif': CIF string (default, properly encodes partial occupancies). "
                 "'poscar': VASP POSCAR string (NOTE: partial occupancies may not be standard). "
-                "'cif': CIF string (properly encodes partial occupancies). "
-                "'json': JSON-serialized Structure dict string. "
-                "Default: 'dict'."
+                "'json': JSON-serialized Structure dict string."
             )
         )
-    ] = "dict"
+    ] = "cif"
 ) -> Dict[str, Any]:
     """
     Add configurational disorder (mixed site occupancies) to ordered crystal structures.
@@ -192,7 +186,7 @@ def pymatgen_disorder_generator(
         }
 
     # Validate output_format
-    valid_formats = {"dict", "poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json", "ase"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -211,7 +205,7 @@ def pymatgen_disorder_generator(
         }
 
     # Parse input structures
-    if isinstance(input_structures, (dict, str)):
+    if isinstance(input_structures, str):
         raw_list = [input_structures]
     elif isinstance(input_structures, list):
         raw_list = input_structures
@@ -224,14 +218,12 @@ def pymatgen_disorder_generator(
     structures = []
     for i, item in enumerate(raw_list):
         try:
-            if isinstance(item, dict):
-                struct = Structure.from_dict(item)
-            elif isinstance(item, str):
+            if isinstance(item, str):
                 struct = Structure.from_str(item, fmt="cif")
             else:
                 return {
                     "success": False,
-                    "error": f"Input structure {i} must be dict or CIF string, got {type(item).__name__}"
+                    "error": f"Input structure {i} must be CIF string, got {type(item).__name__}"
                 }
             
             # Check for existing disorder
@@ -439,20 +431,21 @@ def pymatgen_disorder_generator(
 
         # Format output
         try:
-            if output_format == "dict":
-                output_struct = disordered_struct.as_dict()
-            elif output_format == "poscar":
+            if output_format == "poscar":
                 poscar = Poscar(disordered_struct)
                 output_struct = str(poscar)
             elif output_format == "cif":
-                cif_writer = CifWriter(disordered_struct)
-                output_struct = str(cif_writer)
+                # Use structure.to() method instead of CifWriter for better compatibility
+                output_struct = disordered_struct.to(fmt="cif")
             elif output_format == "json":
-                output_struct = json.dumps(disordered_struct.as_dict())
+                from pymatgen.io.cif import CifWriter
+                output_struct = json.dumps({"format": "cif", "data": str(CifWriter(disordered_struct))})
             elif output_format == "ase":
                 # Convert to ASE-compatible format
+                # For disordered sites, use the majority species
                 output_struct = {
-                    "numbers": [site.specie.Z for site in disordered_struct.sites],
+                    "numbers": [max(site.species.items(), key=lambda x: x[1])[0].Z 
+                               for site in disordered_struct.sites],
                     "positions": [site.coords.tolist() for site in disordered_struct.sites],
                     "cell": disordered_struct.lattice.matrix.tolist(),
                     "pbc": [True, True, True]
@@ -485,12 +478,8 @@ def pymatgen_disorder_generator(
             }
         }
         
-        if output_format == "dict":
-            metadata["structure_dict"] = output_struct
-        
         metadata_list.append(metadata)
 
-    # Build input_info summary
     input_info = {
         "n_input_structures": len(structures),
         "input_formulas": [s.composition.reduced_formula for s in structures]

@@ -10,13 +10,10 @@ from pydantic import Field
 
 def pymatgen_perturbation_generator(
     input_structures: Annotated[
-        Union[Dict[str, Any], List[Dict[str, Any]], str, List[str]],
+        Union[str, List[str]],
         Field(description=(
-            "Input structure(s) to perturb. Can be: single Structure dict "
-            "(from Structure.as_dict()), list of dicts, CIF string, or list of CIF strings. "
-            "IMPORTANT FORMAT NOTE:"
-            "- Dict format MUST be pymatgen Structure.as_dict() format (contains '@module' and 'lattice' keys). "
-            "- When using MP structures, convert to CIF string first or use  CIF format for best compatibility."
+            "Input structure(s) to perturb. Can be: single CIF string, list of CIF strings, "
+            "single POSCAR string, or list of POSCAR strings."
         ))
     ],
     displacement_max: Annotated[
@@ -64,11 +61,10 @@ def pymatgen_perturbation_generator(
     output_format: Annotated[
         str,
         Field(description=(
-            "Output format: 'dict' (Structure.as_dict()), "
-            "'poscar' (VASP POSCAR string), 'cif' (CIF string), 'json' (JSON string). "
-            "Default: 'dict'."
+            "Output format: "
+            "'cif' (CIF string, default), 'poscar' (VASP POSCAR string), 'json' (JSON string)."
         ))
-    ] = "dict"
+    ] = "cif"
 ) -> Dict[str, Any]:
     """
     Generate an ensemble of perturbed structures from one or more input structures.
@@ -105,7 +101,7 @@ def pymatgen_perturbation_generator(
         }
 
     # Validate output_format
-    valid_formats = {"dict", "poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json", "ase"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -149,7 +145,7 @@ def pymatgen_perturbation_generator(
         strain_value = None
 
     # Parse input structures
-    if isinstance(input_structures, (dict, str)):
+    if isinstance(input_structures, str):
         raw_list = [input_structures]
     elif isinstance(input_structures, list):
         raw_list = input_structures
@@ -162,15 +158,11 @@ def pymatgen_perturbation_generator(
     structures = []
     for i, item in enumerate(raw_list):
         try:
-            if isinstance(item, dict):
-                structures.append(Structure.from_dict(item))
-            elif isinstance(item, str):
+            # Try CIF first, then POSCAR
+            if "data_" in item or "_cell_length" in item:
                 structures.append(Structure.from_str(item, fmt="cif"))
             else:
-                return {
-                    "success": False,
-                    "error": f"Input structure {i} must be a dict or CIF string, got {type(item).__name__}"
-                }
+                structures.append(Structure.from_str(item, fmt="poscar"))
         except Exception as e:
             return {"success": False, "error": f"Failed to parse input structure {i}: {str(e)}"}
 
@@ -294,17 +286,16 @@ def pymatgen_perturbation_generator(
 
                 # Format output
                 try:
-                    if output_format == "dict":
-                        formatted = new_struct.as_dict()
-                    elif output_format == "poscar":
+                    if output_format == "poscar":
                         from pymatgen.io.vasp import Poscar
                         formatted = str(Poscar(new_struct))
                     elif output_format == "cif":
                         from pymatgen.io.cif import CifWriter
                         formatted = str(CifWriter(new_struct))
                     elif output_format == "json":
+                        from pymatgen.io.cif import CifWriter
                         import json
-                        formatted = json.dumps(new_struct.as_dict())
+                        formatted = json.dumps({"format": "cif", "data": str(CifWriter(new_struct))})
                     elif output_format == "ase":
                         # Convert to ASE-compatible format
                         formatted = {

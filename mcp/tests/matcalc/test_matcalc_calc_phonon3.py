@@ -9,6 +9,7 @@ Note: These tests are slower than regular phonon tests due to third-order force 
 
 import pytest
 import numpy as np
+from pymatgen.io.cif import CifWriter
 from tools.matcalc.matcalc_calc_phonon3 import matcalc_calc_phonon3
 
 
@@ -18,7 +19,7 @@ class TestPhonon3Calc:
     def test_basic_phonon3_calculation(self, cubic_si_structure):
         """Test basic phonon3 calculation with Si structure."""
         result = matcalc_calc_phonon3(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
@@ -55,7 +56,7 @@ class TestPhonon3Calc:
     def test_phonon3_with_relaxation(self, cubic_si_structure):
         """Test phonon3 calculation with structure relaxation."""
         result = matcalc_calc_phonon3(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
@@ -74,7 +75,7 @@ class TestPhonon3Calc:
     def test_different_supercells(self, cubic_si_structure):
         """Test with different fc2 and fc3 supercells."""
         result = matcalc_calc_phonon3(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],  # Can be different from fc2
@@ -94,7 +95,7 @@ class TestPhonon3Calc:
         
         for mesh in meshes:
             result = matcalc_calc_phonon3(
-                structure_input=cubic_si_structure.as_dict(),
+                structure_input=str(CifWriter(cubic_si_structure)),
                 calculator="pbe",
                 fc2_supercell=[2, 2, 2],
                 fc3_supercell=[2, 2, 2],
@@ -108,7 +109,7 @@ class TestPhonon3Calc:
     def test_temperature_range(self, cubic_si_structure):
         """Test different temperature ranges."""
         result = matcalc_calc_phonon3(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
@@ -173,7 +174,7 @@ class TestPhonon3Calc:
     def test_invalid_calculator(self, cubic_si_structure):
         """Test error handling for invalid calculator."""
         result = matcalc_calc_phonon3(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="invalid_calculator_xyz",
             fc2_supercell=[2, 2, 2],
         )
@@ -184,7 +185,7 @@ class TestPhonon3Calc:
     def test_units_documentation(self, cubic_si_structure):
         """Test that units are properly documented in output."""
         result = matcalc_calc_phonon3(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
@@ -203,7 +204,7 @@ class TestPhonon3Calc:
     def test_supercell_format_conversion(self, cubic_si_structure):
         """Test conversion of [a,b,c] format to matrix format."""
         result = matcalc_calc_phonon3(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             fc2_supercell=[2, 2, 2],  # Simple list format
             fc3_supercell=[[2, 0, 0], [0, 2, 0], [0, 0, 2]],  # Matrix format
@@ -234,7 +235,7 @@ class TestPhonon3Calc:
     def test_nan_handling(self, cubic_si_structure):
         """Test that NaN values in thermal conductivity are handled gracefully."""
         result = matcalc_calc_phonon3(
-            structure_input=cubic_si_structure.as_dict(),
+            structure_input=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],

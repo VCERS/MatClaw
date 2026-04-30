@@ -19,7 +19,6 @@ class TestBasicExchange:
             with_ions=["Na"],
             exchange_fraction=1.0,
             max_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] >= 1
@@ -40,7 +39,6 @@ class TestBasicExchange:
             with_ions=["K"],
             exchange_fraction=1.0,
             max_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         m = result["metadata"][0]
@@ -55,7 +53,6 @@ class TestBasicExchange:
             with_ions=["Na"],
             exchange_fraction=1.0,
             max_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         m = result["metadata"][0]
@@ -72,7 +69,6 @@ class TestBasicExchange:
                 with_ions=["Na"],
                 exchange_fraction=1.0,
                 max_structures=n,
-                output_format="dict",
             )
             assert result["success"] is True
             assert result["count"] <= n
@@ -90,7 +86,6 @@ class TestCrossValenceExchange:
             exchange_fraction=1.0,
             allow_oxidation_state_change=True,
             max_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         m = result["metadata"][0]
@@ -107,7 +102,6 @@ class TestCrossValenceExchange:
             with_ions=["Na"],
             exchange_fraction=1.0,
             max_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         cn = result["metadata"][0]["charge_neutral"]
@@ -126,7 +120,6 @@ class TestMultipleReplacementIons:
             exchange_fraction=1.0,
             allow_oxidation_state_change=True,
             max_structures=4,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] >= 1
@@ -142,7 +135,6 @@ class TestMultipleReplacementIons:
             exchange_fraction=1.0,
             allow_oxidation_state_change=True,
             max_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         # exchange_rules should record both ions
@@ -163,7 +155,6 @@ class TestPartialExchange:
             exchange_fraction=0.5,
             allow_oxidation_state_change=True,
             max_structures=3,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] >= 1
@@ -179,7 +170,6 @@ class TestPartialExchange:
             exchange_fraction=[0.5, 0.5],
             allow_oxidation_state_change=True,
             max_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
 
@@ -187,20 +177,19 @@ class TestPartialExchange:
 class TestOutputFormats:
     """Tests for all supported output formats."""
 
-    def test_dict_output(self, simple_lifep04_structure):
-        """dict output should be a pymatgen Structure dict."""
+    def test_cif_default_output(self, simple_lifep04_structure):
+        """CIF output should be the default format."""
         result = pymatgen_ion_exchange_generator(
             input_structures=simple_lifep04_structure,
             replace_ion="Li",
             with_ions=["Na"],
             exchange_fraction=1.0,
             max_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         s = result["structures"][0]
-        assert isinstance(s, dict)
-        assert "@module" in s
+        assert isinstance(s, str)
+        assert "data_" in s or "_cell_length_a" in s  # CIF markers
 
     def test_cif_output(self, simple_lifep04_structure):
         """CIF output should be a valid CIF string."""
@@ -340,7 +329,6 @@ class TestMetadata:
             with_ions=["Na"],
             exchange_fraction=1.0,
             max_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         for key in ("count", "structures", "metadata", "input_info", "exchange_rules", "message"):
@@ -354,7 +342,6 @@ class TestMetadata:
             with_ions=["Na"],
             exchange_fraction=1.0,
             max_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         m = result["metadata"][0]
@@ -373,7 +360,6 @@ class TestMetadata:
             with_ions=["Na"],
             exchange_fraction=1.0,
             max_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         er = result["exchange_rules"]
@@ -391,7 +377,6 @@ class TestMetadata:
             with_ions=["Na"],
             exchange_fraction=1.0,
             max_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["input_info"]["n_input_structures"] == 1
@@ -409,7 +394,6 @@ class TestMultipleInputStructures:
             exchange_fraction=1.0,
             allow_oxidation_state_change=True,
             max_structures=2,
-            output_format="dict",
         )
         # NaCl has no Li, so only LiFePO4 should produce structures
         assert result["input_info"]["n_input_structures"] == 2

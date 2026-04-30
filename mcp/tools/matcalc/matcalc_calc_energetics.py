@@ -18,12 +18,11 @@ from pydantic import Field
 
 def matcalc_calc_energetics(
     structure_input: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Structure to calculate energetics for as a pymatgen Structure dict "
-                "(from Structure.as_dict()), or a CIF/POSCAR string. Can be output from "
-                "matgl_relax_structure or any pymatgen tool."
+                "Structure to calculate formation/cohesive energies for as a CIF or POSCAR string. "
+                "Can be output from matgl_relax_structure or any pymatgen tool."
             )
         )
     ],
@@ -185,7 +184,8 @@ def matcalc_calc_energetics(
             "error": f"Failed to parse structure: {e}",
         }
     
-    initial_structure_dict = structure.as_dict()
+    from pymatgen.io.cif import CifWriter
+    initial_structure_cif = str(CifWriter(structure))
     
     # Set appropriate backend based on calculator type
     try:
@@ -252,9 +252,9 @@ def matcalc_calc_energetics(
         # Get final structure
         final_structure = results.get("final_structure")
         if final_structure is not None:
-            final_structure_dict = final_structure.as_dict()
+            final_structure_cif = str(CifWriter(final_structure))
         else:
-            final_structure_dict = initial_structure_dict
+            final_structure_cif = initial_structure_cif
         
         # Calculate additional properties
         num_atoms = len(structure)
@@ -278,8 +278,8 @@ def matcalc_calc_energetics(
             "total_energy_eV": total_energy,
             "energy_per_atom_eV": energy_per_atom,
             "num_atoms": int(num_atoms),
-            "structure": initial_structure_dict,
-            "final_structure": final_structure_dict,
+            "structure": initial_structure_cif,
+            "final_structure": final_structure_cif,
             "relaxed": relax_structure,
             "formation_stable": formation_stable,
             "calculation_time_seconds": float(calculation_time),
@@ -312,7 +312,7 @@ def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> Any:
     Parse structure input into pymatgen Structure object.
     
     Args:
-        structure_input: Structure as dict, CIF string, or POSCAR string
+        structure_input: Structure as CIF string or POSCAR string
     
     Returns:
         pymatgen Structure object
@@ -321,11 +321,6 @@ def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> Any:
     
     if isinstance(structure_input, Structure):
         return structure_input
-    elif isinstance(structure_input, dict):
-        try:
-            return Structure.from_dict(structure_input)
-        except Exception:
-            raise ValueError("Invalid structure dictionary format")
     elif isinstance(structure_input, str):
         # Try CIF first (check for common CIF patterns)
         if structure_input.strip().startswith('data_') or '_cell_' in structure_input:

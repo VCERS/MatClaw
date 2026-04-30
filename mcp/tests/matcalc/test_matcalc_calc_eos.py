@@ -7,6 +7,7 @@ Run single test: pytest tests/matcalc/test_matcalc_calc_eos.py::TestEOSCalc::tes
 
 import pytest
 import numpy as np
+from pymatgen.io.cif import CifWriter
 from tools.matcalc.matcalc_calc_eos import matcalc_calc_eos
 
 
@@ -16,7 +17,7 @@ class TestEOSCalc:
     def test_basic_eos_calculation(self, cubic_si_structure):
         """Test basic EOS calculation with Si structure."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.2,
@@ -51,7 +52,7 @@ class TestEOSCalc:
     def test_eos_fit_quality(self, cubic_si_structure):
         """Test that EOS fits have good R² scores."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.2,
@@ -71,7 +72,7 @@ class TestEOSCalc:
     def test_multiple_eos_models(self, cubic_si_structure):
         """Test fitting with multiple EOS models."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.2,
@@ -106,7 +107,7 @@ class TestEOSCalc:
     def test_recommended_model_selection(self, cubic_si_structure):
         """Test that recommended model is selected based on R²."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.2,
@@ -127,7 +128,7 @@ class TestEOSCalc:
     def test_without_structure_relaxation(self, cubic_si_structure):
         """Test EOS calculation with pre-relaxed structure."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,  # Skip initial relaxation
             n_points=7,
@@ -140,7 +141,7 @@ class TestEOSCalc:
     def test_custom_volume_range(self, cubic_si_structure):
         """Test EOS with custom volume sampling range."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.3,
@@ -160,7 +161,7 @@ class TestEOSCalc:
         """Test that calculator aliases work."""
         for calc_name in ["pbe", "TensorNet-MatPES-PBE-v2025.1-PES"]:
             result = matcalc_calc_eos(
-                input_structure=cubic_si_structure.as_dict(),
+                input_structure=str(CifWriter(cubic_si_structure)),
                 calculator=calc_name,
                 relax_structure=True,
                 fmax=0.3,
@@ -185,7 +186,7 @@ class TestEOSCalc:
     def test_output_completeness(self, cubic_si_structure):
         """Test that all expected output fields are present."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.2,
@@ -229,7 +230,7 @@ class TestEOSCalc:
         }
         
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             **inputs
         )
         
@@ -244,7 +245,7 @@ class TestEOSCalc:
     def test_calculation_timing(self, cubic_si_structure):
         """Test that calculation time is reported."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.3,
@@ -268,7 +269,7 @@ class TestEOSCalc:
     def test_error_handling_invalid_calculator(self, cubic_si_structure):
         """Test error handling for invalid calculator."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="NonExistentCalculator999",
         )
         
@@ -283,7 +284,7 @@ class TestEdgeCases:
     def test_minimal_points(self, cubic_si_structure):
         """Test EOS with minimum number of points."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.3,
@@ -296,7 +297,7 @@ class TestEdgeCases:
     def test_tight_convergence(self, cubic_si_structure):
         """Test EOS with tight convergence criteria."""
         result = matcalc_calc_eos(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,
             fmax=0.05,  # Tight convergence

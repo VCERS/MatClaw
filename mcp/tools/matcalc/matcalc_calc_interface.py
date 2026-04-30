@@ -20,30 +20,30 @@ from pymatgen.core import Structure
 
 def matcalc_calc_interface(
     interface_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Interface structure as a pymatgen Structure dict (from Structure.as_dict()), "
-                "or a CIF/POSCAR string. This should be the combined structure with both "
+                "Interface structure as a CIF or POSCAR string. "
+                "This should be the combined structure with both "
                 "materials at the interface."
             )
         )
     ],
     film_bulk: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Film (top layer) bulk structure as a pymatgen Structure dict or CIF/POSCAR string. "
+                "Film (top layer) bulk structure as a CIF or POSCAR string. "
                 "This is the bulk structure of one of the materials forming the interface, typically "
                 "the film or deposited layer."
             )
         )
     ],
     substrate_bulk: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Substrate (bottom layer) bulk structure as a pymatgen Structure dict or CIF/POSCAR string. "
+                "Substrate (bottom layer) bulk structure as a CIF or POSCAR string. "
                 "This is the bulk structure of the other material forming the interface, typically "
                 "the substrate or base material."
             )
@@ -219,10 +219,13 @@ def matcalc_calc_interface(
     # Format output
     try:
         final_interface = results.get("final_interface", interface_struct)
+        
+        from pymatgen.io.cif import CifWriter
+        
         output = {
             "interface_energy": float(results.get("interface_energy", 0)),
             "interface_energy_units": results.get("interface_energy_units", "eV/Å²"),
-            "interface_structure": final_interface.as_dict(),
+            "interface_structure": str(CifWriter(final_interface)),
             "calculator": calculator,
             "relax_bulk": relax_bulk,
             "relax_interface": relax_interface,
@@ -265,12 +268,12 @@ def matcalc_calc_interface(
         }
 
 
-def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> "Structure":
+def _parse_structure(structure_input: str) -> "Structure":
     """
-    Parse structure from dict or string format.
+    Parse structure from string format.
     
     Args:
-        structure_input: Structure as dict or CIF/POSCAR string
+        structure_input: Structure as CIF/POSCAR string
         
     Returns:
         pymatgen Structure object
@@ -280,13 +283,7 @@ def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> "Structure"
     """
     from pymatgen.core import Structure
     
-    if isinstance(structure_input, dict):
-        try:
-            return Structure.from_dict(structure_input)
-        except Exception as e:
-            raise ValueError(f"Invalid Structure dict: {e}")
-            
-    elif isinstance(structure_input, str):
+    if isinstance(structure_input, str):
         # Try CIF first, then POSCAR
         for fmt in ['cif', 'poscar']:
             try:
@@ -296,5 +293,5 @@ def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> "Structure"
         raise ValueError("Could not parse structure string as CIF or POSCAR")
         
     else:
-        raise ValueError(f"structure_input must be dict or str, got {type(structure_input)}")
+        raise ValueError(f"structure_input must be str, got {type(structure_input)}")
 

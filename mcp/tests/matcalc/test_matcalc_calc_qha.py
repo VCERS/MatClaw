@@ -5,6 +5,7 @@ Tests for matcalc_calc_qha tool.
 import json
 import pytest
 from pymatgen.core import Structure
+from pymatgen.io.cif import CifWriter
 
 from tools.matcalc.matcalc_calc_qha import matcalc_calc_qha
 
@@ -203,10 +204,10 @@ class TestQHACalc:
     def test_dict_structure_input(self):
         """Test QHA with structure as dictionary."""
         structure = Structure.from_str(SI_POSCAR, fmt="poscar")
-        structure_dict = structure.as_dict()
+        structure_cif = str(CifWriter(structure))
         
         result = matcalc_calc_qha(
-            structure_input=structure_dict,
+            structure_input=structure_cif,
             calculator="M3GNet",
             t_max=100.0,
             scale_factors=[1.0],

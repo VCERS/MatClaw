@@ -4,7 +4,11 @@ Tests for matcalc adsorption energy calculation tool.
 
 import pytest
 from pymatgen.core import Structure, Lattice, Molecule
+from pymatgen.io.cif import CifWriter, CifParser
+from pymatgen.io.xyz import XYZ
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+import tempfile
+import os
 
 
 def test_adsorption_basic_ontop():
@@ -20,7 +24,7 @@ def test_adsorption_basic_ontop():
     )
     
     result = matcalc_calc_adsorption(
-        slab_structure=pt_slab.as_dict(),
+        slab_structure=str(CifWriter(pt_slab)),
         adsorbate="CO",
         adsorption_site="ontop",
         distance=2.0,
@@ -54,7 +58,7 @@ def test_adsorption_with_relaxation():
     )
     
     result = matcalc_calc_adsorption(
-        slab_structure=pt_slab.as_dict(),
+        slab_structure=str(CifWriter(pt_slab)),
         adsorbate="O",
         adsorption_site="ontop",
         distance=2.0,
@@ -91,7 +95,7 @@ def test_adsorption_different_adsorbates():
     
     for ads in adsorbates:
         result = matcalc_calc_adsorption(
-            slab_structure=pt_slab.as_dict(),
+            slab_structure=str(CifWriter(pt_slab)),
             adsorbate=ads,
             adsorption_site="ontop",
             distance=2.0,
@@ -120,7 +124,7 @@ def test_adsorption_hollow_site():
     pt_slab.make_supercell([2, 2, 1])
     
     result = matcalc_calc_adsorption(
-        slab_structure=pt_slab.as_dict(),
+        slab_structure=str(CifWriter(pt_slab)),
         adsorbate="O",
         adsorption_site="hollow",
         distance=2.0,
@@ -149,7 +153,7 @@ def test_adsorption_bridge_site():
     pt_slab.make_supercell([2, 2, 1])
     
     result = matcalc_calc_adsorption(
-        slab_structure=pt_slab.as_dict(),
+        slab_structure=str(CifWriter(pt_slab)),
         adsorbate="CO",
         adsorption_site="bridge",
         distance=2.0,
@@ -181,7 +185,7 @@ def test_adsorption_different_distances():
     
     for dist in distances:
         result = matcalc_calc_adsorption(
-            slab_structure=pt_slab.as_dict(),
+            slab_structure=str(CifWriter(pt_slab)),
             adsorbate="O",
             adsorption_site="ontop",
             distance=dist,
@@ -243,8 +247,8 @@ def test_adsorption_molecule_dict():
     co_molecule = Molecule(["C", "O"], [[0, 0, 0], [0, 0, 1.128]])
     
     result = matcalc_calc_adsorption(
-        slab_structure=pt_slab.as_dict(),
-        adsorbate=co_molecule.as_dict(),
+        slab_structure=str(CifWriter(pt_slab)),
+        adsorbate=str(XYZ(co_molecule)),
         adsorption_site="ontop",
         distance=2.0,
         calculator="CHGNet",
@@ -273,7 +277,7 @@ def test_adsorption_different_optimizers():
     
     for opt in optimizers:
         result = matcalc_calc_adsorption(
-            slab_structure=pt_slab.as_dict(),
+            slab_structure=str(CifWriter(pt_slab)),
             adsorbate="O",
             adsorption_site="ontop",
             distance=2.0,
@@ -304,7 +308,7 @@ def test_adsorption_different_fmax():
     
     for fmax in fmax_values:
         result = matcalc_calc_adsorption(
-            slab_structure=pt_slab.as_dict(),
+            slab_structure=str(CifWriter(pt_slab)),
             adsorbate="O",
             adsorption_site="ontop",
             distance=2.0,
@@ -332,7 +336,7 @@ def test_adsorption_energy_sign():
     )
     
     result = matcalc_calc_adsorption(
-        slab_structure=pt_slab.as_dict(),
+        slab_structure=str(CifWriter(pt_slab)),
         adsorbate="O",
         adsorption_site="ontop",
         distance=2.0,
@@ -384,7 +388,7 @@ def test_adsorption_invalid_adsorbate():
     )
     
     result = matcalc_calc_adsorption(
-        slab_structure=pt_slab.as_dict(),
+        slab_structure=str(CifWriter(pt_slab)),
         adsorbate={"invalid": "molecule"},
         adsorption_site="ontop",
         distance=2.0,
@@ -407,7 +411,7 @@ def test_adsorption_output_structure():
     )
     
     result = matcalc_calc_adsorption(
-        slab_structure=pt_slab.as_dict(),
+        slab_structure=str(CifWriter(pt_slab)),
         adsorbate="CO",
         adsorption_site="ontop",
         distance=2.0,
@@ -422,10 +426,33 @@ def test_adsorption_output_structure():
     assert "slab_structure" in result
     assert "adsorbate_structure" in result
     
-    # Verify structures can be parsed
-    adslab_struct = Structure.from_dict(result["adslab_structure"])
-    slab_struct = Structure.from_dict(result["slab_structure"])
-    ads_struct = Molecule.from_dict(result["adsorbate_structure"])
+    # Verify structures can be parsed from CIF/XYZ strings
+    # Parse adslab structure from CIF
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+        f.write(result["adslab_structure"])
+        adslab_cif_path = f.name
+    try:
+        adslab_struct = CifParser(adslab_cif_path).get_structures()[0]
+    finally:
+        os.unlink(adslab_cif_path)
+    
+    # Parse slab structure from CIF
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+        f.write(result["slab_structure"])
+        slab_cif_path = f.name
+    try:
+        slab_struct = CifParser(slab_cif_path).get_structures()[0]
+    finally:
+        os.unlink(slab_cif_path)
+    
+    # Parse adsorbate molecule from XYZ
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.xyz', delete=False) as f:
+        f.write(result["adsorbate_structure"])
+        ads_xyz_path = f.name
+    try:
+        ads_struct = XYZ.from_file(ads_xyz_path).molecule
+    finally:
+        os.unlink(ads_xyz_path)
     
     # Check atom counts
     assert len(adslab_struct) == result["num_adslab_atoms"]

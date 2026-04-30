@@ -5,6 +5,7 @@ Run with: pytest tests/matgl/test_matgl_predict_bandgap.py -v
 """
 
 import pytest
+from pymatgen.io.cif import CifWriter
 from tools.matgl.matgl_predict_bandgap import matgl_predict_bandgap
 
 
@@ -35,7 +36,7 @@ class TestMLPredictBandgap:
         )
         
         result = matgl_predict_bandgap(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="MEGNet-MP-2019.4.1-BandGap-mfi"
         )
         
@@ -71,7 +72,7 @@ class TestMLPredictBandgap:
         )
         
         result = matgl_predict_bandgap(
-            input_structure=struct.as_dict()
+            input_structure=str(CifWriter(struct))
         )
         
         assert result["success"] is True
@@ -95,7 +96,7 @@ class TestMLPredictBandgap:
         )
         
         result = matgl_predict_bandgap(
-            input_structure=struct.as_dict()
+            input_structure=str(CifWriter(struct))
         )
         
         assert result["success"] is True
@@ -129,7 +130,7 @@ class TestMLPredictBandgap:
         ]
         
         for struct in structures:
-            result = matgl_predict_bandgap(input_structure=struct.as_dict())
+            result = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
             assert result["success"] is True
             assert "band_gap_eV" in result
             assert result["band_gap_eV"] >= 0
@@ -167,7 +168,7 @@ class TestMLPredictBandgap:
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        result = matgl_predict_bandgap(input_structure=struct.as_dict())
+        result = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
         
         assert result["success"] is True
         assert "material_class" in result
@@ -194,7 +195,7 @@ class TestMLPredictBandgap:
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        result = matgl_predict_bandgap(input_structure=struct.as_dict())
+        result = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
         
         assert result["success"] is True
         assert "structure_info" in result
@@ -229,7 +230,7 @@ class TestMLPredictBandgap:
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        result = matgl_predict_bandgap(input_structure=struct.as_dict())
+        result = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
         
         assert result["success"] is False
         assert "error" in result
@@ -254,7 +255,7 @@ class TestMLPredictBandgap:
         ]
         
         for struct, min_gap, max_gap, description in test_cases:
-            result = matgl_predict_bandgap(input_structure=struct.as_dict())
+            result = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
             assert result["success"] is True
             bandgap = result["band_gap_eV"]
             assert min_gap <= bandgap <= max_gap, (

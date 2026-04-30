@@ -18,12 +18,11 @@ import numpy as np
 
 def matcalc_calc_eos(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Structure to calculate EOS for as a pymatgen Structure dict "
-                "(from Structure.as_dict()), or a CIF/POSCAR string. Can be output from "
-                "matgl_relax_structure or any pymatgen tool."
+                "Structure to calculate EOS for as a CIF or POSCAR string. "
+                "Can be output from matgl_relax_structure or any pymatgen tool."
             )
         )
     ],
@@ -190,37 +189,29 @@ def matcalc_calc_eos(
     
     try:
         # Parse input structure
-        if isinstance(input_structure, dict):
-            structure = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            if "data_" in input_structure or "_cell_" in input_structure:
-                # CIF format
-                import tempfile
-                import os
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
-                    f.write(input_structure)
-                    temp_path = f.name
-                try:
-                    parser = CifParser(temp_path)
-                    structures = parser.get_structures()
-                    if not structures:
-                        return {"success": False, "error": "CIF file contains no valid structures"}
-                    structure = structures[0]
-                finally:
-                    if os.path.exists(temp_path):
-                        os.unlink(temp_path)
-            else:
-                # POSCAR format
-                poscar = Poscar.from_string(input_structure)
-                structure = poscar.structure
+        if "data_" in input_structure or "_cell_" in input_structure:
+            # CIF format
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+                f.write(input_structure)
+                temp_path = f.name
+            try:
+                parser = CifParser(temp_path)
+                structures = parser.get_structures()
+                if not structures:
+                    return {"success": False, "error": "CIF file contains no valid structures"}
+                structure = structures[0]
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
         else:
-            return {
-                "success": False,
-                "error": f"Unsupported input_structure type: {type(input_structure)}. "
-                        f"Expected dict, CIF string, or POSCAR string."
-            }
+            # POSCAR format
+            poscar = Poscar.from_string(input_structure)
+            structure = poscar.structure
         
-        initial_structure_dict = structure.as_dict()
+        from pymatgen.io.cif import CifWriter
+        initial_structure_cif = str(CifWriter(structure))
         
         # Set appropriate backend based on calculator type
         try:
@@ -318,21 +309,21 @@ def matcalc_calc_eos(
         final_structure = results.get("final_structure")
         if final_structure is not None:
             if hasattr(final_structure, 'as_dict'):
-                final_structure_dict = final_structure.as_dict()
+                final_structure_cif = str(CifWriter(final_structure))
             else:
                 # Convert ASE Atoms to pymatgen Structure
                 from pymatgen.io.ase import AseAtomsAdaptor
-                final_structure_dict = AseAtomsAdaptor.get_structure(final_structure).as_dict()
+                final_structure_cif = str(CifWriter(AseAtomsAdaptor.get_structure(final_structure)))
         else:
-            final_structure_dict = initial_structure_dict
+            final_structure_cif = initial_structure_cif
         
         calculation_time = time.time() - start_time
         
         # Build response
         response = {
             "success": True,
-            "structure": initial_structure_dict,
-            "final_structure": final_structure_dict,
+            "structure": initial_structure_cif,
+            "final_structure": final_structure_cif,
             "volumes": [round(float(v), 4) for v in volumes],
             "energies": [round(float(e), 6) for e in energies],
             "num_points": len(volumes),

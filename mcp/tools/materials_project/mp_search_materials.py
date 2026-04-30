@@ -68,12 +68,7 @@ def mp_search_materials(
     max_results: Annotated[
         int,
         Field(default=10, ge=1, le=100, description="Maximum number of results to return (1-100). Default: 10.")
-    ] = 10,
-    
-    include_structure: Annotated[
-        bool,
-        Field(default=False, description="Include full crystal structure data (lattice parameters, atomic positions). Increases response size.")
-    ] = False
+    ] = 10
 ) -> Dict[str, Any]:
     """
     Search Materials Project database for inorganic materials and crystals.
@@ -109,6 +104,11 @@ def mp_search_materials(
         is_magnetic: Only magnetic materials
         theoretical: Include theoretical (not yet synthesized) materials
         max_results: Maximum number of results (1-100)
+    
+    Note:
+        This tool returns material IDs and properties for search/filtering.
+        Use mp_get_material_properties to retrieve full structure data (CIF format)
+        for specific materials.
     
     Returns:
         Dictionary containing:
@@ -283,11 +283,6 @@ def mp_search_materials(
                     # Synthesis info
                     "theoretical": summary.theoretical
                 }
-                
-                # Include full structure if requested
-                if include_structure and summary.structure:
-                    # Serialize structure to dict (pymatgen Structure.as_dict())
-                    material_info["structure"] = summary.structure.as_dict()
                 
                 materials.append(material_info)
 

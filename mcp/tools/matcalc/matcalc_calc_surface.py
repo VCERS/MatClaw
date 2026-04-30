@@ -18,11 +18,11 @@ from pydantic import Field
 
 def matcalc_calc_surface(
     structure_input: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Bulk crystal structure as a pymatgen Structure dict (from Structure.as_dict()), "
-                "or a CIF/POSCAR string. The tool will generate a slab from this bulk structure "
+                "Bulk crystal structure as a CIF or POSCAR string. "
+                "The tool will generate a slab from this bulk structure "
                 "using the specified Miller indices. Can be output from matgl_relax_structure "
                 "or any pymatgen tool."
             )
@@ -252,6 +252,8 @@ def matcalc_calc_surface(
     
     # Format output
     try:
+        from pymatgen.io.cif import CifWriter
+        
         output = {
             "surface_energy": float(results["surface_energy"]),
             "surface_energy_units": "eV/Å²",
@@ -259,8 +261,8 @@ def matcalc_calc_surface(
             "bulk_energy_units": "eV/atom",
             "slab_energy": float(results["slab_energy"]),
             "slab_energy_units": "eV",
-            "slab_structure": results["final_slab"].as_dict(),
-            "bulk_structure": results["final_bulk"].as_dict(),
+            "slab_structure": str(CifWriter(results["final_slab"])),
+            "bulk_structure": str(CifWriter(results["final_bulk"])),
             "miller_index": list(miller_index),
             "slab_formula": str(slab.composition.reduced_formula),
             "num_slab_atoms": len(slab),
@@ -280,12 +282,12 @@ def matcalc_calc_surface(
         }
 
 
-def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> "Structure":
+def _parse_structure(structure_input: str) -> Any:
     """
-    Parse structure from dict or string format.
+    Parse structure from string format.
     
     Args:
-        structure_input: Structure as dict or CIF/POSCAR string
+        structure_input: Structure as CIF/POSCAR string
         
     Returns:
         pymatgen Structure object
@@ -295,13 +297,7 @@ def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> "Structure"
     """
     from pymatgen.core import Structure
     
-    if isinstance(structure_input, dict):
-        try:
-            return Structure.from_dict(structure_input)
-        except Exception as e:
-            raise ValueError(f"Invalid Structure dict: {e}")
-            
-    elif isinstance(structure_input, str):
+    if isinstance(structure_input, str):
         # Try CIF first, then POSCAR
         for fmt in ['cif', 'poscar']:
             try:
@@ -311,5 +307,5 @@ def _parse_structure(structure_input: Union[Dict[str, Any], str]) -> "Structure"
         raise ValueError("Could not parse structure string as CIF or POSCAR")
         
     else:
-        raise ValueError(f"structure_input must be dict or str, got {type(structure_input)}")
+        raise ValueError(f"structure_input must be str, got {type(structure_input)}")
 

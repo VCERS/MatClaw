@@ -13,7 +13,7 @@ from pymatgen.core import Structure
 
 
 def matcalc_calc_qha(
-    structure_input: str | dict[str, Any],
+    structure_input: str,
     calculator: str = "TensorNet-MatPES-PBE",
     t_min: float = 0.0,
     t_max: float = 1000.0,
@@ -242,6 +242,7 @@ def matcalc_calc_qha(
     
     # Get final structure
     final_structure = result.get("final_structure", structure)
+    from pymatgen.io.cif import CifWriter
     
     return {
         "success": True,
@@ -254,7 +255,7 @@ def matcalc_calc_qha(
         "scale_factors": _format_array(scale_factors_result, decimals=4),
         "volumes": _format_array(volumes, decimals=4),
         "electronic_energies": _format_array(electronic_energies, decimals=6),
-        "structure": final_structure.as_dict(),
+        "structure": str(CifWriter(final_structure)),
         "relaxed": relax_structure,
         "calculator": calculator,
         "eos_model": eos,
@@ -270,16 +271,10 @@ def matcalc_calc_qha(
     }
 
 
-def _parse_structure(structure_input: str | dict[str, Any] | Structure) -> Structure:
+def _parse_structure(structure_input: str | Structure) -> Structure:
     """Parse structure from various input formats."""
     if isinstance(structure_input, Structure):
         return structure_input
-    
-    if isinstance(structure_input, dict):
-        try:
-            return Structure.from_dict(structure_input)
-        except Exception as e:
-            raise ValueError(f"Could not parse structure from dict: {e}")
     
     if isinstance(structure_input, str):
         structure_input = structure_input.strip()

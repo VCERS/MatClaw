@@ -14,15 +14,11 @@ import random
 
 def pymatgen_substitution_generator(
     input_structures: Annotated[
-        Union[Dict[str, Any], List[Dict[str, Any]], str, List[str]],
+        Union[str, List[str]],
         Field(
             description="Input structure(s) to apply substitutions to. "
-            "Can be: single Structure dict (from Structure.as_dict()), "
-            "list of Structure dicts, CIF string, or list of CIF strings. "
-            "Each structure will have all substitution rules applied. "
-            "IMPORTANT FORMAT NOTE:"
-            "- Dict format MUST be pymatgen Structure.as_dict() format (contains '@module' and 'lattice' keys). "
-            "- When using MP structures, convert to CIF string first or use  CIF format for best compatibility."
+            "Can be: single CIF string, list of CIF strings, single POSCAR string, or list of POSCAR strings. "
+            "Each structure will have all substitution rules applied."
         )
     ],
     substitutions: Annotated[
@@ -116,12 +112,11 @@ def pymatgen_substitution_generator(
     output_format: Annotated[
         str,
         Field(
-            default="dict",
-            description="Output format: 'dict' (Structure.as_dict()), "
-            "'poscar' (VASP POSCAR), 'cif' (CIF string), 'json' (JSON string). "
-            "Default: 'dict'."
+            default="cif",
+            description="Output format: "
+            "'cif' (CIF string, default), 'poscar' (VASP POSCAR), 'json' (JSON string)."
         )
-    ] = "dict"
+    ] = "cif"
 ) -> Dict[str, Any]:
     """
     Generate structures by applying atomic substitutions and partial site replacement.
@@ -186,9 +181,7 @@ def pymatgen_substitution_generator(
         
         # Parse input structures
         input_structs = []
-        if isinstance(input_structures, dict):
-            input_structs = [input_structures]
-        elif isinstance(input_structures, list):
+        if isinstance(input_structures, list):
             input_structs = input_structures
         elif isinstance(input_structures, str):
             input_structs = [input_structures]
@@ -202,16 +195,11 @@ def pymatgen_substitution_generator(
         structures = []
         for i, struct_input in enumerate(input_structs):
             try:
-                if isinstance(struct_input, dict):
-                    struct = Structure.from_dict(struct_input)
-                elif isinstance(struct_input, str):
-                    # Try CIF format
+                # Try CIF first, then POSCAR
+                if "data_" in struct_input or "_cell_length" in struct_input:
                     struct = Structure.from_str(struct_input, fmt="cif")
                 else:
-                    return {
-                        "success": False,
-                        "error": f"Input structure {i} must be dict or CIF string, got {type(struct_input).__name__}"
-                    }
+                    struct = Structure.from_str(struct_input, fmt="poscar")
                 structures.append(struct)
             except Exception as e:
                 return {
@@ -449,9 +437,7 @@ def pymatgen_substitution_generator(
                                     warnings.append(f"Could not create ordered structure: {str(e)}")
                         
                         # Format output
-                        if output_format == "dict":
-                            output_struct = new_struct.as_dict()
-                        elif output_format == "poscar":
+                        if output_format == "poscar":
                             from pymatgen.io.vasp import Poscar
                             poscar = Poscar(new_struct)
                             output_struct = str(poscar)
@@ -460,8 +446,9 @@ def pymatgen_substitution_generator(
                             cif_writer = CifWriter(new_struct)
                             output_struct = str(cif_writer)
                         elif output_format == "json":
+                            from pymatgen.io.cif import CifWriter
                             import json
-                            output_struct = json.dumps(new_struct.as_dict())
+                            output_struct = json.dumps({"format": "cif", "data": str(CifWriter(new_struct))})
                         elif output_format == "ase":
                             # Convert to ASE-compatible format
                             output_struct = {
@@ -473,7 +460,7 @@ def pymatgen_substitution_generator(
                         else:
                             return {
                                 "success": False,
-                                "error": f"Invalid output_format: {output_format}. Must be 'dict', 'poscar', 'cif', 'json', or 'ase'"
+                                "error": f"Invalid output_format: {output_format}. Must be 'poscar', 'cif', 'json', or 'ase'"
                             }
                         
                         # Store structure and metadata
@@ -488,9 +475,6 @@ def pymatgen_substitution_generator(
                             "n_sites": len(new_struct),
                             "volume": float(new_struct.volume)
                         }
-                        
-                        if output_format == "dict":
-                            metadata["structure_dict"] = output_struct
                         
                         metadata_list.append(metadata)
                         

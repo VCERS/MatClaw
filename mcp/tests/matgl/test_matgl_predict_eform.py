@@ -5,6 +5,7 @@ Run with: pytest tests/matgl/test_matgl_predict_eform.py -v
 """
 
 import pytest
+from pymatgen.io.cif import CifWriter
 from tools.matgl.matgl_predict_eform import matgl_predict_eform
 
 
@@ -35,7 +36,7 @@ class TestMLPredictEform:
         )
         
         result = matgl_predict_eform(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="M3GNet-MP-2018.6.1-Eform"
         )
         
@@ -69,7 +70,7 @@ class TestMLPredictEform:
         )
         
         result = matgl_predict_eform(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="MEGNet-MP-2018.6.1-Eform"
         )
         
@@ -101,7 +102,7 @@ class TestMLPredictEform:
         
         for struct in structures:
             result = matgl_predict_eform(
-                input_structure=struct.as_dict(),
+                input_structure=str(CifWriter(struct)),
                 model="M3GNet-MP-2018.6.1-Eform"
             )
             
@@ -153,7 +154,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result = matgl_predict_eform(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="M3GNet-MP-2018.6.1-Eform"
         )
         
@@ -176,7 +177,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result = matgl_predict_eform(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="M3GNet-MP-2018.6.1-Eform"
         )
         
@@ -200,7 +201,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result = matgl_predict_eform(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="M3GNet-MP-2018.6.1-Eform"
         )
         
@@ -236,7 +237,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result = matgl_predict_eform(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="M3GNet-MP-2018.6.1-Eform"
         )
         
@@ -257,12 +258,12 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         result_m3gnet = matgl_predict_eform(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="M3GNet-MP-2018.6.1-Eform"
         )
         
         result_megnet = matgl_predict_eform(
-            input_structure=struct.as_dict(),
+            input_structure=str(CifWriter(struct)),
             model="MEGNet-MP-2018.6.1-Eform"
         )
         

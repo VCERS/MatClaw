@@ -6,13 +6,32 @@ and the Boltzmann transport equation (BTE) within the relaxation time approximat
 Uses universal ML potentials (e.g., TensorNet-MatPES-PBE, M3GNet, CHGNet).
 """
 
+import os
+import tempfile
+from contextlib import contextmanager
 from typing import Any
 import numpy as np
 from pymatgen.core import Structure
 
 
+@contextmanager
+def _temporary_working_directory():
+    """Context manager to run phonopy calculations in a temporary directory.
+    
+    This prevents phonopy from writing intermediate files (phonon.yaml, FORCE_SETS, etc.)
+    to the user's current working directory.
+    """
+    original_dir = os.getcwd()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            os.chdir(temp_dir)
+            yield temp_dir
+        finally:
+            os.chdir(original_dir)
+
+
 def matcalc_calc_phonon3(
-    structure_input: str | dict[str, Any],
+    structure_input: str,
     calculator: str = "TensorNet-MatPES-PBE",
     fc2_supercell: list[list[int]] | None = None,
     fc3_supercell: list[list[int]] | None = None,
@@ -244,9 +263,10 @@ def matcalc_calc_phonon3(
             "error": f"Failed to initialize Phonon3Calc: {e}",
         }
 
-    # Run thermal conductivity calculation
+    # Run thermal conductivity calculation in temporary directory to avoid file pollution
     try:
-        result = phonon3_calc.calc(structure)
+        with _temporary_working_directory():
+            result = phonon3_calc.calc(structure)
     except Exception as e:
         return {
             "success": False,
@@ -269,11 +289,13 @@ def matcalc_calc_phonon3(
     # Get final structure
     final_structure = result.get("final_structure", structure)
     
+    from pymatgen.io.cif import CifWriter
+    
     return {
         "success": True,
         "thermal_conductivity": kappa_formatted["kappa"],
         "temperatures": kappa_formatted["temperatures"],
-        "structure": final_structure.as_dict(),
+        "structure": str(CifWriter(final_structure)),
         "relaxed": relax_structure,
         "calculator": calculator,
         "parameters": {
@@ -292,16 +314,10 @@ def matcalc_calc_phonon3(
     }
 
 
-def _parse_structure(structure_input: str | dict[str, Any] | Structure) -> Structure:
+def _parse_structure(structure_input: str | Structure) -> Structure:
     """Parse structure from various input formats."""
     if isinstance(structure_input, Structure):
         return structure_input
-    
-    if isinstance(structure_input, dict):
-        try:
-            return Structure.from_dict(structure_input)
-        except Exception as e:
-            raise ValueError(f"Could not parse structure from dict: {e}")
     
     if isinstance(structure_input, str):
         structure_input = structure_input.strip()

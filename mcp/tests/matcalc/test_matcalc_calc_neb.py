@@ -7,6 +7,8 @@ Run single test: pytest tests/matcalc/test_matcalc_calc_neb.py::TestNEBCalc::tes
 
 import pytest
 from pymatgen.core import Structure, Lattice
+from pymatgen.io.cif import CifWriter
+from pymatgen.io.vasp import Poscar
 from tools.matcalc.matcalc_calc_neb import matcalc_calc_neb
 
 
@@ -68,13 +70,14 @@ class TestNEBCalc:
         """Test NEB with dict input format."""
         initial, final = get_si_structures()
         
-        images_dict = {
-            'image0': initial.as_dict(),
-            'image1': final.as_dict(),
-        }
+        # Use POSCAR format to avoid CIF symmetry issues
+        images_list = [
+            Poscar(initial).get_str(),
+            Poscar(final).get_str(),
+        ]
         
         result = matcalc_calc_neb(
-            images=images_dict,
+            images=images_list,
             calculator="M3GNet",
             n_images=3,
             fmax=0.3,

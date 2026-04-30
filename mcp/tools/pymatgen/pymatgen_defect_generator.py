@@ -14,16 +14,13 @@ from pydantic import Field
 
 def pymatgen_defect_generator(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Bulk host structure as a pymatgen Structure dict (from Structure.as_dict()), "
-                "or a CIF string.  This is the perfect, defect-free reference cell — typically "
-                "the output of pymatgen_prototype_builder, pymatgen_substitution_generator, "
-                "pymatgen_ion_exchange_generator, or an mp_get_material_properties structure. "
-                "IMPORTANT FORMAT NOTE:"
-                "- Dict format MUST be pymatgen Structure.as_dict() format (contains '@module' and 'lattice' keys). "
-                "- When using MP structures, convert to CIF string first or use  CIF format for best compatibility."
+                "Bulk host structure as a CIF string or POSCAR string.  This is the perfect, "
+                "defect-free reference cell — typically the output of pymatgen_prototype_builder, "
+                "pymatgen_substitution_generator, pymatgen_ion_exchange_generator, or an "
+                "mp_get_material_properties structure."
             )
         )
     ],
@@ -164,16 +161,15 @@ def pymatgen_defect_generator(
     output_format: Annotated[
         str,
         Field(
-            default="dict",
+            default="cif",
             description=(
                 "Output format for returned structures. "
-                "'dict': pymatgen Structure.as_dict() — round-trippable, default. "
+                "'cif': CIF string (default). "
                 "'poscar': VASP POSCAR string. "
-                "'cif': CIF string. "
                 "'json': JSON-serialised Structure dict string."
             )
         )
-    ] = "dict"
+    ] = "cif"
 ) -> Dict[str, Any]:
     """
     Generate defect supercells for point-defect calculations in inorganic materials.
@@ -236,7 +232,7 @@ def pymatgen_defect_generator(
         }
 
     # Validate output_format
-    valid_formats = {"dict", "poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json", "ase"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -272,15 +268,7 @@ def pymatgen_defect_generator(
 
     # Parse input structure
     try:
-        if isinstance(input_structure, dict):
-            bulk = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            bulk = Structure.from_str(input_structure, fmt="cif")
-        else:
-            return {
-                "success": False,
-                "error": f"input_structure must be a dict or CIF string, got {type(input_structure).__name__}."
-            }
+        bulk = Structure.from_str(input_structure, fmt="cif")
     except Exception as e:
         return {"success": False, "error": f"Failed to parse input_structure: {e}"}
 
@@ -419,17 +407,16 @@ def pymatgen_defect_generator(
     # Formatting helper
     def _format_structure(struct: Structure) -> Any:
         try:
-            if output_format == "dict":
-                return struct.as_dict()
-            elif output_format == "poscar":
+            if output_format == "poscar":
                 from pymatgen.io.vasp import Poscar
                 return str(Poscar(struct))
             elif output_format == "cif":
                 from pymatgen.io.cif import CifWriter
                 return str(CifWriter(struct))
             elif output_format == "json":
+                from pymatgen.io.cif import CifWriter
                 import json
-                return json.dumps(struct.as_dict())
+                return json.dumps({"format": "cif", "data": str(CifWriter(struct))})
             elif output_format == "ase":
                 # Convert to ASE-compatible format
                 return {

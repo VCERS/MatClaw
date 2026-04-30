@@ -12,7 +12,7 @@ from pymatgen.core import Structure
 
 
 def matcalc_calc_md(
-    structure_input: str | dict[str, Any],
+    structure_input: str,
     calculator: str = "TensorNet-MatPES-PBE",
     ensemble: str = "nvt",
     temperature: float = 300.0,
@@ -242,11 +242,13 @@ def matcalc_calc_md(
     # Calculate total simulation time in ps
     total_time_ps = (steps * timestep) / 1000.0  # Convert fs to ps
 
+    from pymatgen.io.cif import CifWriter
+
     # Return formatted result
     return {
         "success": True,
         "energy": float(final_energy),
-        "structure": final_structure.as_dict() if hasattr(final_structure, 'as_dict') else final_structure,
+        "structure": str(CifWriter(final_structure)) if hasattr(final_structure, 'as_dict') else final_structure,
         "relaxed": relax_structure,
         "ensemble": ensemble,
         "temperature": float(temperature),
@@ -266,12 +268,12 @@ def matcalc_calc_md(
     }
 
 
-def _parse_structure(structure_input: str | dict[str, Any]) -> Structure:
+def _parse_structure(structure_input: str) -> Structure:
     """
     Parse structure from various input formats.
     
     Args:
-        structure_input: Structure as string (CIF/POSCAR) or dict
+        structure_input: Structure as string (CIF/POSCAR)
         
     Returns:
         Pymatgen Structure object
@@ -279,13 +281,6 @@ def _parse_structure(structure_input: str | dict[str, Any]) -> Structure:
     # If already a Structure object, return it
     if isinstance(structure_input, Structure):
         return structure_input
-    
-    # If dict, try to load as Structure
-    if isinstance(structure_input, dict):
-        try:
-            return Structure.from_dict(structure_input)
-        except Exception:
-            raise ValueError("Invalid structure dictionary format")
     
     # If string, try to parse as CIF or POSCAR
     if isinstance(structure_input, str):

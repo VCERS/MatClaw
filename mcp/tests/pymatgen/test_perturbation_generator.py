@@ -17,7 +17,6 @@ class TestBasicDisplacement:
             input_structures=simple_lifep04_structure,
             displacement_max=0.1,
             n_structures=3,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] == 3
@@ -30,7 +29,6 @@ class TestBasicDisplacement:
             input_structures=simple_lifep04_structure,
             displacement_max=0.2,
             n_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -42,7 +40,6 @@ class TestBasicDisplacement:
             input_structures=simple_lifep04_structure,
             displacement_max=0.1,
             n_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -54,7 +51,6 @@ class TestBasicDisplacement:
             input_structures=simple_lifep04_structure,
             displacement_max=0.0,
             n_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -66,7 +62,6 @@ class TestBasicDisplacement:
             input_structures=simple_lifep04_structure,
             displacement_max=0.05,
             n_structures=5,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -83,7 +78,6 @@ class TestStrain:
             displacement_max=0.0,
             strain_percent=1.0,
             n_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -98,7 +92,6 @@ class TestStrain:
             displacement_max=0.0,
             strain_percent=-1.0,
             n_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["metadata"][0]["volume_change_pct"] < 0.0
@@ -111,7 +104,6 @@ class TestStrain:
             strain_percent=[-2.0, 2.0],
             n_structures=5,
             seed=42,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -125,7 +117,6 @@ class TestStrain:
             displacement_max=0.0,
             strain_percent=[1.0, 2.0, 0.5, 0.0, 0.0, 0.0],
             n_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         sa = result["metadata"][0]["strain_applied"]
@@ -140,7 +131,6 @@ class TestStrain:
             displacement_max=0.0,
             strain_percent=None,
             n_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["metadata"][0]["strain_applied"] is None
@@ -157,7 +147,6 @@ class TestReproducibility:
             strain_percent=[-1.0, 1.0],
             n_structures=3,
             seed=123,
-            output_format="dict",
         )
         r1 = pymatgen_perturbation_generator(**kwargs)
         r2 = pymatgen_perturbation_generator(**kwargs)
@@ -173,14 +162,12 @@ class TestReproducibility:
             displacement_max=0.15,
             n_structures=1,
             seed=1,
-            output_format="dict",
         )
         r2 = pymatgen_perturbation_generator(
             input_structures=simple_lifep04_structure,
             displacement_max=0.15,
             n_structures=1,
             seed=99,
-            output_format="dict",
         )
         assert r1["success"] and r2["success"]
         # Volumes are the same (no strain) but displacements differ
@@ -192,17 +179,17 @@ class TestReproducibility:
 class TestOutputFormats:
     """Tests for all supported output formats."""
 
-    def test_dict_output(self, simple_lifep04_structure):
+    def test_cif_default_output(self, simple_lifep04_structure):
+        """CIF output should be the default format."""
         result = pymatgen_perturbation_generator(
             input_structures=simple_lifep04_structure,
             displacement_max=0.1,
             n_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         s = result["structures"][0]
-        assert isinstance(s, dict)
-        assert "@module" in s
+        assert isinstance(s, str)
+        assert "data_" in s or "_cell_length_a" in s  # CIF markers
 
     def test_cif_output(self, simple_lifep04_structure):
         result = pymatgen_perturbation_generator(
@@ -253,7 +240,6 @@ class TestMultipleInputStructures:
             input_structures=[simple_lifep04_structure, simple_nacl_structure],
             displacement_max=0.1,
             n_structures=3,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] == 6
@@ -265,7 +251,6 @@ class TestMultipleInputStructures:
             input_structures=[simple_lifep04_structure, simple_nacl_structure],
             displacement_max=0.1,
             n_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         source_labels = {m["source_structure"] for m in result["metadata"]}
@@ -325,7 +310,6 @@ class TestMetadata:
             input_structures=simple_lifep04_structure,
             displacement_max=0.1,
             n_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         for key in ("count", "structures", "metadata", "input_info", "perturbation_params", "message"):
@@ -337,7 +321,6 @@ class TestMetadata:
             displacement_max=0.1,
             strain_percent=0.5,
             n_structures=1,
-            output_format="dict",
         )
         assert result["success"] is True
         m = result["metadata"][0]
@@ -355,7 +338,6 @@ class TestMetadata:
             strain_percent=1.0,
             n_structures=2,
             seed=7,
-            output_format="dict",
         )
         assert result["success"] is True
         pp = result["perturbation_params"]
@@ -370,7 +352,6 @@ class TestMetadata:
             input_structures=simple_lifep04_structure,
             displacement_max=0.1,
             n_structures=4,
-            output_format="dict",
         )
         assert result["success"] is True
         variants = [m["variant"] for m in result["metadata"]]

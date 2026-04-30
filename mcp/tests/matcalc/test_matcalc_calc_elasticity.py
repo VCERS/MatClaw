@@ -7,6 +7,9 @@ Run single test: pytest tests/matcalc/test_matcalc_calc_elasticity.py::TestElast
 
 import pytest
 import numpy as np
+from pymatgen.io.cif import CifWriter, CifParser
+import tempfile
+import os
 from tools.matcalc.matcalc_calc_elasticity import matcalc_calc_elasticity
 
 
@@ -16,7 +19,7 @@ class TestElasticityCalc:
     def test_basic_elasticity_calculation(self, cubic_si_structure):
         """Test basic elasticity calculation with dict input."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",  # Use alias
             relax_structure=True,  # Use matcalc defaults
             relax_deformed_structures=False,  # Use matcalc defaults  
@@ -54,7 +57,7 @@ class TestElasticityCalc:
     def test_elastic_tensor_structure(self, cubic_cscl_structure):
         """Test that elastic tensor has correct structure and symmetry."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_cscl_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_cscl_structure)),
             calculator="TensorNet-MatPES-PBE-v2025.1-PES",
             relax_structure=False,
             fmax=0.2,
@@ -82,7 +85,7 @@ class TestElasticityCalc:
     def test_mechanical_stability(self, cubic_si_structure):
         """Test mechanical stability analysis."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             fmax=0.2,
@@ -107,7 +110,7 @@ class TestElasticityCalc:
     def test_voigt_reuss_hill_averages(self, cubic_nacl_structure):
         """Test that Voigt, Reuss, and Hill averages are properly computed."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_nacl_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_nacl_structure)),
             calculator="pbe",
             relax_structure=True,  # Use matcalc defaults
             relax_deformed_structures=False,  # Use matcalc defaults
@@ -147,7 +150,7 @@ class TestElasticityCalc:
     def test_derived_properties(self, cubic_si_structure):
         """Test that derived properties are correctly calculated."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             fmax=0.2,
@@ -182,7 +185,7 @@ class TestElasticityCalc:
     def test_ductility_classification(self, cubic_si_structure):
         """Test ductility classification based on Pugh ratio."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             fmax=0.2,
@@ -210,7 +213,7 @@ class TestElasticityCalc:
     def test_anisotropy_classification(self, cubic_si_structure):
         """Test elastic anisotropy classification."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             fmax=0.2,
@@ -237,7 +240,7 @@ class TestElasticityCalc:
     def test_with_structure_relaxation(self, stressed_structure):
         """Test elasticity calculation with structure relaxation enabled."""
         result = matcalc_calc_elasticity(
-            input_structure=stressed_structure.as_dict(),
+            input_structure=str(CifWriter(stressed_structure)),
             calculator="pbe",
             relax_structure=True,  # Enable relaxation
             relax_deformed_structures=True,
@@ -253,8 +256,24 @@ class TestElasticityCalc:
         # Structures should be different (relaxation occurred)
         # Check by comparing volumes or lattice parameters
         from pymatgen.core import Structure
-        initial = Structure.from_dict(result["structure"])
-        final = Structure.from_dict(result["final_structure"])
+        
+        # Parse initial structure from CIF string
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+            f.write(result["structure"])
+            initial_cif_path = f.name
+        try:
+            initial = CifParser(initial_cif_path).get_structures()[0]
+        finally:
+            os.unlink(initial_cif_path)
+        
+        # Parse final structure from CIF string
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+            f.write(result["final_structure"])
+            final_cif_path = f.name
+        try:
+            final = CifParser(final_cif_path).get_structures()[0]
+        finally:
+            os.unlink(final_cif_path)
         
         # Volume should change during relaxation
         vol_change = abs(final.volume - initial.volume) / initial.volume
@@ -265,7 +284,7 @@ class TestElasticityCalc:
     def test_without_deformed_structure_relaxation(self, cubic_si_structure):
         """Test elasticity calculation without relaxing deformed structures (faster)."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             relax_deformed_structures=False,  # Disabled for speed
@@ -286,7 +305,7 @@ class TestElasticityCalc:
         custom_shear_strains = [-0.08, -0.04, 0.04, 0.08]
         
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=True,  # Use matcalc defaults
             relax_deformed_structures=False,  # Use matcalc defaults
@@ -311,7 +330,7 @@ class TestElasticityCalc:
         
         for calc_name in calculators_to_test:
             result = matcalc_calc_elasticity(
-                input_structure=cubic_si_structure.as_dict(),
+                input_structure=str(CifWriter(cubic_si_structure)),
                 calculator=calc_name,
                 relax_structure=False,
                 fmax=0.3,
@@ -343,7 +362,7 @@ class TestElasticityCalc:
     def test_output_completeness(self, cubic_si_structure):
         """Test that all expected output fields are present."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             fmax=0.2,
@@ -398,7 +417,7 @@ class TestElasticityCalc:
         }
         
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             **inputs
         )
         
@@ -414,7 +433,7 @@ class TestElasticityCalc:
     def test_calculation_timing(self, cubic_si_structure):
         """Test that calculation time is reported."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             fmax=0.3,
@@ -440,7 +459,7 @@ class TestElasticityCalc:
     def test_error_handling_invalid_calculator(self, cubic_si_structure):
         """Test error handling for invalid calculator name."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="NonExistentCalculator123",
             relax_structure=False,
         )
@@ -457,7 +476,7 @@ class TestElasticityCalc:
         Marked as slow - only run with: pytest -m slow
         """
         result = matcalc_calc_elasticity(
-            input_structure=stressed_structure.as_dict(),
+            input_structure=str(CifWriter(stressed_structure)),
             calculator="pbe",
             relax_structure=True,
             relax_deformed_structures=False,  # Use matcalc defaults
@@ -485,7 +504,7 @@ class TestEdgeCases:
     def test_very_tight_convergence(self, cubic_si_structure):
         """Test with very tight force convergence."""
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             relax_deformed_structures=True,
@@ -499,7 +518,7 @@ class TestEdgeCases:
         """Test with minimal number of strain points."""
         # Use only 2 strain points (minimum for fitting)
         result = matcalc_calc_elasticity(
-            input_structure=cubic_si_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_si_structure)),
             calculator="pbe",
             relax_structure=False,
             norm_strains=[-0.003, 0.003],
@@ -515,14 +534,14 @@ class TestEdgeCases:
         """Test that the tool can be called multiple times independently."""
         # Call twice with same input - should give same results
         result1 = matcalc_calc_elasticity(
-            input_structure=cubic_nacl_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_nacl_structure)),
             calculator="pbe",
             relax_structure=False,
             fmax=0.2,
         )
         
         result2 = matcalc_calc_elasticity(
-            input_structure=cubic_nacl_structure.as_dict(),
+            input_structure=str(CifWriter(cubic_nacl_structure)),
             calculator="pbe",
             relax_structure=False,
             fmax=0.2,
