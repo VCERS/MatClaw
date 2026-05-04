@@ -278,81 +278,189 @@ def structure_validator(
         warnings.append(f"Overlapping atoms check failed with error: {e}")
         details["overlapping_atoms"] = {"passed": None, "error": str(e)}
     
-    # CHECK 2: Bond lengths
+    # CHECK 2: Bond lengths (CrystalNN-based)
+    # Uses chemistry-aware neighbor detection to distinguish actual bonds
+    # from coordination neighbors. Only validates identified bonds.
     checks_performed.append("bond_lengths")
     
     try:
         from pymatgen.core.periodic_table import Element
+        from pymatgen.analysis.local_env import CrystalNN
         
         anomalous_bonds = []
+        coordination_warnings = []
         bonds_checked = 0
+        neighbors_checked = 0
         
-        # Bond check based on reasonable radii estimates
-        # Use average_ionic_radius for better handling of ionic compounds
-        for i, site_i in enumerate(structure):
-            for j, site_j in enumerate(structure):
-                if i >= j:
-                    continue
-                
-                dist = site_i.distance(site_j)
-                if dist > coordination_cutoff:
-                    continue
-                
-                # Expected bond length - try to get reasonable estimate
+        # Initialize CrystalNN for chemistry-aware bonding analysis
+        # Uses Voronoi decomposition + chemical knowledge
+        try:
+            nn = CrystalNN()
+            use_crystalnn = True
+        except Exception as e:
+            # Fall back to simpler approach if CrystalNN fails
+            warnings.append(f"CrystalNN initialization failed: {e}. Using distance-based approach.")
+            use_crystalnn = False
+        
+        if use_crystalnn:
+            # CrystalNN approach: Only validate identified bonds
+            for i, site_i in enumerate(structure):
                 try:
-                    elem_i = Element(site_i.specie.symbol)
-                    elem_j = Element(site_j.specie.symbol)
+                    # Get bonded neighbors (chemistry-aware)
+                    neighbor_info = nn.get_nn_info(structure, i)
                     
-                   # Try to get appropriate radius (average_ionic_radius for ionic compounds)
-                    # Fall back to atomic_radius, then to a reasonable default
-                    r_i = None
-                    r_j = None
-                    
-                    # Try average ionic radius first (works for many ionic compounds)
-                    try:
-                        r_i = elem_i.average_ionic_radius
-                    except:
-                        pass
-                    try:
-                        r_j = elem_j.average_ionic_radius
-                    except:
-                        pass
-                    
-                    # Fall back to atomic radius
-                    if r_i is None:
-                        r_i = elem_i.atomic_radius or 1.5
-                    if r_j is None:
-                        r_j = elem_j.atomic_radius or 1.5
-                    
-                    expected_dist = r_i + r_j
-                    bonds_checked += 1
-                    
-                    # Only flag extremely anomalous bonds (outside expected range)
-                    deviation = abs(dist - expected_dist) / expected_dist
-                    
-                    if deviation > max_bond_deviation:
-                        anomalous_bonds.append({
-                            "site_i": i,
-                            "site_j": j,
-                            "species_i": str(site_i.specie),
-                            "species_j": str(site_j.specie),
-                            "actual_distance": round(dist, 4),
-                            "expected_distance": round(expected_dist, 4),
-                            "deviation": round(deviation, 4),
-                        })
+                    for neighbor in neighbor_info:
+                        j = neighbor['site_index']
+                        
+                        # Avoid double counting (only check i < j pairs)
+                        if i >= j:
+                            continue
+                        
+                        site_j = structure[j]
+                        # Calculate actual distance between sites
+                        dist = site_i.distance(site_j)
+                        
+                        # Get expected bond length
+                        try:
+                            elem_i = Element(site_i.specie.symbol)
+                            elem_j = Element(site_j.specie.symbol)
+                            
+                            r_i = elem_i.average_ionic_radius or elem_i.atomic_radius or 1.5
+                            r_j = elem_j.average_ionic_radius or elem_j.atomic_radius or 1.5
+                            expected_dist = r_i + r_j
+                            
+                            deviation = abs(dist - expected_dist) / expected_dist
+                            bonds_checked += 1
+                            
+                            # Validate this identified bond
+                            if deviation > max_bond_deviation:
+                                anomalous_bonds.append({
+                                    "site_i": i,
+                                    "site_j": j,
+                                    "species_i": str(site_i.specie),
+                                    "species_j": str(site_j.specie),
+                                    "actual_distance": round(dist, 4),
+                                    "expected_distance": round(expected_dist, 4),
+                                    "deviation": round(deviation, 4),
+                                    "method": "CrystalNN"
+                                })
+                        except Exception:
+                            continue
+                            
                 except Exception as e:
-                    # Skip if radii not available
+                    # CrystalNN might fail for some sites
                     continue
+            
+            # Also check for close non-bonded pairs (potential issues)
+            # These are pairs within coordination_cutoff but NOT identified as bonds
+            for i, site_i in enumerate(structure):
+                bonded_indices = set()
+                try:
+                    neighbor_info = nn.get_nn_info(structure, i)
+                    bonded_indices = {n['site_index'] for n in neighbor_info}
+                except:
+                    pass
+                
+                for j, site_j in enumerate(structure):
+                    if i >= j:
+                        continue
+                    
+                    dist = site_i.distance(site_j)
+                    
+                    # Check if this is a non-bonded pair that's suspiciously close
+                    if dist < coordination_cutoff and j not in bonded_indices:
+                        neighbors_checked += 1
+                        
+                        # Flag if unusually short for a non-bonded contact
+                        try:
+                            elem_i = Element(site_i.specie.symbol)
+                            elem_j = Element(site_j.specie.symbol)
+                            r_i = elem_i.average_ionic_radius or elem_i.atomic_radius or 1.5
+                            r_j = elem_j.average_ionic_radius or elem_j.atomic_radius or 1.5
+                            expected_dist = r_i + r_j
+                            
+                            # Only warn if more than 20% shorter than expected
+                            if dist < expected_dist * 0.8:
+                                coordination_warnings.append({
+                                    "site_i": i,
+                                    "site_j": j,
+                                    "species_i": str(site_i.specie),
+                                    "species_j": str(site_j.specie),
+                                    "actual_distance": round(dist, 4),
+                                    "expected_distance": round(expected_dist, 4),
+                                    "note": "Non-bonded contact unusually short"
+                                })
+                        except:
+                            continue
+        
+        else:
+            # Fallback: Distance-based approach with adaptive cutoff
+            for i, site_i in enumerate(structure):
+                for j, site_j in enumerate(structure):
+                    if i >= j:
+                        continue
+                    
+                    dist = site_i.distance(site_j)
+                    if dist > coordination_cutoff:
+                        continue
+                    
+                    try:
+                        elem_i = Element(site_i.specie.symbol)
+                        elem_j = Element(site_j.specie.symbol)
+                        
+                        r_i = elem_i.average_ionic_radius or elem_i.atomic_radius or 1.5
+                        r_j = elem_j.average_ionic_radius or elem_j.atomic_radius or 1.5
+                        expected_dist = r_i + r_j
+                        
+                        # Adaptive bond cutoff: 35% longer than expected
+                        bond_cutoff = expected_dist * 1.35
+                        
+                        deviation = abs(dist - expected_dist) / expected_dist
+                        
+                        if dist < bond_cutoff:
+                            # Treat as bond
+                            bonds_checked += 1
+                            if deviation > max_bond_deviation:
+                                anomalous_bonds.append({
+                                    "site_i": i,
+                                    "site_j": j,
+                                    "species_i": str(site_i.specie),
+                                    "species_j": str(site_j.specie),
+                                    "actual_distance": round(dist, 4),
+                                    "expected_distance": round(expected_dist, 4),
+                                    "deviation": round(deviation, 4),
+                                    "method": "distance-based"
+                                })
+                        else:
+                            # Coordination neighbor
+                            neighbors_checked += 1
+                            if dist < expected_dist * 0.8:
+                                coordination_warnings.append({
+                                    "site_i": i,
+                                    "site_j": j,
+                                    "species_i": str(site_i.specie),
+                                    "species_j": str(site_j.specie),
+                                    "actual_distance": round(dist, 4),
+                                    "expected_distance": round(expected_dist, 4),
+                                    "note": "Coordination neighbor unusually short"
+                                })
+                    except:
+                        continue
         
         bonds_passed = len(anomalous_bonds) == 0
         details["bond_lengths"] = {
             "passed": bonds_passed,
             "anomalous_bonds": anomalous_bonds[:20],  # Limit output
-            "total_bonds_checked": bonds_checked,
+            "coordination_warnings": coordination_warnings[:10] if coordination_warnings else [],
+            "bonds_checked": bonds_checked,
+            "neighbors_checked": neighbors_checked,
+            "method": "CrystalNN" if use_crystalnn else "distance-based",
         }
         
         if bonds_passed:
             checks_passed.append("bond_lengths")
+            if coordination_warnings:
+                warnings.append(f"Found {len(coordination_warnings)} unusual coordination neighbors (non-critical)")
         else:
             checks_failed.append("bond_lengths")
             issues.append(f"Found {len(anomalous_bonds)} bond(s) with unusual lengths")
