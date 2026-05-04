@@ -382,6 +382,18 @@ for structure in final_structures:
   ```
 - Script handles: checkpointing, resume, progress tracking, error handling
 
+> **⚠️ Output Format Compatibility:**
+> 
+> Ensure `output_format` compatibility between planning file and batch script:
+> - If script saves to CIF files: Force `tool_params['output_format'] = 'cif'` (override plan)
+> - If script saves to ASE database: Force `tool_params['output_format'] = 'ase'` (override plan)
+> - If script expects VASP: Force `tool_params['output_format'] = 'poscar'` (override plan)
+> 
+> **Don't rely on plan parameters** — explicitly set output_format in the script to match
+> downstream file/database requirements. Tools return different types:
+> - `'cif'`/`'poscar'` → strings
+> - `'ase'` → dictionaries with `{numbers, positions, cell, pbc}`
+
 **See:** [references/large-scale-planning.md](references/large-scale-planning.md) for complete planning workflow
 
 ---
@@ -477,6 +489,9 @@ ordered = pymatgen_enumeration_generator(
 4. **`enumeration_generator` hangs** → Keep `supercell_size ≤ 2` for ternary+ systems
 5. **Expecting fractional occupancy from `substitution_generator`** → Use `disorder_generator` instead
 6. **`ion_exchange_generator` returns 0** → Try different `exchange_fraction` values
+7. **Batch script output_format mismatch** → When generating planning file with `output_format='ase'` but batch script expects CIF strings, force `tool_params['output_format'] = 'cif'` in script (override plan parameter)
+8. **`disorder_generator` fractional occupancy errors** → Fractions must sum to 1.0 **per site**, not per formula unit. For Bi₂, Nb₂, Y₃ compounds, divide by stoichiometric coefficient (see below)
+9. **Materials Project API rate limits** → Large-scale generation (>20 structures) may hit rate limits causing transient failures. Use retry logic (see below)
 
 ### Quick Debugging
 
@@ -487,6 +502,138 @@ ordered = pymatgen_enumeration_generator(
 | Tool hangs | supercell_size too large | Reduce to 1-2 or switch to SQS |
 | count: 0 in result | max_attempts too low | Calculate explicitly |
 | High sqs_error | Poor convergence | Increase n_mc_steps |
+| "Expected CIF string, got dict" | output_format='ase' in plan but script needs CIF | Force `tool_params['output_format'] = 'cif'` |
+| "Fractions sum to 2.0/3.0" | Per-formula instead of per-site | Divide by stoichiometric coefficient |
+| Transient "Could not resolve base" | Materials Project rate limit | Add retry logic with exponential backoff |
+
+---
+
+## Large-Scale Generation: Best Practices
+
+### Materials Project API Rate Limits
+
+**Problem:** When generating >20 structures, Materials Project API may hit rate limits causing transient failures.
+Structures that should succeed may fail with "Could not resolve base structure" errors.
+
+**Observed behavior:**
+- Initial batch run: ~20-30% success rate
+- Retry (same code, same parameters): Additional ~30-40% succeed
+- Multiple retries may be needed to reach maximum achievable success rate
+
+**Solutions:**
+
+1. **Built-in retry logic in batch scripts:**
+```python
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(stop=stop_after_attempt(3), 
+       wait=wait_exponential(multiplier=1, min=2, max=10))
+def generate_with_retry(tool_func, **params):
+    """Retry tool calls with exponential backoff"""
+    return tool_func(**params)
+
+# Usage in batch script
+try:
+    result = generate_with_retry(pymatgen_disorder_generator, 
+                                 input_structures=base, 
+                                 site_substitutions=substitutions)
+except Exception as e:
+    # Log failure and continue
+    logging.error(f"Failed after retries: {e}")
+```
+
+2. **Manual retry workflow:**
+```bash
+# First run
+python batch_generation.py
+
+# Check results
+python generation_summary.py  # Shows completed vs failed
+
+# Reset failed candidates with available base structures
+python -c "import json; plan = json.load(open('plan.json')); 
+  <reset logic>; json.dump(plan, open('plan.json', 'w'))"
+
+# Retry
+python batch_generation.py
+```
+
+3. **Rate limit friendly practices:**
+- Add `time.sleep(0.5)` between MP API calls
+- Use MP structure caching (save fetched structures locally)
+- Verify base structure availability before large-scale generation:
+  ```python
+  # Pre-flight check
+  for candidate in candidates:
+      result = mp_search_materials(formula=candidate['base_composition'])
+      if result['count'] == 0:
+          candidate['skip'] = True  # Mark as impossible
+  ```
+
+### Fractional Occupancy Normalization
+
+**Problem:** `pymatgen_disorder_generator` requires `site_substitutions` fractions to sum to **1.0 per site**,
+not per formula unit. For compounds with multiple atoms per site (Bi₂, Nb₂, Y₃), this requires normalization.
+
+**Examples:**
+
+**❌ WRONG (will fail with "Fractions sum to 2.0/3.0" error):**
+```python
+# BaBi₂(MoO₄)₄ with 3% Sm doping
+# Bi has stoichiometry 2 → naive approach gives 0.03 + 1.97 = 2.0
+site_substitutions = {'Bi': {'Sm': 0.03, 'Bi': 1.97}}  # ❌ ERROR
+
+# Y₃Al₅O₁₂ with 3% Sm doping  
+# Y has stoichiometry 3 → naive approach gives 0.03 + 2.97 = 3.0
+site_substitutions = {'Y': {'Sm': 0.03, 'Y': 2.97}}  # ❌ ERROR
+```
+
+**✅ CORRECT (normalize by stoichiometric coefficient):**
+```python
+# BaBi₂(MoO₄)₄ with 3% Sm doping
+# Divide by 2 (Bi stoichiometry): 0.03/2 = 0.015, 1.97/2 = 0.985
+site_substitutions = {'Bi': {'Sm': 0.015, 'Bi': 0.985}}  # ✅ Sums to 1.0
+
+# Y₃Al₅O₁₂ with 3% Sm doping
+# Divide by 3 (Y stoichiometry): 0.03/3 = 0.01, 2.97/3 = 0.99
+site_substitutions = {'Y': {'Sm': 0.01, 'Y': 0.99}}  # ✅ Sums to 1.0
+
+# SrNb₂O₆ with 3% Sm doping
+# Divide by 2 (Nb stoichiometry)
+site_substitutions = {'Nb': {'Sm': 0.015, 'Nb': 0.985}}  # ✅ Sums to 1.0
+```
+
+**Rule:** If element has stoichiometry `n`, divide all occupancy fractions by `n`.
+
+**Validation script:**
+```python
+def normalize_site_substitutions(formula, site_subs):
+    """Normalize site_substitutions to per-site basis"""
+    from pymatgen.core import Composition
+    comp = Composition(formula)
+    
+    normalized = {}
+    for element, occupancies in site_subs.items():
+        stoich = comp[element]  # Get stoichiometric coefficient
+        normalized[element] = {
+            species: frac / stoich 
+            for species, frac in occupancies.items()
+        }
+        
+        # Verify sum = 1.0
+        total = sum(normalized[element].values())
+        assert abs(total - 1.0) < 0.01, f"Fractions sum to {total}, not 1.0"
+    
+    return normalized
+
+# Usage
+site_subs = normalize_site_substitutions(
+    formula='BaBi2(MoO4)4',
+    site_subs={'Bi': {'Sm': 0.03, 'Bi': 1.97}}
+)
+# Returns: {'Bi': {'Sm': 0.015, 'Bi': 0.985}}
+```
 
 ---
 

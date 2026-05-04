@@ -233,8 +233,6 @@ The template now supports multiple plan structures:
 
 ### Core Components (Simplified Reference)
 
-### Core Components (Simplified Reference)
-
 ```python
 class BatchGenerator:
     """Reference implementation with flexible tool/structure handling."""
@@ -736,3 +734,67 @@ save_json(plan, "generation_candidates.json")
 2. Fix root cause (bad MP ID, invalid parameters)
 3. Reset failed candidates: `status: "not_started"`
 4. Re-run with corrected parameters
+
+### Output Format Mismatch Between Plan and Script
+
+**Symptom:** 
+- Batch script fails with `TypeError: Expected CIF string, got <class 'dict'>`
+- Or: Script fails when trying to write structure files with string operations on dict objects
+- Affects all candidates systematically
+
+**Cause:** 
+The `generation_plan.json` file may specify `output_format: 'ase'` in `tool_parameters`, which causes generation tools to return Python dictionaries instead of CIF strings. This happens when:
+
+1. The plan was created for ASE database storage (requires dict format)
+2. The plan was copied from a template with different output requirements
+3. The batch script assumes CIF strings for file writing operations
+
+Different output formats return different types:
+- `'cif'` or `'poscar'` → String (can write directly to file)
+- `'ase'` → Dictionary `{numbers, positions, cell, pbc}` (requires conversion)
+- `'json'` → JSON-encoded string with nested structure
+
+**Solution:**
+
+**Option 1 (Recommended):** Force output format in batch script
+
+```python
+# In batch generation script, after loading tool parameters:
+tool_params = candidate.get("tool_parameters", {}).copy()
+
+# Force CIF format regardless of what plan specifies
+tool_params['output_format'] = 'cif'  # Override plan parameter
+
+# Now call the tool with forced format
+result = await session.call_tool(
+    tool_name=candidate["generation_tool"],
+    arguments=tool_params
+)
+```
+
+This approach:
+- ✅ Allows plan reuse for different purposes (scripts vs databases)
+- ✅ Makes script requirements explicit
+- ✅ Prevents type mismatch errors
+- ✅ No need to manually edit large planning files
+
+**Option 2:** Update planning file
+
+```json
+{
+  "tool_parameters": {
+    "base_mpid": "mp-18834",
+    "substitutions": {"Sr": "Sm"},
+    "concentrations": [0.03],
+    "output_format": "cif"  // Change from 'ase' to 'cif'
+  }
+}
+```
+
+Only use this if you're certain all consumers of the plan need the same format.
+
+**Prevention:**
+- In batch scripts that write structure files, always force `output_format='cif'` 
+- Document the expected format in script comments
+- For plans used with multiple scripts, specify format per-use case rather than in plan
+- See `references/gotchas.md` section "Batch Generation and Large-Scale Issues" for detailed examples
