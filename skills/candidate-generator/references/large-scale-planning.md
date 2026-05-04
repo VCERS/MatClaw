@@ -133,13 +133,6 @@ For production execution, create a project-specific script based on the referenc
 
 The reference script demonstrates how to use the **MCP client SDK** to call tools via `session.call_tool()`:
 
-**Key Improvements in Updated Template:**
-
-1. **✅ Dynamic Tool Selection** - No hardcoded tool names
-2. **✅ Flexible Base Structure Resolution** - 5 fallback options
-3. **✅ Generic Parameter Handling** - Works with any tool
-4. **✅ Comprehensive Customization Guide** - Clear instructions for adaptation
-
 ### Dynamic Tool Selection
 
 The template now reads tool names from the plan rather than hardcoding:

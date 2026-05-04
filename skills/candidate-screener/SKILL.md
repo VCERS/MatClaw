@@ -2,10 +2,6 @@
 name: candidate-screener
 description: >
   Validate, enrich with properties, and rank candidate structures for materials discovery. Takes candidates from candidate-generator skill, validates structures, retrieves properties from Materials Project/ASE database/ML calculations hierarchically, applies screening criteria, and ranks by multi-objective optimization. ML calculations use MatGL for formation energy and band gap predictions, and matcalc for mechanical (elasticity), vibrational (phonons), surface, thermal, and reaction properties. Use this skill to transform raw candidate lists into ranked, property-enriched sets ready for synthesis or DFT calculations. Trigger keywords: screen candidates, validate structures, property retrieval, rank materials, filter candidates, battery screening, catalyst discovery, thermoelectric materials, phosphor screening, mechanical properties, phonon stability, surface energies.
-applyTo:
-  - "**/screening*.py"
-  - "**/screen_*.py"
-  - "**/candidate_screening*.py"
 ---
 
 # Candidate Screener Skill
@@ -307,7 +303,23 @@ Phase 3: DFT verification (days)
    - User can adjust criteria without rerunning expensive ML
    - Example: Relax band gap 3.0-5.0 eV → 2.5-5.5 eV, rerun Phase 3 only (cached properties, instant)
 
-**For complete tracking workflow, see [references/large-scale-screening.md](references/large-scale-screening.md)**
+### Tool Calling Pattern for Batch Scripts
+
+**When writing batch screening scripts (for >20 candidates), use MCP client library for all tool calls.**
+
+**Context-appropriate usage:**
+- ✅ **USE for:** Standalone batch scripts, automated pipelines, production deployments
+- ❌ **NOT needed for:** Interactive screening (few candidates), exploratory analysis, agent-driven workflows
+
+**Why MCP for batch scripts:**
+- Scripts must work without direct access to tool source code (production deployments)
+- MCP provides platform abstraction, error handling, and remote execution support
+- Scripts work in both development (local stdio) and production (remote SSE/HTTP) environments
+
+**For complete MCP client pattern with correct connection handling, see:**
+- [../../_shared/tool-calling-pattern.md](../../_shared/tool-calling-pattern.md) - Standardized MCP client template (with critical context manager pattern, path calculation, cross-platform support)
+- [references/large-scale-screening.md](references/large-scale-screening.md) - Screening-specific implementation guide
+- [examples/batch_screening_example.py](examples/batch_screening_example.py) - Complete working reference with hierarchical property retrieval
 
 ---
 

@@ -193,24 +193,28 @@ Type 'proceed' to start screening.
 
 ### Step 3: Execute with Checkpointing
 
-**Production Implementation: Use Batch Client Utility**
+**Production Implementation: MCP Client Pattern**
 
-For production execution, use the reusable batch client utility instead of manual loops:
+For production execution, create a self-contained screening script using the MCP client SDK.
+
+**Reference Location:** See `candidate-screener/examples/batch_screening_example.py` for complete screening workflow with MCP patterns, hierarchical property retrieval, and checkpointing.
+
+**Key Pattern Elements:**
 
 ```python
-from MatClaw.skills.utils.batch_client import MCPBatchClient, setup_logging
+import asyncio
+import json
 from pathlib import Path
 from datetime import datetime
-import asyncio
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
-setup_logging()
-
-class CandidateScreeningClient(MCPBatchClient):
+class PhosphorScreener:
     """Screening client with multi-phase workflow: validation → properties → screening → ranking"""
     
-    def __init__(self, plan_file: Path, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, plan_file: Path, candidates_dir: Path):
         self.plan_file = plan_file
+        self.candidates_dir = candidates_dir
         self.plan = None
         self.ase_db = None
         
@@ -225,20 +229,23 @@ class CandidateScreeningClient(MCPBatchClient):
         with open(self.plan_file, 'w') as f:
             json.dump(self.plan, f, indent=2)
     
-    async def process_item(self, candidate: dict, context: dict) -> bool:
+    async def process_candidate(self, candidate: dict, session: ClientSession) -> bool:
         """
         Process one candidate through all screening phases.
         Returns True if processing succeeded, False if failed/rejected.
+        
+        IMPORTANT: All tool calls must go through session.call_tool(),
+        never import tools directly.
         """
         try:
             # PHASE 1: Validation (if not already validated)
             if candidate["status"] == "not_started":
-                if not await self._validate_candidate(candidate):
+                if not await self._validate_candidate(candidate, session):
                     return False  # Rejected during validation
             
             # PHASE 2: Property Retrieval (if not already complete)
             if candidate["status"] == "validated":
-                if not await self._retrieve_properties(candidate):
+                if not await self._retrieve_properties(candidate, session):
                     return False  # Failed to retrieve properties
             
             # PHASE 3: Screening (if properties complete)
@@ -258,15 +265,16 @@ class CandidateScreeningClient(MCPBatchClient):
             })
             return False
     
-    async def _validate_candidate(self, candidate: dict) -> bool:
+    async def _validate_candidate(self, candidate: dict, session: ClientSession) -> bool:
         """Phase 1: Validate structure and composition."""
         candidate["status"] = "validating"
         
-        # Structure validation
-        val_result = await self.call_tool(
+        # Structure validation via MCP
+        result = await session.call_tool(
             "structure_validator",
             {"input_structure": candidate["input_structure"]["cif"]}
         )
+        val_result = json.loads(result.content[0].text)
         
         candidate["validation"]["structure_valid"] = val_result["is_valid"]
         
@@ -276,11 +284,12 @@ class CandidateScreeningClient(MCPBatchClient):
             candidate["screening_result"]["rejection_reason"] = f"Invalid structure: {val_result['issues']}"
             self.plan["summary_statistics"]["validation_failed"] += 1
             return False
-        
-        # Composition analysis
-        comp_result = await self.call_tool(
+         via MCP
+        result = await session.call_tool(
             "composition_analyzer",
             {"input_structure": candidate["input_structure"]["cif"]}
+        )
+        comp_result = json.loads(result.content[0].text    {"input_structure": candidate["input_structure"]["cif"]}
         )
         
         candidate["validation"]["composition_valid"] = not comp_result.get("errors", False)
@@ -298,35 +307,39 @@ class CandidateScreeningClient(MCPBatchClient):
         candidate["validation"]["timestamp"] = datetime.now().isoformat()
         self.plan["summary_statistics"]["validation_passed"] += 1
         return True
-    
-    async def _retrieve_properties(self, candidate: dict) -> bool:
+    , session: ClientSession) -> bool:
         """Phase 2: Hierarchical property retrieval (MP → ASE → ML)."""
         candidate["status"] = "retrieving_properties"
         
-        # Try Materials Project first
-        mp_result = await self.call_tool(
+        # Try Materials Project first via MCP
+        result = await session.call_tool(
             "mp_search_materials",
             {"formula": candidate["formula"], "limit": 5}
         )
+        mp_result = json.loads(result.content[0].text)
         
         if mp_result.get("success") and mp_result.get("count", 0) > 0:
             # Found in MP - retrieve detailed properties
             mp_id = mp_result["materials"][0]["material_id"]
-            props = await self.call_tool(
+            result = await session.call_tool(
                 "mp_get_material_properties",
                 {
                     "material_ids": [mp_id],
                     "properties": ["formation_energy_per_atom", "band_gap", "energy_above_hull", "is_stable"]
                 }
             )
+            props_result = json.loads(result.content[0].text)
+            props = props_result["properties"][0]
             
+            self._store_properties(candidate, props
             self._store_properties(candidate, props[0], "Materials_Project")
             candidate["status"] = "properties_complete"
-            self.plan["summary_statistics"]["properties_complete"] += 1
-            self.plan["summary_statistics"]["property_source_breakdown"]["Materials_Project"] += 1
-            return True
-        
-        # Try ASE cache
+            self.plan[" via MCP
+        result = await session.call_tool(
+            "ase_query",
+            {"db_path": self.ase_db, "formula": candidate["formula"]}
+        )
+        ase_result = json.loads(result.content[0].text# Try ASE cache
         ase_result = await self.call_tool(
             "ase_query",
             {"db_path": self.ase_db, "formula": candidate["formula"]}
@@ -341,14 +354,10 @@ class CandidateScreeningClient(MCPBatchClient):
                 "band_gap": "ASE_cached"
             }
             candidate["status"] = "properties_complete"
-            self.plan["summary_statistics"]["properties_complete"] += 1
-            self.plan["summary_statistics"]["property_source_breakdown"]["ASE_cached"] += 1
-            return True
-        
-        # ML calculation (last resort)
+            self.plan["summary_statist via MCP
         try:
             # Relax structure
-            relax_result = await self.call_tool(
+            result = await session.call_tool(
                 "matgl_relax_structure",
                 {
                     "input_structure": candidate["input_structure"]["cif"],
@@ -356,25 +365,33 @@ class CandidateScreeningClient(MCPBatchClient):
                     "max_steps": self.plan["metadata"]["ml_settings"]["relaxation_max_steps"]
                 }
             )
+            relax_result = json.loads(result.content[0].text)
             
             if not relax_result["converged"]:
                 raise Exception("Structure relaxation failed to converge")
             
             relaxed = relax_result["final_structure"]
             
-            # Formation energy prediction
-            eform = await self.call_tool(
+            # Formation energy prediction via MCP
+            result = await session.call_tool(
                 "matgl_predict_eform",
                 {"input_structure": relaxed}
             )
+            eform = json.loads(result.content[0].text)
             
-            # Band gap prediction
-            bandgap = await self.call_tool(
+            # Band gap prediction via MCP
+            result = await session.call_tool(
                 "matgl_predict_bandgap",
                 {"input_structure": relaxed}
             )
+            bandgap = json.loads(result.content[0].text)
             
-            # Stability analysis
+            # Stability analysis via MCP
+            result = await session.call_tool(
+                "stability_analyzer",
+                {"input_structure": relaxed, "hull_tolerance": 0.1}
+            )
+            stability = json.loads(result.content[0].text# Stability analysis
             stability = await self.call_tool(
                 "stability_analyzer",
                 {"input_structure": relaxed, "hull_tolerance": 0.1}
@@ -386,8 +403,8 @@ class CandidateScreeningClient(MCPBatchClient):
             candidate["properties"]["is_stable"] = stability["stability_category"] == "stable"
             candidate["properties"]["property_sources"] = {
                 "formation_energy_per_atom": "ML_calculated",
-                "band_gap": "ML_calculated"
-            }
+                "band_gap" via MCP
+            await session
             candidate["screening_result"]["requires_dft"] = True
             candidate["status"] = "properties_complete"
             
