@@ -107,6 +107,58 @@ def matgl_predict_eform(
                     f"Install with: pip install dgl -f https://data.dgl.ai/wheels/torch-2.0/repo.html"
         }
     
+    # Check for backend conflict - if PYG backend already loaded, use subprocess
+    # Skip this check if we're already in a subprocess (indicated by env var)
+    import os
+    import matgl.config
+    if matgl.config.BACKEND == "PYG" and not os.environ.get("MATGL_SUBPROCESS"):
+        # Backend conflict detected - PYG already loaded, need DGL
+        # Run this same function in subprocess with fresh DGL backend
+        import subprocess
+        import json
+        import sys
+        
+        # Prepare the Python code to execute in subprocess
+        code = f"""
+import os
+os.environ['MATGL_SUBPROCESS'] = '1'  # Flag to skip backend check
+from tools.matgl.matgl_predict_eform import matgl_predict_eform
+import json
+result = matgl_predict_eform(
+    input_structure={repr(input_structure)},
+    model={repr(model)}
+)
+print(json.dumps(result))
+"""
+        
+        # Run prediction in subprocess using same Python executable
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+                cwd=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            )
+            
+            if result.returncode == 0:
+                return json.loads(result.stdout)
+            else:
+                return {
+                    "success": False,
+                    "error": f"Subprocess prediction failed: {result.stderr}"
+                }
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "error": "Prediction timed out after 5 minutes"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Subprocess execution failed: {e}"
+            }
+    
     try:
         # Parse input structure
         if "data_" in input_structure or "_cell_" in input_structure:
