@@ -203,22 +203,38 @@ substitution_generator(
 
 **Resolving disorder (disorder → ordered):**
 
-**Branch A — Ground-state search (complete enumeration):**
-- Tool: `pymatgen_enumeration_generator`
-- Use for: Find all low-energy orderings, cluster expansion training
-- Keep `supercell_size ≤ 2` for ternary+ systems
-- Sort by `'ewald'` for lowest energy first
+The choice between disorder approaches depends critically on **doping concentration** when generating structures for screening workflows:
 
-**Branch B — Solid solution modeling (quasirandom):**
-- Tool: `pymatgen_sqs_generator`
-- Use for: Model random alloys, high-entropy materials (≥4 mixing species)
-- Returns best quasirandom approximant
-- Increase `n_mc_steps` for multicomponent systems
+**Branch A — Low doping screening (< 10% dopant concentration):**
+- Tool: `pymatgen_disorder_generator` → disordered unit cell
+- Use for: Fast high-throughput screening with small unit cells
+- Creates fractional occupancy (e.g., Sr₀.₉₇Sm₀.₀₃MoO₄)
+- **Physical basis:** In the dilute limit, the host lattice structure and properties dominate. Dopants provide minor perturbations but don't fundamentally alter bonding or electronic structure. The majority-species approximation (keeping only the dominant species per site) is physically justified.
+- **Downstream handling:** Screening tools like `matgl_relax_structure` automatically apply majority-species approximation at the tool level (no additional steps needed)
+- **When valid:** Doping concentrations where dopant-dopant interactions are negligible (typically < 10%)
 
-**Decision:**
-- Need ALL orderings? → Enumeration (supercell_size ≤ 2)
-- Modeling disorder itself? → SQS
-- High-entropy (≥4 species)? → SQS (enumeration intractable)
+**Branch B — High doping / solid solution modeling (> 20% dopant concentration):**
+- Tool: `pymatgen_sqs_generator` → ordered supercell (50-200 atoms)
+- Use for: Model random alloys, solid solutions, high-entropy materials where disorder is functionally important
+- Returns fully ordered quasirandom approximant
+- **Physical basis:** At high concentrations, dopant-dopant interactions and local ordering matter. The spatial arrangement of dopants affects properties (electronic structure, phonons, stability). SQS structures capture the statistical correlation functions of true random disorder while remaining computationally tractable.
+- **Downstream handling:** Already fully ordered → screening tools like `matgl_relax_structure` work directly (no approximations)
+- **Computational cost:** Larger supercells (10-50× more atoms) but more accurate for concentrated systems
+- Increase `n_mc_steps` for multicomponent systems (50k → 100k-500k for ternary/quaternary)
+
+**Branch C — Intermediate concentration (10-20% dopant):**
+- Strategy: Initial screening with disorder_generator (fast), then validate top candidates with sqs_generator (accurate)
+- Rationale: Screen cheaply across many candidates, invest in accurate modeling only for promising materials
+
+**Decision tree for screening workflows:**
+```
+Doping concentration known?
+├─ < 10%: disorder_generator (unit cell, fast)
+├─ 10-20%: disorder_generator (screen) → sqs_generator (validate top 10)
+└─ > 20%: sqs_generator (supercell, accurate)
+
+High-entropy (≥4 mixing species)?: sqs_generator (enumeration intractable)
+```
 
 **Next:** Phase 4 (defects) or Phase 5 (perturbation) or storage
 

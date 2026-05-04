@@ -63,7 +63,7 @@ Validates and enriches candidate structures with properties using hierarchical d
 |-----------|-------|------------|-------|
 | **MatGL** | `matgl_predict_eform`, `matgl_predict_bandgap` | Formation energy, band gap | 0.5-1s |
 | **matcalc** | `matcalc_calc_elasticity`, `matcalc_calc_phonon`, `matcalc_calc_surface`, etc. | Mechanical, vibrational, surface, thermal | 20-60s |
-| **Relaxation** | `matgl_relax_structure` | MANDATORY before all predictions | 5-10s |
+| **Relaxation** | `matgl_relax_structure` | MANDATORY before all predictions (handles disorder automatically) | 5-10s |
 
 **MatGL tools (fast screening):**
 - `matgl_predict_eform`: Formation energy (M3GNet/MEGNet 2018 models)
@@ -93,7 +93,86 @@ Validates and enriches candidate structures with properties using hierarchical d
 **For complete tool specifications, see [references/tool-catalog.md](references/tool-catalog.md)**
 
 ---
+## Structure Relaxation — Disorder Handling
 
+**Critical context:** `matgl_relax_structure` automatically handles disordered structures (partial occupancies). Understanding this behavior is essential for screening workflows involving doped or substituted materials.
+
+### ASE Compatibility Constraint
+
+MatGL uses ASE (Atomic Simulation Environment) as its structure representation backend. ASE has a fundamental limitation: it cannot represent partial site occupancies. Every atomic site must have occupancy = 1.0. When pymatgen structures with fractional occupancy (e.g., Sr₀.₉₇Sm₀.₀₃MoO₄ from `pymatgen_disorder_generator`) are converted to ASE, the conversion layer raises `ValueError: ASE Atoms only supports ordered structures`.
+
+### Automatic Majority-Species Approximation
+
+The `matgl_relax_structure` tool detects disordered structures and automatically applies the **majority-species approximation**:
+
+1. For each site with partial occupancy, identify the species with highest occupancy fraction
+2. Replace the partial occupancy with full occupancy (1.0) of that species
+3. Continue relaxation with the ordered approximation
+
+**Example:**
+- Input: Sr₀.₉₇Sm₀.₀₃MoO₄ (3% Sm doping on Sr sites)
+- Automatic conversion: SrMoO₄ (Sm removed, Sr occupancy 0.97 → 1.0)
+- Relaxation: Proceeds normally on the ordered structure
+
+### Validity Constraints — When This Approximation Works
+
+**Physical reasoning:** The approximation assumes dopant atoms are sufficiently dilute that removing them doesn't fundamentally alter the material's structure or properties. The host lattice dominates bonding, coordination, and electronic structure.
+
+✅ **Valid for dilute doping (< 10% dopant concentration):**
+- Host lattice structure dominates
+- Dopant provides minor perturbations to properties
+- Relaxed geometry closely matches true doped structure
+- Common in phosphors, wide-gap semiconductors, ionic conductors with aliovalent doping
+- **Screening decision:** Use disorder_generator → majority-species is appropriate
+
+⚠️ **Questionable for intermediate (10-20% dopant concentration):**
+- Dopant-dopant interactions start to matter
+- Local structure distortions may be significant
+- **Screening decision:** Use for initial fast screening, but validate top candidates with SQS structures
+
+❌ **Invalid for high concentration (> 20%) or solid solutions:**
+- Dopant-dopant interactions dominate
+- Spatial arrangement affects properties (clustering, ordering, phase separation)
+- Removing dopants fundamentally changes the material
+- **Screening decision:** Generate with sqs_generator instead (ordered supercell, no approximation needed)
+
+### When Disordered Structures Appear
+
+Disordered structures in screening workflows typically come from:
+
+1. **pymatgen_disorder_generator** (expected by design)
+   - Explicit fractional substitution (e.g., "3% Sm on Sr sites")
+   - Most common source in screening workflows
+
+2. **pymatgen_ion_exchange_generator** (sometimes)
+   - Charge balancing can create fractional occupancies
+   - E.g., replacing Li⁺ with Ca²⁺ at 50% to maintain neutrality
+
+3. **Materials Project database** (rare)
+   - Some mineral structures have crystallographic disorder
+   - Mixed-valence compounds
+
+### Tool Behavior Summary
+
+**What happens automatically:**
+- Tool detects `not structure.is_ordered` via pymatgen
+- Logs warning: "Structure has partial occupancy, applying majority-species approximation"
+- Converts to ordered structure
+- Relaxes normally
+- Returns relaxed structure with metadata flag `disorder_approximation_applied: true`
+
+**User action required:**
+- Check candidate doping concentration
+- If > 10%, consider regenerating top candidates with `pymatgen_sqs_generator`
+- Re-screen with accurate SQS structures (no approximation)
+- Compare results to assess approximation impact
+
+**No action needed for:**
+- Dilute doping (< 10%) → approximation is valid
+- Initial fast screening (can always refine later)
+- Structure came from MP or already ordered → no conversion occurs
+
+---
 ## Universal Essential Properties
 
 **ALL materials screenings must retrieve these minimum properties (regardless of application):**
