@@ -73,12 +73,37 @@ MatClaw follows a layered architecture:
 
 ## Setup
 
+Some of the dependencies for the MCP server require pre-compiled binaries which match your specific PyTorch and CUDA versions. To ensure proper installation, you may either use Option A or Option B.
+
+### Option A
+
+Run the following script, which will automatically detect your environment to install the apppropriate dependencies for the MCP server:
+
 ```bash
 cd mcp
 ./setup.sh
 ```
 
-The setup script will install dependencies and configure the MCP server.
+### Option B
+
+1. Check your PyTorch and CUDA versions:
+
+```bash
+python -c "import torch; print(f'Torch: {torch.__version__} | CUDA: {torch.version.cuda}')"
+```
+
+2. In `requirements.txt`, change the links at the top to match your Torch and CUDA version. For example for Torch 2.11.0+cu130 and CUDA 13.0, use:
+```
+--find-links https://data.pyg.org/whl/torch-2.11.0+cu130.html
+```
+
+3. Install the dependencies in a virtual environment:
+```bash
+cd mcp
+python -m venv venv
+source venv/bin/activate # or source venv/Scripts/activate for Windows 
+pip install -r requirements.txt
+```
 
 ## Usage
 
