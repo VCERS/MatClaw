@@ -22,12 +22,11 @@ from pydantic import Field
 
 def pymatgen_enumeration_generator(
     input_structures: Annotated[
-        Union[Dict[str, Any], List[Dict[str, Any]], str, List[str]],
+        Union[str, List[str]],
         Field(
             description=(
                 "Input structure(s) with fractional site occupancies (disordered). "
-                "Can be: single Structure dict (from Structure.as_dict()), "
-                "list of Structure dicts, CIF string, or list of CIF strings. "
+                "Accepts CIF string or list of CIF strings. "
                 "Each structure must have at least one site with partial occupancy; "
                 "fully ordered structures are skipped unless check_ordered_input=False."
             )
@@ -131,16 +130,15 @@ def pymatgen_enumeration_generator(
     output_format: Annotated[
         str,
         Field(
-            default="dict",
+            default="cif",
             description=(
                 "Output format for the returned structures. "
-                "'dict': pymatgen Structure.as_dict() (default, round-trippable). "
+                "'cif': CIF string (default). "
                 "'poscar': VASP POSCAR string. "
-                "'cif': CIF string. "
                 "'json': JSON-serialised Structure dict string."
             )
         )
-    ] = "dict"
+    ] = "cif"
 ) -> Dict[str, Any]:
     """
     Generate ordered structures from disordered structures with partial site occupancies.
@@ -186,7 +184,7 @@ def pymatgen_enumeration_generator(
         }
 
     # Validate parameters
-    valid_formats = {"dict", "poscar", "cif", "json"}
+    valid_formats = {"poscar", "cif", "json", "ase"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -203,7 +201,7 @@ def pymatgen_enumeration_generator(
 
 
     # Parse input structures
-    if isinstance(input_structures, (dict, str)):
+    if isinstance(input_structures, str):
         raw_list = [input_structures]
     elif isinstance(input_structures, list):
         raw_list = input_structures
@@ -216,15 +214,13 @@ def pymatgen_enumeration_generator(
     structures: List[Structure] = []
     for i, item in enumerate(raw_list):
         try:
-            if isinstance(item, dict):
-                structures.append(Structure.from_dict(item))
-            elif isinstance(item, str):
+            if isinstance(item, str):
                 structures.append(Structure.from_str(item, fmt="cif"))
             else:
                 return {
                     "success": False,
                     "error": (
-                        f"Input structure {i} must be a dict or CIF string, "
+                        f"Input structure {i} must be a CIF string, "
                         f"got {type(item).__name__}."
                     )
                 }
@@ -434,17 +430,24 @@ def _append_result(
     supercell_size = max(1, round(len(ordered_struct) / n_atoms_parent))
 
     try:
-        if output_format == "dict":
-            formatted = ordered_struct.as_dict()
-        elif output_format == "poscar":
+        if output_format == "poscar":
             from pymatgen.io.vasp import Poscar
             formatted = str(Poscar(ordered_struct))
         elif output_format == "cif":
             from pymatgen.io.cif import CifWriter
             formatted = str(CifWriter(ordered_struct))
         elif output_format == "json":
+            from pymatgen.io.cif import CifWriter
             import json
-            formatted = json.dumps(ordered_struct.as_dict())
+            formatted = json.dumps({"format": "cif", "data": str(CifWriter(ordered_struct))})
+        elif output_format == "ase":
+            # Convert to ASE-compatible format
+            formatted = {
+                "numbers": [site.specie.Z for site in ordered_struct.sites],
+                "positions": [site.coords.tolist() for site in ordered_struct.sites],
+                "cell": ordered_struct.lattice.matrix.tolist(),
+                "pbc": [True, True, True]
+            }
         else:
             warnings.append(f"Unknown output_format '{output_format}' — skipping structure.")
             return

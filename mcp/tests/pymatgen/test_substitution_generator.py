@@ -17,7 +17,6 @@ class TestSimpleSubstitution:
             input_structures=simple_lifep04_structure,
             substitutions={"Li": "Na"},
             n_structures=2,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -39,7 +38,6 @@ class TestSimpleSubstitution:
             input_structures=simple_lifep04_structure,
             substitutions={"Li": "Na"},
             n_structures=1,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -56,7 +54,6 @@ class TestMultipleSubstitutionOptions:
             input_structures=simple_lifep04_structure,
             substitutions={"Li": ["Na", "K"]},
             n_structures=3,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -73,7 +70,6 @@ class TestMultipleSubstitutionOptions:
             input_structures=simple_lifep04_structure,
             substitutions={"Li": ["Na", "K"]},
             n_structures=2,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -93,7 +89,6 @@ class TestFractionalSubstitution:
             input_structures=simple_lifep04_structure,
             substitutions={"Li": {"replace_with": "Na", "fraction": 0.5}},
             n_structures=3,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -121,7 +116,6 @@ class TestFractionalSubstitution:
                 ]
             },
             n_structures=2,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -145,7 +139,6 @@ class TestMultipleElementSubstitutions:
                 "Fe": "Co"
             },
             n_structures=2,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -165,18 +158,17 @@ class TestMultipleElementSubstitutions:
 class TestOutputFormats:
     """Tests for different output formats."""
     
-    def test_dict_output_format(self, simple_lifep04_structure):
+    def test_cif_default_output_format(self, simple_lifep04_structure):
         """Test dict output format (default)."""
         result = pymatgen_substitution_generator(
             input_structures=simple_lifep04_structure,
             substitutions={"Li": "Na"},
             n_structures=1,
-            output_format="dict"
         )
         
         assert result["success"] is True
-        assert isinstance(result["structures"][0], dict)
-        assert "@module" in result["structures"][0]
+        assert isinstance(result["structures"][0], str)
+        assert "data_" in result["structures"][0] or "_cell_length_a" in result["structures"][0]
     
     def test_cif_output_format(self, simple_lifep04_structure):
         """Test CIF output format."""
@@ -247,7 +239,6 @@ class TestErrorHandling:
             input_structures=simple_lifep04_structure,
             substitutions={"Zn": "Cu"},  # Zn doesn't exist in structure
             n_structures=1,
-            output_format="dict"
         )
         
         # Should succeed but with empty substitutions or produce minimal structures
@@ -265,7 +256,6 @@ class TestErrorHandling:
             input_structures=simple_lifep04_structure,
             substitutions={},
             n_structures=1,
-            output_format="dict"
         )
         
         assert result["success"] is False
@@ -277,7 +267,6 @@ class TestErrorHandling:
             input_structures=12345,  # Invalid type
             substitutions={"Li": "Na"},
             n_structures=1,
-            output_format="dict"
         )
         
         assert result["success"] is False
@@ -289,7 +278,6 @@ class TestErrorHandling:
             input_structures=simple_lifep04_structure,
             substitutions={"Li": {"fraction": 0.5}},  # Missing 'replace_with'
             n_structures=1,
-            output_format="dict"
         )
         
         assert result["success"] is False
@@ -306,7 +294,6 @@ class TestMultipleInputStructures:
             input_structures=[simple_lifep04_structure, simple_nacl_structure],
             substitutions={"Li": "K"},
             n_structures=1,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -330,7 +317,6 @@ class TestDistanceValidation:
             substitutions={"Li": "Na"},
             n_structures=2,
             min_distance=0.5,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -351,7 +337,6 @@ class TestParameterValidation:
                 input_structures=simple_lifep04_structure,
                 substitutions={"Li": "Na"},
                 n_structures=n,
-                output_format="dict"
             )
             
             assert result["success"] is True
@@ -364,7 +349,6 @@ class TestParameterValidation:
             substitutions={"Li": "Na"},
             n_structures=5,
             max_attempts=10,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -380,7 +364,6 @@ class TestMetadata:
             input_structures=simple_lifep04_structure,
             substitutions={"Li": "Na"},
             n_structures=1,
-            output_format="dict"
         )
         
         assert result["success"] is True
@@ -409,7 +392,6 @@ class TestMetadata:
             input_structures=simple_lifep04_structure,
             substitutions={"Li": "Na", "Fe": "Co"},
             n_structures=1,
-            output_format="dict"
         )
         
         assert result["success"] is True

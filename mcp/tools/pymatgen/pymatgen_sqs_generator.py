@@ -26,13 +26,11 @@ from pydantic import Field
 
 def pymatgen_sqs_generator(
     input_structures: Annotated[
-        Union[Dict[str, Any], List[Dict[str, Any]], str, List[str]],
+        Union[str, List[str]],
         Field(
             description=(
                 "Input structure(s) with fractional site occupancies (disordered). "
-                "Accepts the same formats as pymatgen_enumeration_generator: "
-                "a single Structure dict (from Structure.as_dict()), a list of dicts, "
-                "a CIF string, or a list of CIF strings. "
+                "CIF string or list of CIF strings. "
                 "Each structure must have at least one site with partial occupancy."
             )
         )
@@ -172,16 +170,15 @@ def pymatgen_sqs_generator(
     output_format: Annotated[
         str,
         Field(
-            default="dict",
+            default="cif",
             description=(
                 "Output format for the returned structures. "
-                "'dict': pymatgen Structure.as_dict() — default, round-trippable. "
+                "'cif': CIF string (default). "
                 "'poscar': VASP POSCAR string. "
-                "'cif': CIF string. "
                 "'json': JSON-serialised Structure dict string."
             )
         )
-    ] = "dict"
+    ] = "cif"
 ) -> Dict[str, Any]:
     """
     Generate Special Quasirandom Structures (SQS) for disordered solid-solution modelling.
@@ -243,7 +240,7 @@ def pymatgen_sqs_generator(
         }
 
     # Validate parameters
-    valid_formats = {"dict", "poscar", "cif", "json"}
+    valid_formats = {"poscar", "cif", "json", "ase"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -293,7 +290,7 @@ def pymatgen_sqs_generator(
             return {"success": False, "error": "supercell_matrix must be a list."}
 
     # Parse input structures
-    if isinstance(input_structures, (dict, str)):
+    if isinstance(input_structures, str):
         raw_list = [input_structures]
     elif isinstance(input_structures, list):
         raw_list = input_structures
@@ -306,15 +303,13 @@ def pymatgen_sqs_generator(
     structures: List[Structure] = []
     for i, item in enumerate(raw_list):
         try:
-            if isinstance(item, dict):
-                structures.append(Structure.from_dict(item))
-            elif isinstance(item, str):
+            if isinstance(item, str):
                 structures.append(Structure.from_str(item, fmt="cif"))
             else:
                 return {
                     "success": False,
                     "error": (
-                        f"Input structure {i} must be a dict or CIF string, "
+                        f"Input structure {i} must be a CIF string, "
                         f"got {type(item).__name__}."
                     )
                 }
@@ -329,17 +324,24 @@ def pymatgen_sqs_generator(
     # Helper: format a Structure
     def _format(struct: Structure):
         try:
-            if output_format == "dict":
-                return struct.as_dict()
-            elif output_format == "poscar":
+            if output_format == "poscar":
                 from pymatgen.io.vasp import Poscar
                 return str(Poscar(struct))
             elif output_format == "cif":
                 from pymatgen.io.cif import CifWriter
                 return str(CifWriter(struct))
             elif output_format == "json":
+                from pymatgen.io.cif import CifWriter
                 import json
-                return json.dumps(struct.as_dict())
+                return json.dumps({"format": "cif", "data": str(CifWriter(struct))})
+            elif output_format == "ase":
+                # Convert to ASE-compatible format
+                return {
+                    "numbers": [site.specie.Z for site in struct.sites],
+                    "positions": [site.coords.tolist() for site in struct.sites],
+                    "cell": struct.lattice.matrix.tolist(),
+                    "pbc": [True, True, True]
+                }
         except Exception as e:
             warnings.append(f"Output formatting failed: {e}")
             return None

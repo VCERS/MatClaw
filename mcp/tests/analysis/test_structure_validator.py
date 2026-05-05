@@ -273,7 +273,7 @@ class TestOutputFormat:
         coords = [[0, 0, 0]]
         
         try:
-            struct = Structure(lattice, species, coords).as_dict()
+            struct = Structure(lattice, species, coords).to(fmt="cif")
             result = structure_validator(input_structure=struct)
             
             # Some checks may warn or fail due to invalid element

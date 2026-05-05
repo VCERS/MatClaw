@@ -16,17 +16,16 @@ Why important:
   property prediction by providing consistent, fixed-length feature vectors.
 """
 
-from typing import Dict, Any, Optional, Union, Annotated, List
+from typing import Dict, Any, Optional, Annotated, List
 from pydantic import Field
 
 
 def structure_fingerprinter(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
                 "Crystal structure to fingerprint. Accepted formats:\n"
-                "- Pymatgen Structure dict (from Structure.as_dict())\n"
                 "- CIF string\n"
                 "- POSCAR/CONTCAR string\n"
                 "Output of pymatgen tools or Materials Project API can be passed directly."
@@ -285,42 +284,26 @@ def structure_fingerprinter(
     # Parse structure
     try:
         structure = None
-        if isinstance(input_structure, dict):
-            module = input_structure.get("@module", "")
-            cls = input_structure.get("@class", "")
-            # pymatgen module is "pymatgen.core.structure" (lowercase), class is "Structure"
-            is_structure = (
-                "structure" in module.lower()
-                or "Structure" in cls
-                or "IStructure" in cls
-            )
-            if is_structure:
-                structure = Structure.from_dict(input_structure)
-            else:
-                return {"success": False, "error": "Dict input must be a pymatgen Structure dict (@module containing 'structure' or @class 'Structure')."}
-        elif isinstance(input_structure, str):
-            text = input_structure.strip()
-            if not text:
-                return {"success": False, "error": "Input structure string is empty."}
-            # Try CIF
-            if "data_" in text[:200] or "_cell_length_a" in text[:500]:
-                try:
-                    parser = CifParser(io.StringIO(text))
-                    structures = parser.parse_structures(primitive=True)
-                    if not structures:
-                        return {"success": False, "error": "CIF string parsed but contained no structures."}
-                    structure = structures[0]
-                except Exception as e:
-                    return {"success": False, "error": f"Failed to parse CIF string: {e}"}
-            else:
-                # Try POSCAR
-                try:
-                    poscar = Poscar.from_str(text)
-                    structure = poscar.structure
-                except Exception as e:
-                    return {"success": False, "error": f"Failed to parse string as CIF or POSCAR: {e}"}
+        text = input_structure.strip()
+        if not text:
+            return {"success": False, "error": "Input structure string is empty."}
+        # Try CIF
+        if "data_" in text[:200] or "_cell_length_a" in text[:500]:
+            try:
+                parser = CifParser(io.StringIO(text))
+                structures = parser.parse_structures(primitive=True)
+                if not structures:
+                    return {"success": False, "error": "CIF string parsed but contained no structures."}
+                structure = structures[0]
+            except Exception as e:
+                return {"success": False, "error": f"Failed to parse CIF string: {e}"}
         else:
-            return {"success": False, "error": f"Unsupported input_structure type: {type(input_structure).__name__}"}
+            # Try POSCAR
+            try:
+                poscar = Poscar.from_str(text)
+                structure = poscar.structure
+            except Exception as e:
+                return {"success": False, "error": f"Failed to parse string as CIF or POSCAR: {e}"}
 
         if structure is None or len(structure) == 0:
             return {"success": False, "error": "Parsed structure contains no sites."}

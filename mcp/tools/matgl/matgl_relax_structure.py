@@ -12,34 +12,30 @@ Use this tool to:
 - Refine structures after manual modifications or substitutions
 """
 
-from typing import Dict, Any, Optional, Union, Annotated, Literal
+from typing import Dict, Any, Optional, Annotated, Literal
 from pydantic import Field
 
 
-def ml_relax_structure(
+def matgl_relax_structure(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Structure to relax as a pymatgen Structure dict (from Structure.as_dict()), "
-                "or a CIF/POSCAR string. Can be output from any pymatgen tool or Materials Project API."
+                "Structure to relax as a CIF or POSCAR string. Can be output from any "
+                "pymatgen tool or Materials Project API."
             )
         )
     ],
     model: Annotated[
-        Literal[
-            "TensorNet-MatPES-PBE-v2025.1-PES",
-            "TensorNet-MatPES-r2SCAN-v2025.1-PES"
-        ],
+        str,
         Field(
-            default="TensorNet-MatPES-PBE-v2025.1-PES",
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
             description=(
-                "ML potential model to use for relaxation. Options:\n"
-                "- TensorNet-MatPES-PBE-v2025.1-PES (default, PBE functional, fast and accurate)\n"
-                "- TensorNet-MatPES-r2SCAN-v2025.1-PES (r2SCAN functional, higher accuracy for complex systems)"
+                "ML potential model to use for relaxation. "
+                "For the full list of available models, run `matgl.get_available_pretrained_models()`"
             )
         )
-    ] = "TensorNet-MatPES-PBE-v2025.1-PES",
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
     relax_cell: Annotated[
         bool,
         Field(
@@ -123,12 +119,12 @@ def ml_relax_structure(
            - Fast screening of many candidates
     
     Model Selection Guide:
-        - TensorNet-MatPES-PBE-v2025.1-PES: Best for general use, PBE functional (default)
+        - TensorNet-PES-MatPES-r2SCAN-2025.2: Best for general use, PBE functional (default)
         - TensorNet-MatPES-r2SCAN-v2025.1-PES: Higher accuracy with r2SCAN functional,
           better for complex bonding and strongly correlated materials
     
     Args:
-        input_structure: Structure to relax (pymatgen dict, CIF, or POSCAR string)
+        input_structure: Structure to relax (CIF or POSCAR string)
         model: ML potential model name
         relax_cell: Whether to relax lattice parameters (True) or fix cell (False)
         optimizer: Optimization algorithm (LBFGS recommended)
@@ -140,8 +136,8 @@ def ml_relax_structure(
         Dictionary containing:
             success             (bool)      Whether relaxation completed successfully
             converged           (bool)      Whether force convergence was achieved
-            initial_structure   (dict)      Input structure (pymatgen dict)
-            final_structure     (dict)      Relaxed structure (pymatgen dict)
+            initial_structure   (str)       Input structure as CIF string
+            final_structure     (str)       Relaxed structure as CIF string
             initial_energy      (float)     Initial energy (eV)
             final_energy        (float)     Final energy (eV)
             energy_change       (float)     Energy difference (eV)
@@ -178,39 +174,112 @@ def ml_relax_structure(
                     f"Install with: pip install torch-geometric"
         }
     
-    try:
-        # Parse input structure
-        if isinstance(input_structure, dict):
-            structure = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            if "data_" in input_structure or "_cell_" in input_structure:
-                # CIF format - write to temporary file and parse
-                import tempfile
-                import os
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
-                    f.write(input_structure)
-                    temp_path = f.name
-                try:
-                    parser = CifParser(temp_path)
-                    structure = parser.get_structures()[0]
-                finally:
-                    os.unlink(temp_path)
+    # Matgl doesn't support switching backends after loading a model, so subprocess is required to switch backends
+    # Check for backend conflict - if DGL backend already loaded, use subprocess
+    import os
+    import matgl.config
+    if matgl.config.BACKEND == "DGL" and not os.environ.get("MATGL_SUBPROCESS"):
+        # Backend conflict detected - DGL already loaded, need PYG
+        # Run this same function in subprocess with fresh PYG backend
+        import subprocess
+        import json
+        import sys
+        
+        # Prepare the Python code to execute in subprocess
+        code = f"""
+import os
+os.environ['MATGL_SUBPROCESS'] = '1'  # Flag to skip backend check
+from tools.matgl.matgl_relax_structure import matgl_relax_structure
+import json
+result = matgl_relax_structure(
+    input_structure={repr(input_structure)},
+    model={repr(model)},
+    relax_cell={repr(relax_cell)},
+    optimizer={repr(optimizer)},
+    fmax={repr(fmax)},
+    max_steps={repr(max_steps)},
+    verbose={repr(verbose)}
+)
+print(json.dumps(result))
+"""
+        
+        # Run relaxation in subprocess using same Python executable
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True,
+                text=True,
+                timeout=600,  # 10 minute timeout
+                cwd=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            )
+            
+            if result.returncode == 0:
+                return json.loads(result.stdout)
             else:
-                # Assume POSCAR format
-                poscar = Poscar.from_string(input_structure)
-                structure = poscar.structure
-        else:
+                return {
+                    "success": False,
+                    "error": f"Subprocess relaxation failed: {result.stderr}"
+                }
+        except subprocess.TimeoutExpired:
             return {
                 "success": False,
-                "error": f"Unsupported input_structure type: {type(input_structure)}. "
-                        f"Expected dict, CIF string, or POSCAR string."
+                "error": "Relaxation timed out after 10 minutes"
             }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Subprocess execution failed: {e}"
+            }
+    
+    try:
+        # Parse input structure
+        if "data_" in input_structure or "_cell_" in input_structure:
+            # CIF format - write to temporary file and parse
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+                f.write(input_structure)
+                temp_path = f.name
+            try:
+                parser = CifParser(temp_path)
+                structure = parser.get_structures()[0]
+            finally:
+                os.unlink(temp_path)
+        else:
+            # Assume POSCAR format
+            poscar = Poscar.from_string(input_structure)
+            structure = poscar.structure
         
-        # Store initial structure info
-        initial_structure_dict = structure.as_dict()
+        # Store initial structure as CIF
+        from pymatgen.io.cif import CifWriter
+        initial_structure_cif = str(CifWriter(structure))
         initial_lattice = structure.lattice
         initial_volume = initial_lattice.volume
         
+        # Handle disordered structures (partial occupancies) as ASE Atoms (used by MatGL) cannot handle disorder
+        # Note: Majority-species approximation valid for dilute doping (< 10%)
+        # For higher concentrations or when disorder is functionally important,
+        # use supercell methods or SQS approaches instead
+        if not structure.is_ordered:
+            # Create ordered approximation by taking majority species at each site
+            ordered_sites = []
+            for site in structure:
+                # Get species with highest occupancy
+                dominant_species = max(site.species.items(), key=lambda x: x[1])
+                element, occupancy = dominant_species
+                # Create new site with only dominant species
+                from pymatgen.core import PeriodicSite
+                ordered_site = PeriodicSite(
+                    element,
+                    site.frac_coords,
+                    site.lattice,
+                    properties=site.properties
+                )
+                ordered_sites.append(ordered_site)
+            
+            # Create ordered structure
+            structure = Structure.from_sites(ordered_sites)
+            
         # Set backend for MatGL (TensorNet models require PYG backend)
         matgl.set_backend('PYG')
         
@@ -221,7 +290,7 @@ def ml_relax_structure(
             return {
                 "success": False,
                 "error": f"Failed to load model '{model}': {e}. "
-                        f"Check model name or network connection."
+                        f"Check if model is available using `matgl.get_available_pretrained_models()"
             }
         
         # Initialize relaxer
@@ -244,8 +313,7 @@ def ml_relax_structure(
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Relaxation failed: {e}. "
-                        f"Structure may be unstable or contain unphysical geometries."
+                "error": f"Relaxation failed: {e}."
             }
         
         # Extract results
@@ -280,11 +348,12 @@ def ml_relax_structure(
         }
         
         # Build response
+        final_structure_cif = str(CifWriter(final_structure))
         response = {
             "success": True,
             "converged": converged,
-            "initial_structure": initial_structure_dict,
-            "final_structure": final_structure.as_dict(),
+            "initial_structure": initial_structure_cif,
+            "final_structure": final_structure_cif,
             "initial_energy_eV": round(initial_energy, 6),
             "final_energy_eV": round(final_energy, 6),
             "energy_change_eV": round(energy_change, 6),

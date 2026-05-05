@@ -11,21 +11,20 @@ Uses Materials Project API and pymatgen's phase diagram analysis.
 Critical for filtering out thermodynamically unstable candidates early in screening.
 """
 
-from typing import Dict, Any, Optional, Union, Annotated
+from typing import Dict, Any, Optional, Annotated
 from pydantic import Field
 import os
 
 
 def stability_analyzer(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
                 "Structure or composition to analyze. Can be:\n"
-                "- Pymatgen Structure dict (from Structure.as_dict())\n"
-                "- Pymatgen Composition dict (from Composition.as_dict())\n"
                 "- Composition string (e.g., 'Fe2O3', 'LiCoO2')\n"
-                "- CIF/POSCAR string"
+                "- CIF string\n"
+                "- POSCAR string"
             )
         )
     ],
@@ -166,44 +165,19 @@ def stability_analyzer(
     try:
         composition = None
         
-        if isinstance(input_structure, dict):
-            # Check if it's a Structure dict or Composition dict
-            if "@module" in input_structure:
-                module = input_structure.get("@module", "")
-                if "Structure" in module:
-                    structure = Structure.from_dict(input_structure)
-                    composition = structure.composition
-                elif "Composition" in module:
-                    composition = Composition.from_dict(input_structure)
-                else:
-                    try:
-                        structure = Structure.from_dict(input_structure)
-                        composition = structure.composition
-                    except:
-                        composition = Composition.from_dict(input_structure)
-            else:
-                structure = Structure.from_dict(input_structure)
+        # Try to parse as formula first
+        try:
+            composition = Composition(input_structure)
+        except:
+            # Try CIF or POSCAR
+            from io import StringIO
+            if "data_" in input_structure or "_cell_length" in input_structure:
+                parser = CifParser(StringIO(input_structure))
+                structure = parser.get_structures()[0]
                 composition = structure.composition
-                
-        elif isinstance(input_structure, str):
-            # Try to parse as formula first
-            try:
-                composition = Composition(input_structure)
-            except:
-                # Try CIF or POSCAR
-                from io import StringIO
-                if "data_" in input_structure or "_cell_length" in input_structure:
-                    parser = CifParser(StringIO(input_structure))
-                    structure = parser.get_structures()[0]
-                    composition = structure.composition
-                else:
-                    poscar = Poscar.from_str(input_structure)
-                    composition = poscar.structure.composition
-        else:
-            return {
-                "success": False,
-                "error": "input_structure must be a Structure dict, Composition dict, composition string, CIF, or POSCAR."
-            }
+            else:
+                poscar = Poscar.from_str(input_structure)
+                composition = poscar.structure.composition
     except Exception as e:
         return {
             "success": False,
@@ -323,7 +297,7 @@ def stability_analyzer(
                     is_stable = False
             else:
                 stability_level = "unknown"
-                is_stable = False
+                is_stable = "unknown"
             
             # Decomposition products
             decomposition_products = []

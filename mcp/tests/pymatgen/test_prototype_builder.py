@@ -13,7 +13,6 @@ class TestPrototypeBuilderBasic:
             spacegroup=225,
             species=["Na", "Cl"],
             lattice_parameters=[5.64],
-            output_format="dict"
         )
         assert result["success"] is True
         assert result["count"] == 1
@@ -31,7 +30,6 @@ class TestPrototypeBuilderBasic:
             spacegroup=62,
             species=["Fe", "O"],
             lattice_parameters=[5.5, 5.5, 13.2, 90, 90, 120],
-            output_format="dict"
         )
         assert result["success"] is True
         s = result["structures"][0]
@@ -46,7 +44,6 @@ class TestPrototypeBuilderWyckoff:
             species=["Na", "Cl"],
             lattice_parameters=[5.64],
             wyckoff_positions={"4a": "Na", "4b": "Cl"},
-            output_format="dict"
         )
         # Accept either success or graceful failure
         if result["success"]:
@@ -90,7 +87,6 @@ class TestPrototypeBuilderErrors:
             spacegroup=999,
             species=["Na", "Cl"],
             lattice_parameters=[5.64],
-            output_format="dict"
         )
         assert result["success"] is False
         assert "Space group number must be between 1 and 230" in result["error"]
@@ -100,7 +96,6 @@ class TestPrototypeBuilderErrors:
             spacegroup=225,
             species=["Na", "Cl"],
             lattice_parameters=[],
-            output_format="dict"
         )
         assert result["success"] is False or result["count"] == 0
 
@@ -111,7 +106,6 @@ class TestPrototypeBuilderVariants:
             species=["Na", "Cl"],
             lattice_parameters=[5.64],
             n_structures=3,
-            output_format="dict"
         )
         assert result["success"] is True
         assert result["count"] == 3

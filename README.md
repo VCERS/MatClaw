@@ -59,11 +59,11 @@ MatClaw follows a layered architecture:
 | **Composition Generation** | Enumerate charge-balanced chemical compositions from element lists with oxidation states (`composition_enumerator`) |
 | **Pymatgen** | Structure generation: substitution, enumeration, defects, SQS, ion exchange, perturbation, prototypes (7 tools) |
 | **Analysis** | Structure validation, composition analysis, structure analysis, stability analysis, structure fingerprinting (5 tools) |
-| **ML Prediction** | Machine learning predictions for structure relaxation, band gap, and formation energy (`ml_relax_structure`, `ml_predict_bandgap`, `ml_predict_eform`) |
+| **MatGL** | MatGL predictions for structure relaxation, band gap, and formation energy (`matgl_relax_structure`, `matgl_predict_bandgap`, `matgl_predict_eform`) |
 | **ChemLLM** | Molecule binding and synthesizability prediction using fine-tuned LLMs (`predict_molecule_binding`, `predict_molecule_synthesizability`) |
 | **Selection** | Multi-objective ranking (Pareto, weighted sum, constraint-based) (`multi_objective_ranker`) |
 | **ORCA** | Quantum chemistry output analysis and cube file generation (`orca_analysis_tools`, `orca_cube_tools`) |
-| **Synthesis Planning** | Recipe quantification and template-based route generation (`synthesis_recipe_quantifier`, `template_route_generator`) |
+| **Synthesis Planning** | Recipe quantification and template-based route generation |
 | **ElemwiseRetro** | Synthesis recipe prediction for inorganic solid state synthesis (`er_predict_precursors`, `er_predict_temperature`) |
 | **ARROWS** | Campaign management for synthesis active learning through ARROWS (`arrows_initialize_campaign`, `arrows_suggest_experiment`, `arrows_record_result`) |
 | **Bayesian Optimization** | Campaign management for synthesis active learning through Bayesian Optimization (`bo_initialize_campaign`, `bo_suggest_experiment`, `bo_record_result`) |
@@ -73,12 +73,37 @@ MatClaw follows a layered architecture:
 
 ## Setup
 
+Some of the dependencies for the MCP server require pre-compiled binaries which match your specific PyTorch and CUDA versions. To ensure proper installation, you may either use Option A or Option B.
+
+### Option A
+
+Run the following script, which will automatically detect your environment to install the apppropriate dependencies for the MCP server:
+
 ```bash
 cd mcp
 ./setup.sh
 ```
 
-The setup script will install dependencies and configure the MCP server.
+### Option B
+
+1. Check your PyTorch and CUDA versions:
+
+```bash
+python -c "import torch; print(f'Torch: {torch.__version__} | CUDA: {torch.version.cuda}')"
+```
+
+2. In `requirements.txt`, change the links at the top to match your Torch and CUDA version. For example for Torch 2.11.0+cu130 and CUDA 13.0, use:
+```
+--find-links https://data.pyg.org/whl/torch-2.11.0+cu130.html
+```
+
+3. Install the dependencies in a virtual environment:
+```bash
+cd mcp
+python -m venv venv
+source venv/bin/activate # or source venv/Scripts/activate for Windows 
+pip install -r requirements.txt
+```
 
 ## Usage
 

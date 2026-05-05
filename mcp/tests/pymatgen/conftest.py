@@ -11,7 +11,7 @@ def simple_lifep04_structure():
     Fixture providing a simple LiFePO4-like structure for testing.
     
     Returns:
-        dict: Structure dictionary compatible with pymatgen Structure.from_dict()
+        str: Structure in CIF format
     """
     from pymatgen.core import Structure, Lattice
     
@@ -32,7 +32,7 @@ def simple_lifep04_structure():
             [0.7, 0.75, 0.5]
         ]
     )
-    return structure.as_dict()
+    return structure.to(fmt="cif")
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ def simple_nacl_structure():
     Fixture providing a simple NaCl structure for testing.
     
     Returns:
-        dict: Structure dictionary compatible with pymatgen Structure.from_dict()
+        str: Structure in CIF format
     """
     from pymatgen.core import Structure, Lattice
     
@@ -81,7 +81,7 @@ def simple_nacl_structure():
         ["Na", "Cl"],
         [[0, 0, 0], [0.5, 0.5, 0.5]]
     )
-    return structure.as_dict()
+    return structure.to(fmt="cif")
 
 
 @pytest.fixture
@@ -113,7 +113,7 @@ def disordered_li_na_cl():
     predictable set of ordered LiNaCl₂ / Li₂Cl₂ / Na₂Cl₂ approximants.
 
     Returns:
-        dict: Structure.as_dict() with partial occupancy on the cation site.
+        str: Structure in CIF format with partial occupancy on the cation site.
     """
     from pymatgen.core import Structure, Lattice
 
@@ -123,7 +123,7 @@ def disordered_li_na_cl():
         [{"Li": 0.5, "Na": 0.5}, "Cl"],
         [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]],
     )
-    return structure.as_dict()
+    return structure.to(fmt="cif")
 
 
 @pytest.fixture
@@ -153,7 +153,7 @@ def ordered_cucr2se4():
     Cr on octahedral sites, and Se on anion sites.
     
     Returns:
-        dict: Fully ordered Structure.as_dict()
+        str: Fully ordered Structure in CIF format
     """
     from pymatgen.core import Structure, Lattice
     
@@ -180,7 +180,7 @@ def ordered_cucr2se4():
             [0.75, 0.25, 0.25],     # Se
         ]
     )
-    return structure.as_dict()
+    return structure.to(fmt="cif")
 
 
 @pytest.fixture

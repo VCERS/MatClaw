@@ -1,11 +1,12 @@
 """
-Tests for ml_relax_structure tool.
+Tests for matgl_relax_structure tool.
 
-Run with: pytest tests/ml_prediction/test_ml_relax_structure.py -v
+Run with: pytest tests/matgl/test_matgl_relax_structure.py -v
 """
 
 import pytest
-from tools.ml_prediction.ml_relax_structure import ml_relax_structure
+from pymatgen.io.cif import CifWriter
+from tools.matgl.matgl_relax_structure import matgl_relax_structure
 
 
 class TestMLRelaxStructure:
@@ -23,9 +24,9 @@ class TestMLRelaxStructure:
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        result = ml_relax_structure(
-            input_structure=struct.as_dict(),
-            model="TensorNet-MatPES-PBE-v2025.1-PES",
+        result = matgl_relax_structure(
+            input_structure=str(CifWriter(struct)),
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_cell=True,
             fmax=0.05,  # Relaxed tolerance for faster test
             max_steps=200,
@@ -56,9 +57,9 @@ class TestMLRelaxStructure:
             [[0.01, 0.01, 0.01], [0.51, 0.51, 0.51]]  # Slightly displaced
         )
         
-        result = ml_relax_structure(
-            input_structure=struct.as_dict(),
-            model="TensorNet-MatPES-PBE-v2025.1-PES",
+        result = matgl_relax_structure(
+            input_structure=str(CifWriter(struct)),
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_cell=False,  # Fixed cell
             fmax=0.05,
             max_steps=200
@@ -94,9 +95,9 @@ Cs1 Cs 0.0 0.0 0.0 1.0
 Cl1 Cl 0.5 0.5 0.5 1.0
 """
         
-        result = ml_relax_structure(
+        result = matgl_relax_structure(
             input_structure=cif_string,
-            model="TensorNet-MatPES-PBE-v2025.1-PES",
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fmax=0.05,
             max_steps=200
         )
@@ -118,9 +119,9 @@ Cl1 Cl 0.5 0.5 0.5 1.0
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        result = ml_relax_structure(
-            input_structure=struct.as_dict(),
-            model="TensorNet-MatPES-PBE-v2025.1-PES",
+        result = matgl_relax_structure(
+            input_structure=str(CifWriter(struct)),
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fmax=0.05,
             max_steps=100,
             verbose=True
@@ -144,9 +145,9 @@ Cl1 Cl 0.5 0.5 0.5 1.0
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        result = ml_relax_structure(
-            input_structure=struct.as_dict(),
-            model="TensorNet-MatPES-PBE-v2025.1-PES",
+        result = matgl_relax_structure(
+            input_structure=str(CifWriter(struct)),
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fmax=0.05,
             max_steps=500
         )
@@ -172,9 +173,9 @@ Cl1 Cl 0.5 0.5 0.5 1.0
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        for model in ["TensorNet-MatPES-PBE-v2025.1-PES", "TensorNet-MatPES-r2SCAN-v2025.1-PES"]:
-            result = ml_relax_structure(
-                input_structure=struct.as_dict(),
+        for model in ["TensorNet-PES-MatPES-PBE-2025.2", "TensorNet-PES-MatPES-r2SCAN-2025.2"]:
+            result = matgl_relax_structure(
+                input_structure=str(CifWriter(struct)),
                 model=model,
                 fmax=0.05,
                 max_steps=200
@@ -194,9 +195,9 @@ Cl1 Cl 0.5 0.5 0.5 1.0
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        result = ml_relax_structure(
-            input_structure=struct.as_dict(),
-            model="TensorNet-MatPES-PBE-v2025.1-PES",
+        result = matgl_relax_structure(
+            input_structure=str(CifWriter(struct)),
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_cell=True,
             fmax=0.05,
             max_steps=200
@@ -213,9 +214,9 @@ Cl1 Cl 0.5 0.5 0.5 1.0
 
     def test_invalid_structure_handling(self):
         """Test that invalid structures are handled gracefully."""
-        result = ml_relax_structure(
+        result = matgl_relax_structure(
             input_structure="not a valid structure",
-            model="TensorNet-MatPES-PBE-v2025.1-PES"
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2"
         )
         
         assert result["success"] is False
@@ -232,9 +233,9 @@ Cl1 Cl 0.5 0.5 0.5 1.0
             [[0, 0, 0], [0.5, 0.5, 0.5]]
         )
         
-        result = ml_relax_structure(
-            input_structure=struct.as_dict(),
-            model="TensorNet-MatPES-PBE-v2025.1-PES",
+        result = matgl_relax_structure(
+            input_structure=str(CifWriter(struct)),
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fmax=0.05,
             max_steps=200
         )
@@ -245,7 +246,3 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         else:
             # Model download might fail in CI environment
             assert "error" in result
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

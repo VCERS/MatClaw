@@ -35,7 +35,7 @@ def mp_get_material_properties(
     
     Property Categories:
         - basic: Formula, elements, composition, space group, density, volume, etc.
-        - structure: Lattice parameters, atomic positions, symmetry
+        - structure: Crystal structure as CIF string (standard format), plus symmetry metadata
         - electronic: Band gap, band structure, DOS, electronic structure
         - thermodynamic: Formation energy, energy above hull, stability
         - mechanical: Elastic tensor, bulk modulus, shear modulus, Poisson ratio
@@ -50,6 +50,7 @@ def mp_get_material_properties(
     Examples:
         - Default properties: material_ids="mp-149"
         - Specific categories: material_ids="mp-149", properties=["electronic", "mechanical"]
+        - Get structure as CIF: material_ids="mp-149", properties=["structure"]
         - All properties: material_ids="mp-149", properties=["all"]
         - Multiple materials: material_ids=["mp-149", "mp-19017"], properties=["basic", "electronic"]
     
@@ -62,6 +63,8 @@ def mp_get_material_properties(
             - success: Boolean indicating if retrieval succeeded
             - count: Number of materials with properties retrieved
             - properties: List of property dictionaries (one per material)
+                - structure.cif: CIF string (when 'structure' requested)
+                - structure.space_group_symbol, crystal_system, etc.: Metadata
             - warnings: List of any errors for individual materials
             - error: Error message if complete failure
     """
@@ -131,27 +134,15 @@ def mp_get_material_properties(
                         try:
                             summary = mpr.materials.summary.get_data_by_id(mpid)
                             
+                            # Return structure as CIF string (standard crystallographic format)
+                            # Includes symmetry metadata in the response for reference
                             material_props["structure"] = {
+                                "cif": summary.structure.to(fmt="cif") if summary.structure else None,
                                 "crystal_system": summary.symmetry.crystal_system.value if summary.symmetry else None,
                                 "space_group_symbol": summary.symmetry.symbol if summary.symmetry else None,
                                 "space_group_number": summary.symmetry.number if summary.symmetry else None,
                                 "point_group": summary.symmetry.point_group if summary.symmetry else None,
-                                "lattice_parameters": {
-                                    "a": round(summary.structure.lattice.a, 4) if summary.structure else None,
-                                    "b": round(summary.structure.lattice.b, 4) if summary.structure else None,
-                                    "c": round(summary.structure.lattice.c, 4) if summary.structure else None,
-                                    "alpha": round(summary.structure.lattice.alpha, 4) if summary.structure else None,
-                                    "beta": round(summary.structure.lattice.beta, 4) if summary.structure else None,
-                                    "gamma": round(summary.structure.lattice.gamma, 4) if summary.structure else None,
-                                    "volume": round(summary.structure.lattice.volume, 4) if summary.structure else None
-                                },
-                                "sites": [
-                                    {
-                                        "species": str(site.species),
-                                        "coords": [round(c, 6) for c in site.frac_coords],
-                                    }
-                                    for site in (summary.structure.sites if summary.structure else [])
-                                ][:20]  # Limit to first 20 sites for response size
+                                "num_sites": len(summary.structure) if summary.structure else 0
                             }
                         
                         except Exception as e:

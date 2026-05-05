@@ -35,12 +35,11 @@ class TestVacancyGeneration:
             input_structure=simple_nacl_structure,
             vacancy_species=["Na"],
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert result["success"] is True
         n_perfect = result["supercell_info"]["n_atoms_supercell"]
-        for s_dict in result["structures"]:
-            n_defect = len(Structure.from_dict(s_dict))
+        for cif_str in result["structures"]:
+            n_defect = len(Structure.from_str(cif_str, fmt="cif"))
             assert n_defect == n_perfect - 1
 
     def test_vacancy_defect_label_format(self, simple_nacl_structure):
@@ -97,11 +96,10 @@ class TestVacancyGeneration:
             input_structure=simple_nacl_structure,
             vacancy_species=["Na"],
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert result["success"] is True
-        for s_dict in result["structures"]:
-            s = Structure.from_dict(s_dict)
+        for cif_str in result["structures"]:
+            s = Structure.from_str(cif_str, fmt="cif")
             el_symbols = {el.symbol for el in s.composition.elements}
             assert "Cl" in el_symbols
             assert "Na" not in el_symbols or True  # vacancy removes some Na but not necessarily all
@@ -117,7 +115,6 @@ class TestSubstitutionGeneration:
             input_structure=simple_nacl_structure,
             substitution_species={"Na": "K"},
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] >= 1
@@ -130,11 +127,10 @@ class TestSubstitutionGeneration:
             input_structure=simple_nacl_structure,
             substitution_species={"Na": "K"},
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert result["success"] is True
-        for s_dict in result["structures"]:
-            s = Structure.from_dict(s_dict)
+        for cif_str in result["structures"]:
+            s = Structure.from_str(cif_str, fmt="cif")
             el_symbols = {el.symbol for el in s.composition.elements}
             assert "K" in el_symbols
 
@@ -144,7 +140,6 @@ class TestSubstitutionGeneration:
             input_structure=simple_nacl_structure,
             substitution_species={"Na": "K"},
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert result["success"] is True
         n_perfect = result["supercell_info"]["n_atoms_supercell"]
@@ -226,12 +221,11 @@ class TestInterstitialGeneration:
             interstitial_species=["Li"],
             supercell_min_atoms=8,
             interstitial_min_dist=0.5,
-            output_format="dict",
         )
         assert result["success"] is True
         n_perfect = result["supercell_info"]["n_atoms_supercell"]
-        for s_dict in result["structures"]:
-            n_defect = len(Structure.from_dict(s_dict))
+        for cif_str in result["structures"]:
+            n_defect = len(Structure.from_str(cif_str, fmt="cif"))
             assert n_defect == n_perfect + 1
 
     def test_interstitial_defect_label_format(self, simple_nacl_structure):
@@ -370,16 +364,15 @@ class TestChargeStates:
 class TestOutputFormats:
     """Tests for all supported output formats."""
 
-    def test_dict_output(self, simple_nacl_structure):
+    def test_cif_default_output(self, simple_nacl_structure):
         result = pymatgen_defect_generator(
             input_structure=simple_nacl_structure,
             vacancy_species=["Na"],
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert result["success"] is True
-        assert isinstance(result["structures"][0], dict)
-        assert "@module" in result["structures"][0]
+        assert isinstance(result["structures"][0], str)
+        assert "data_" in result["structures"][0] or "_cell_length_a" in result["structures"][0]
 
     def test_poscar_output(self, simple_nacl_structure):
         result = pymatgen_defect_generator(
@@ -539,7 +532,7 @@ class TestInequalentSites:
         assert r_all["count"] >= r_unique["count"]
         # False should produce exactly one vacancy per O atom in the bulk cell
         n_O_bulk = sum(
-            1 for site in Structure.from_dict(simple_lifep04_structure)
+            1 for site in Structure.from_str(simple_lifep04_structure, fmt="cif")
             if site.specie.symbol == "O"
         )
         assert r_all["count"] == n_O_bulk
@@ -596,7 +589,6 @@ class TestPipelineIntegration:
             input_structure=simple_nacl_structure,
             vacancy_species=["Na"],
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert defect_result["success"] is True
 
@@ -605,7 +597,6 @@ class TestPipelineIntegration:
             input_structures=defect_result["structures"][0],
             displacement_max=0.05,
             n_structures=3,
-            output_format="dict",
         )
         assert perturb_result["success"] is True
         assert perturb_result["count"] == 3
@@ -620,7 +611,6 @@ class TestPipelineIntegration:
             species=["Na", "Cl"],
             lattice_parameters=[5.64],
             coords=[[0, 0, 0], [0.5, 0.5, 0.5]],
-            output_format="dict",
         )
         assert proto_result["success"] is True
 
@@ -630,24 +620,22 @@ class TestPipelineIntegration:
             input_structure=host_struct,
             vacancy_species=["Na"],
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert defect_result["success"] is True
         assert defect_result["count"] >= 1
 
     def test_dict_output_round_trips_through_pymatgen(self, simple_nacl_structure):
-        """Structure dict output can be round-tripped through pymatgen Structure.from_dict()."""
+        """Structure CIF output can be round-tripped through pymatgen Structure.from_str()."""
         from pymatgen.core import Structure
 
         result = pymatgen_defect_generator(
             input_structure=simple_nacl_structure,
             vacancy_species=["Na"],
             supercell_min_atoms=8,
-            output_format="dict",
         )
         assert result["success"] is True
-        for s_dict in result["structures"]:
-            s = Structure.from_dict(s_dict)
+        for cif_str in result["structures"]:
+            s = Structure.from_str(cif_str, fmt="cif")
             assert isinstance(s, Structure)
             assert len(s) > 0
 

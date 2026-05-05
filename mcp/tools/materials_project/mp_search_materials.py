@@ -105,6 +105,11 @@ def mp_search_materials(
         theoretical: Include theoretical (not yet synthesized) materials
         max_results: Maximum number of results (1-100)
     
+    Note:
+        This tool returns material IDs and properties for search/filtering.
+        Use mp_get_material_properties to retrieve full structure data (CIF format)
+        for specific materials.
+    
     Returns:
         Dictionary containing:
             - success: Boolean indicating if search succeeded
@@ -329,4 +334,3 @@ def mp_search_materials(
             "materials": [],
             "error": error_msg
         }
-    

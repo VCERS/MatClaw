@@ -13,10 +13,10 @@ from tools.pymatgen.pymatgen_enumeration_generator import pymatgen_enumeration_g
 
 
 # Helper
-def _is_ordered_dict(structure_dict: dict) -> bool:
-    """Return True if the pymatgen Structure dict represents a fully ordered structure."""
+def _is_ordered_cif(cif_str: str) -> bool:
+    """Return True if the pymatgen Structure from CIF represents a fully ordered structure."""
     from pymatgen.core import Structure
-    return Structure.from_dict(structure_dict).is_ordered
+    return Structure.from_str(cif_str, fmt="cif").is_ordered
 
 
 # Basic enumeration
@@ -29,7 +29,6 @@ class TestBasicEnumeration:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=20,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] >= 1
@@ -42,11 +41,10 @@ class TestBasicEnumeration:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=20,
-            output_format="dict",
         )
         assert result["success"] is True
         for s in result["structures"]:
-            assert _is_ordered_dict(s), "Returned structure still has partial occupancies."
+            assert _is_ordered_cif(s), "Returned structure still has partial occupancies."
 
     def test_n_structures_cap_respected(self, disordered_li_na_cl):
         """count must not exceed the requested n_structures."""
@@ -55,7 +53,6 @@ class TestBasicEnumeration:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=cap,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] <= cap
@@ -68,13 +65,12 @@ class TestBasicEnumeration:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=20,
-            output_format="dict",
         )
         assert result["success"] is True
         allowed = {"Li", "Na", "Cl"}
-        for s_dict in result["structures"]:
+        for cif_str in result["structures"]:
             # Use .symbol to strip oxidation-state decoration (e.g. 'Li+' → 'Li')
-            elements = {el.symbol for el in Structure.from_dict(s_dict).composition.elements}
+            elements = {el.symbol for el in Structure.from_str(cif_str, fmt="cif").composition.elements}
             assert elements.issubset(allowed), f"Unexpected elements in structure: {elements}"
 
     def test_input_info_populated(self, disordered_li_na_cl):
@@ -83,7 +79,6 @@ class TestBasicEnumeration:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
-            output_format="dict",
         )
         assert result["success"] is True
         info = result["input_info"]
@@ -103,7 +98,6 @@ class TestSortCriteria:
             n_structures=10,
             sort_by="ewald",
             add_oxidation_states=True,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] >= 1
@@ -115,7 +109,6 @@ class TestSortCriteria:
             supercell_size=2,
             n_structures=10,
             sort_by="num_sites",
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] >= 1
@@ -130,12 +123,11 @@ class TestSortCriteria:
             supercell_size=2,
             n_structures=10,
             sort_by="random",
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["count"] >= 1
         for s in result["structures"]:
-            assert _is_ordered_dict(s)
+            assert _is_ordered_cif(s)
 
 
 # Supercell size behaviour
@@ -148,7 +140,6 @@ class TestSupercellSize:
             input_structures=disordered_li_na_cl,
             supercell_size=1,
             n_structures=10,
-            output_format="dict",
         )
         # With supercell_size=1, we just verify it runs
         # The tool should succeed or at least not crash
@@ -160,7 +151,6 @@ class TestSupercellSize:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=20,
-            output_format="dict",
         )
         # Just verify the parameter is accepted and tool runs
         assert result.get("success") is True or "error" in result
@@ -177,7 +167,6 @@ class TestCheckOrderedInput:
             supercell_size=2,
             n_structures=5,
             check_ordered_input=True,
-            output_format="dict",
         )
         assert result["success"] is False
         assert result["warnings"] is not None
@@ -193,7 +182,6 @@ class TestCheckOrderedInput:
             supercell_size=2,
             n_structures=5,
             check_ordered_input=False,
-            output_format="dict",
         )
         # The structure was not skip-listed by check_ordered_input — no skip warning expected
         warnings = result.get("warnings") or []
@@ -213,7 +201,6 @@ class TestCheckOrderedInput:
             supercell_size=2,
             n_structures=10,
             check_ordered_input=True,
-            output_format="dict",
         )
         assert result["success"] is True
 
@@ -222,17 +209,17 @@ class TestCheckOrderedInput:
 class TestOutputFormats:
     """Tests for all four supported output formats."""
 
-    def test_dict_output(self, disordered_li_na_cl):
+    def test_cif_default_output(self, disordered_li_na_cl):
+        """CIF output should be the default format."""
         result = pymatgen_enumeration_generator(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=2,
-            output_format="dict",
         )
         assert result["success"] is True
         s = result["structures"][0]
-        assert isinstance(s, dict)
-        assert "@module" in s  # pymatgen structure dict marker
+        assert isinstance(s, str)
+        assert "data_" in s or "_cell_length_a" in s  # CIF markers
 
     def test_cif_output(self, disordered_li_na_cl):
         result = pymatgen_enumeration_generator(
@@ -289,7 +276,6 @@ class TestMultipleInputStructures:
             input_structures=[disordered_li_na_cl, disordered_li_na_cl],
             supercell_size=2,
             n_structures=5,
-            output_format="dict",
         )
         assert result["success"] is True
         assert result["input_info"]["n_input_structures"] == 2
@@ -303,7 +289,6 @@ class TestMultipleInputStructures:
             input_structures=[disordered_li_na_cl],
             supercell_size=2,
             n_structures=5,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -321,7 +306,6 @@ class TestMetadata:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=5,
-            output_format="dict",
         )
         assert result["success"] is True
         for key in ("count", "structures", "metadata", "input_info", "enumeration_params", "message"):
@@ -332,7 +316,6 @@ class TestMetadata:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=5,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -349,7 +332,6 @@ class TestMetadata:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -361,7 +343,6 @@ class TestMetadata:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
-            output_format="dict",
         )
         assert result["success"] is True
         indices = [m["index"] for m in result["metadata"]]
@@ -375,7 +356,6 @@ class TestMetadata:
             n_structures=7,
             sort_by="num_sites",
             symm_prec=0.15,
-            output_format="dict",
         )
         assert result["success"] is True
         ep = result["enumeration_params"]
@@ -390,7 +370,6 @@ class TestMetadata:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=5,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:
@@ -402,7 +381,6 @@ class TestMetadata:
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=5,
-            output_format="dict",
         )
         assert result["success"] is True
         for m in result["metadata"]:

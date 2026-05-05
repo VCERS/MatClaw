@@ -10,10 +10,10 @@ import pytest
 from tools.pymatgen.pymatgen_disorder_generator import pymatgen_disorder_generator
 
 
-def _has_disorder(structure_dict: dict) -> bool:
-    """Return True if any site in a Structure dict has multiple species."""
+def _has_disorder(cif_str: str) -> bool:
+    """Return True if any site in a Structure has multiple species."""
     from pymatgen.core import Structure
-    s = Structure.from_dict(structure_dict)
+    s = Structure.from_str(cif_str, fmt="cif")
     return any(not site.is_ordered for site in s)
 
 
@@ -158,7 +158,7 @@ class TestSiteSubstitutions:
             site_substitutions={"Cr": {"Cr": 0.85, "Sn": 0.15}}
         )
         from pymatgen.core import Structure
-        s = Structure.from_dict(result["structures"][0])
+        s = Structure.from_str(result["structures"][0], fmt="cif")
         
         # Find a Cr site (should now have mixed occupancy)
         cr_site = None
@@ -183,7 +183,7 @@ class TestSiteSubstitutions:
             site_substitutions={"Cr": {"Cr": 0.5, "Sn": 0.3, "Ti": 0.2}}
         )
         from pymatgen.core import Structure
-        s = Structure.from_dict(result["structures"][0])
+        s = Structure.from_str(result["structures"][0], fmt="cif")
         
         # Check that disorder was applied
         assert _has_disorder(result["structures"][0])
@@ -260,14 +260,13 @@ class TestValidation:
 class TestOutputFormats:
     """Test different output formats."""
 
-    def test_dict_format(self, ordered_cucr2se4):
+    def test_cif_default_format(self, ordered_cucr2se4):
         result = pymatgen_disorder_generator(
             input_structures=ordered_cucr2se4,
             site_substitutions={"Cr": {"Cr": 0.85, "Sn": 0.15}},
-            output_format="dict"
         )
-        assert isinstance(result["structures"][0], dict)
-        assert "@module" in result["structures"][0]
+        assert isinstance(result["structures"][0], str)
+        assert "data_" in result["structures"][0] or "_cell_length_a" in result["structures"][0]
 
     def test_cif_format(self, ordered_cucr2se4):
         result = pymatgen_disorder_generator(

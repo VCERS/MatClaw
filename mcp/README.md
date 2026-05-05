@@ -190,9 +190,9 @@ python -m pytest tests/pymatgen/test_enumeration_generator.py -v
 
 | Tool | Description |
 |---|---|
-| `ml_relax_structure` | Relax crystal structures using M3GNet universal ML potential |
-| `ml_predict_bandgap` | Predict band gap using pre-trained MEGNet model |
-| `ml_predict_eform` | Predict formation energy using pre-trained MEGNet model |
+| `matgl_relax_structure` | Relax crystal structures using universal ML potential |
+| `matgl_predict_bandgap` | Predict band gap using pre-trained surrogate model |
+| `matgl_predict_eform` | Predict formation energy using pre-trained surrogate model |
 
 ### ChemLLM
 
@@ -219,7 +219,6 @@ python -m pytest tests/pymatgen/test_enumeration_generator.py -v
 | Tool | Description |
 |---|---|
 | `synthesis_recipe_quantifier` | Extract and quantify synthesis parameters from text recipes |
-| `template_route_generator` | Generate template-based synthesis routes for inorganic materials |
 
 ### ElemwiseRetro
 

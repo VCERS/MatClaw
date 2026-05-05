@@ -12,28 +12,28 @@ Use this tool to:
 - Rank materials by predicted optoelectronic properties
 """
 
-from typing import Dict, Any, Optional, Union, Annotated, Literal
+from typing import Dict, Any, Annotated, Literal
 from pydantic import Field
 
 
-def ml_predict_bandgap(
+def matgl_predict_bandgap(
     input_structure: Annotated[
-        Union[Dict[str, Any], str],
+        str,
         Field(
             description=(
-                "Structure to predict band gap for, as a pymatgen Structure dict "
-                "(from Structure.as_dict()), or a CIF/POSCAR string. Can be output from any "
+                "Structure to predict band gap for, as a CIF or POSCAR string. Can be output from any "
                 "pymatgen tool or Materials Project API."
             )
         )
     ],
     model: Annotated[
-        Literal["MEGNet-MP-2019.4.1-BandGap-mfi"],
+        str,
         Field(
             default="MEGNet-MP-2019.4.1-BandGap-mfi",
             description=(
-                "ML model to use for band gap prediction. Currently only one model is supported:\n"
-                "- MEGNet-MP-2019.4.1-BandGap-mfi (MatErials Graph Network trained on MP data)"
+                "ML model to use for band gap prediction. "
+                "Defaults to MEGNet-MP-2019.4.1-BandGap-mfi, a legacy DGL model saved in matgl github. "
+                "For the full list of available models, run `matgl.get_available_pretrained_models()`"
             )
         )
     ] = "MEGNet-MP-2019.4.1-BandGap-mfi",
@@ -69,7 +69,7 @@ def ml_predict_bandgap(
         (e.g., HSE06 or GW) or use as relative ranking metric only.
     
     Args:
-        input_structure: Structure as pymatgen dict, CIF, or POSCAR string
+        input_structure: Structure as CIF or POSCAR string
         model: ML model to use for prediction (currently only MEGNet-MP-2019.4.1-BandGap-mfi)
     
     Returns:
@@ -108,33 +108,94 @@ def ml_predict_bandgap(
                     f"Install with: pip install dgl -f https://data.dgl.ai/wheels/torch-2.0/repo.html"
         }
     
-    try:
-        # Parse input structure
-        if isinstance(input_structure, dict):
-            structure = Structure.from_dict(input_structure)
-        elif isinstance(input_structure, str):
-            if "data_" in input_structure or "_cell_" in input_structure:
-                # CIF format - write to temporary file and parse
-                import tempfile
-                import os
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
-                    f.write(input_structure)
-                    temp_path = f.name
+    # Matgl doesn't support switching backends after loading a model, so subprocess is required to switch backends
+    # Check for backend conflict - if PYG backend already loaded, use subprocess
+    import os
+    import matgl.config
+    if matgl.config.BACKEND == "PYG" and not os.environ.get("MATGL_SUBPROCESS"):
+        # Backend conflict detected - PYG already loaded, need DGL
+        # Run this same function in subprocess with fresh DGL backend
+        import subprocess
+        import json
+        import sys
+        
+        # Prepare the Python code to execute in subprocess
+        mcp_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        code = f"""
+import os
+import sys
+
+# Add MCP directory to path for imports
+sys.path.insert(0, {repr(mcp_dir)})
+
+os.environ['MATGL_SUBPROCESS'] = '1'  # Flag to skip backend check
+from tools.matgl.matgl_predict_bandgap import matgl_predict_bandgap
+import json
+
+result = matgl_predict_bandgap(
+    input_structure={repr(input_structure)},
+    model={repr(model)}
+)
+
+# Print only JSON result to stdout
+print(json.dumps(result))
+"""
+        
+        # Run prediction in subprocess using same Python executable
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+                cwd=mcp_dir
+            )
+            
+            if result.returncode == 0:
                 try:
-                    parser = CifParser(temp_path)
-                    structure = parser.get_structures()[0]
-                finally:
-                    os.unlink(temp_path)
+                    return json.loads(result.stdout)
+                except json.JSONDecodeError as e:
+                    return {
+                        "success": False,
+                        "error": f"Failed to parse subprocess output: {e}",
+                        "stdout": result.stdout,
+                        "stderr": result.stderr
+                    }
             else:
-                # Assume POSCAR format
-                poscar = Poscar.from_string(input_structure)
-                structure = poscar.structure
-        else:
+                return {
+                    "success": False,
+                    "error": f"Subprocess prediction failed: {result.stderr}",
+                    "stdout": result.stdout
+                }
+        except subprocess.TimeoutExpired:
             return {
                 "success": False,
-                "error": f"Unsupported input_structure type: {type(input_structure)}. "
-                        f"Expected dict, CIF string, or POSCAR string."
+                "error": "Prediction timed out after 5 minutes"
             }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Subprocess execution failed: {e}"
+            }
+    
+    try:
+        # Parse input structure
+        if "data_" in input_structure or "_cell_" in input_structure:
+            # CIF format - write to temporary file and parse
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.cif', delete=False) as f:
+                f.write(input_structure)
+                temp_path = f.name
+            try:
+                parser = CifParser(temp_path)
+                structure = parser.get_structures()[0]
+            finally:
+                os.unlink(temp_path)
+        else:
+            # Assume POSCAR format
+            poscar = Poscar.from_string(input_structure)
+            structure = poscar.structure
         
         # Get structure info
         formula = structure.composition.reduced_formula
@@ -144,13 +205,24 @@ def ml_predict_bandgap(
         matgl.set_backend('DGL')
         
         # Load the band gap prediction model
+        # Check if it's a legacy model that needs special loading
         try:
-            ml_model = matgl.load_model(model)
+            from utils.model_downloader import LEGACY_MATGL_MODELS, load_legacy_matgl_model
+            
+            # Check if we're in a subprocess (downloads should be quiet to avoid stdout pollution)
+            in_subprocess = os.environ.get("MATGL_SUBPROCESS") == "1"
+            
+            if model in LEGACY_MATGL_MODELS:
+                # Use legacy model loader
+                ml_model = load_legacy_matgl_model(model, verbose=not in_subprocess)
+            else:
+                # Use standard matgl loader
+                ml_model = matgl.load_model(model)
         except Exception as e:
             return {
                 "success": False,
                 "error": f"Failed to load model '{model}': {e}. "
-                        f"Check model name or network connection."
+                        f"Check if model is available using `matgl.get_available_pretrained_models()"
             }
         
         # Predict band gap
