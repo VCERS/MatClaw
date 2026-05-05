@@ -67,7 +67,7 @@ class TestSurfaceCalc:
         result = matcalc_calc_surface(
             structure_input=SI_POSCAR,
             miller_index=(1, 1, 1),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             min_slab_size=10.0,
             min_vacuum_size=10.0,
             relax_bulk=False,
@@ -103,7 +103,7 @@ class TestSurfaceCalc:
         assert result["slab_energy_units"] == "eV"
         
         # Check parameters
-        assert result["calculator"] == "CHGNet"
+        assert result["calculator"] == "TensorNet-PES-MatPES-r2SCAN-2025.2"
         assert result["relax_bulk"] is False
         assert result["relax_slab"] is False
 
@@ -113,7 +113,7 @@ class TestSurfaceCalc:
         result = matcalc_calc_surface(
             structure_input=SI_POSCAR,
             miller_index=(1, 0, 0),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             min_slab_size=8.0,
             min_vacuum_size=8.0,
             relax_bulk=False,
@@ -140,7 +140,7 @@ class TestSurfaceCalc:
             result = matcalc_calc_surface(
                 structure_input=SI_POSCAR,
                 miller_index=miller,
-                calculator="CHGNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 min_slab_size=8.0,
                 min_vacuum_size=8.0,
                 relax_bulk=False,
@@ -164,7 +164,7 @@ class TestSurfaceCalc:
         result = matcalc_calc_surface(
             structure_input=SI_CIF,
             miller_index=(1, 1, 1),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             min_slab_size=10.0,
             min_vacuum_size=10.0,
             relax_bulk=False,
@@ -186,7 +186,7 @@ class TestSurfaceCalc:
         result = matcalc_calc_surface(
             structure_input=structure_cif,
             miller_index=(1, 1, 1),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             min_slab_size=10.0,
             min_vacuum_size=10.0,
             relax_bulk=False,
@@ -201,7 +201,7 @@ class TestSurfaceCalc:
     @pytest.mark.slow
     def test_surface_different_calculators(self):
         """Test surface calculation with different calculators."""
-        calculators = ["CHGNet", "M3GNet"]
+        calculators = ["TensorNet-PES-MatPES-PBE-2025.2", "TensorNet-PES-MatPES-r2SCAN-2025.2"]
         
         for calc in calculators:
             result = matcalc_calc_surface(
@@ -229,7 +229,7 @@ class TestSurfaceCalc:
         result = matcalc_calc_surface(
             structure_input=NACL_POSCAR,
             miller_index=(1, 0, 0),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             min_slab_size=10.0,
             min_vacuum_size=10.0,
             relax_bulk=False,
@@ -252,7 +252,7 @@ class TestSurfaceCalc:
             result = matcalc_calc_surface(
                 structure_input=SI_POSCAR,
                 miller_index=(1, 1, 1),
-                calculator="CHGNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 min_slab_size=size,
                 min_vacuum_size=10.0,
                 relax_bulk=False,
@@ -276,7 +276,7 @@ class TestSurfaceCalc:
             result = matcalc_calc_surface(
                 structure_input=SI_POSCAR,
                 miller_index=(1, 1, 1),
-                calculator="CHGNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 min_slab_size=8.0,
                 min_vacuum_size=8.0,
                 relax_bulk=False,
@@ -299,7 +299,7 @@ class TestSurfaceCalc:
         result = matcalc_calc_surface(
             structure_input="invalid structure text",
             miller_index=(1, 1, 1),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         )
         
         assert "error" in result
@@ -322,7 +322,7 @@ class TestSurfaceCalc:
         result = matcalc_calc_surface(
             structure_input=SI_POSCAR,
             miller_index=(1, 1, 1),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             min_slab_size=10.0,
             min_vacuum_size=10.0,
             relax_bulk=False,
@@ -347,7 +347,7 @@ class TestSurfaceCalc:
         result = matcalc_calc_surface(
             structure_input=SI_POSCAR,
             miller_index=(1, 1, 1),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             min_slab_size=8.0,
             min_vacuum_size=8.0,
             relax_bulk=True,
@@ -371,7 +371,7 @@ class TestSurfaceCalc:
             result = matcalc_calc_surface(
                 structure_input=SI_POSCAR,
                 miller_index=(1, 1, 1),
-                calculator="CHGNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 min_slab_size=8.0,
                 min_vacuum_size=8.0,
                 relax_bulk=False,
@@ -397,7 +397,7 @@ class TestSurfaceCalc:
             result = matcalc_calc_surface(
                 structure_input=SI_POSCAR,
                 miller_index=(1, 1, 1),
-                calculator="CHGNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 min_slab_size=10.0,
                 min_vacuum_size=vacuum,
                 relax_bulk=False,

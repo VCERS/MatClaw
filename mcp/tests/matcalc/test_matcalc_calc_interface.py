@@ -33,7 +33,7 @@ def test_interface_basic():
         interface_structure=str(CifWriter(interface)),
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=False,  # Faster for testing
         relax_interface=False,
         max_steps=10
@@ -68,7 +68,7 @@ def test_interface_with_relaxation():
         interface_structure=str(CifWriter(interface)),
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=True,
         relax_interface=True,
         fmax=0.1,
@@ -101,7 +101,7 @@ def test_interface_string_input():
         interface_structure=cif_string,
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=False,
         relax_interface=False,
         max_steps=10
@@ -132,7 +132,7 @@ def test_interface_different_optimizers():
             interface_structure=str(CifWriter(interface)),
             film_bulk=str(CifWriter(film)),
             substrate_bulk=str(CifWriter(substrate)),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_bulk=False,
             relax_interface=True,
             optimizer=opt,
@@ -164,7 +164,7 @@ def test_interface_different_fmax():
             interface_structure=str(CifWriter(interface)),
             film_bulk=str(CifWriter(film)),
             substrate_bulk=str(CifWriter(substrate)),
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_bulk=False,
             relax_interface=True,
             fmax=fmax,
@@ -193,7 +193,7 @@ def test_interface_stability_interpretation():
         interface_structure=str(CifWriter(interface)),
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=False,
         relax_interface=False,
         max_steps=10
@@ -223,7 +223,7 @@ def test_interface_output_structure():
         interface_structure=str(CifWriter(interface)),
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=False,
         relax_interface=False,
         max_steps=10
@@ -252,7 +252,7 @@ def test_interface_invalid_structure():
         interface_structure={"invalid": "structure"},
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet"
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2"
     )
     
     assert "error" in result
@@ -282,7 +282,7 @@ direct
         interface_structure=poscar_string,
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=False,
         relax_interface=False,
         max_steps=10
@@ -318,7 +318,7 @@ def test_interface_larger_system():
         interface_structure=str(CifWriter(interface)),
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=False,
         relax_interface=False,
         max_steps=10
@@ -347,7 +347,7 @@ def test_interface_with_both_relaxations():
         interface_structure=str(CifWriter(interface)),
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=True,
         relax_interface=True,
         max_steps=100
@@ -377,7 +377,7 @@ def test_interface_metadata():
         interface_structure=str(CifWriter(interface)),
         film_bulk=str(CifWriter(film)),
         substrate_bulk=str(CifWriter(substrate)),
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_bulk=False,
         relax_interface=False,
         max_steps=10
@@ -385,7 +385,7 @@ def test_interface_metadata():
     
     assert "error" not in result
     assert "calculator" in result
-    assert result["calculator"] == "CHGNet"
+    assert result["calculator"] == "TensorNet-PES-MatPES-r2SCAN-2025.2"
     assert "relax_bulk" in result
     assert "relax_interface" in result
     assert "num_atoms" in result

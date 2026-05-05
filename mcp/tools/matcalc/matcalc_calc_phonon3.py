@@ -9,8 +9,9 @@ Uses universal ML potentials (e.g., TensorNet-MatPES-PBE, M3GNet, CHGNet).
 import os
 import tempfile
 from contextlib import contextmanager
-from typing import Any
+from typing import Annotated, Any
 import numpy as np
+from pydantic import Field
 from pymatgen.core import Structure
 
 
@@ -31,131 +32,110 @@ def _temporary_working_directory():
 
 
 def matcalc_calc_phonon3(
-    structure_input: str,
-    calculator: str = "TensorNet-MatPES-PBE",
-    fc2_supercell: list[list[int]] | None = None,
-    fc3_supercell: list[list[int]] | None = None,
-    mesh_numbers: list[int] | None = None,
-    t_min: float = 0.0,
-    t_max: float = 1000.0,
-    t_step: float = 10.0,
-    relax_structure: bool = True,
-    fmax: float = 0.1,
+    structure_input: Annotated[
+        str,
+        Field(
+            description=(
+                "Structure as CIF string, POSCAR string, dict, or pymatgen Structure. "
+                "Can be: (1) CIF format string (must start with 'data_' or contain '_cell_'), "
+                "(2) POSCAR format string, (3) Dictionary with structure data, "
+                "(4) Pymatgen Structure object."
+            )
+        )
+    ],
+    calculator: Annotated[
+        str,
+        Field(
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
+            description=(
+                "Calculator/potential to use. "
+                "For the full list of available calculators, run `matgl.get_available_pretrained_models`"
+            )
+        )
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
+    fc2_supercell: Annotated[
+        list[list[int]] | None,
+        Field(
+            default=None,
+            description=(
+                "Supercell matrix for second-order force constants (harmonic). "
+                "Larger supercells give more accurate phonon properties. "
+                "Can be: (1) List of 3 integers [a, b, c] for diagonal supercell, "
+                "(2) 3x3 matrix [[a1,a2,a3], [b1,b2,b3], [c1,c2,c3]]. "
+                "Default: [[2, 0, 0], [0, 2, 0], [0, 0, 2]] (2×2×2 supercell)."
+            )
+        )
+    ] = None,
+    fc3_supercell: Annotated[
+        list[list[int]] | None,
+        Field(
+            default=None,
+            description=(
+                "Supercell matrix for third-order force constants (anharmonic). "
+                "Should typically match or exceed fc2_supercell for consistency. Same format as fc2_supercell. "
+                "Default: [[2, 0, 0], [0, 2, 0], [0, 0, 2]] (2×2×2 supercell)."
+            )
+        )
+    ] = None,
+    mesh_numbers: Annotated[
+        list[int] | None,
+        Field(
+            default=None,
+            description=(
+                "q-point mesh for thermal conductivity integration [nx, ny, nz]. "
+                "Denser mesh = more accurate but more expensive. Default: [20, 20, 20]."
+            )
+        )
+    ] = None,
+    t_min: Annotated[
+        float,
+        Field(
+            default=0.0,
+            ge=0.0,
+            description="Minimum temperature for thermal conductivity calculation in Kelvin. Default: 0.0."
+        )
+    ] = 0.0,
+    t_max: Annotated[
+        float,
+        Field(
+            default=1000.0,
+            gt=0.0,
+            description="Maximum temperature for thermal conductivity calculation in Kelvin. Default: 1000.0."
+        )
+    ] = 1000.0,
+    t_step: Annotated[
+        float,
+        Field(
+            default=10.0,
+            gt=0.0,
+            description="Temperature step in Kelvin. Default: 10.0."
+        )
+    ] = 10.0,
+    relax_structure: Annotated[
+        bool,
+        Field(
+            default=True,
+            description=(
+                "Whether to relax the structure before calculation. "
+                "Recommended: True (equilibrium structure needed for accurate force constants). Default: True."
+            )
+        )
+    ] = True,
+    fmax: Annotated[
+        float,
+        Field(
+            default=0.1,
+            gt=0.0,
+            description=(
+                "Force convergence criterion for structure relaxation in eV/Angstrom. "
+                "Only used if relax_structure=True. Default: 0.1."
+            )
+        )
+    ] = 0.1,
     **kwargs,
 ) -> dict[str, Any]:
     """
-    Calculate lattice thermal conductivity using third-order force constants.
-    
-    This tool uses Phonon3Calc from matcalc to compute thermal conductivity via
-    the Boltzmann transport equation within the relaxation time approximation.
-    Thermal conductivity arises from anharmonic phonon-phonon scattering captured
-    by third-order force constants.
-    
-    Args:
-        structure_input: Structure as CIF string, POSCAR string, dict, or pymatgen Structure.
-            Can be:
-            - CIF format string (must start with 'data_' or contain '_cell_')
-            - POSCAR format string
-            - Dictionary with structure data
-            - Pymatgen Structure object
-            
-        calculator: Name of the ML potential calculator to use.
-            Options: "TensorNet-MatPES-PBE", "r2SCAN", "M3GNet", "CHGNet"
-            Default: "TensorNet-MatPES-PBE"
-            
-        fc2_supercell: Supercell matrix for second-order force constants (harmonic).
-            Larger supercells give more accurate phonon properties.
-            Can be:
-            - List of 3 integers: [a, b, c] for diagonal supercell
-            - 3x3 matrix: [[a1,a2,a3], [b1,b2,b3], [c1,c2,c3]]
-            Default: [[2, 0, 0], [0, 2, 0], [0, 0, 2]] (2×2×2 supercell)
-            
-        fc3_supercell: Supercell matrix for third-order force constants (anharmonic).
-            Should typically match or exceed fc2_supercell for consistency.
-            Same format as fc2_supercell.
-            Default: [[2, 0, 0], [0, 2, 0], [0, 0, 2]] (2×2×2 supercell)
-            
-        mesh_numbers: q-point mesh for thermal conductivity integration [nx, ny, nz].
-            Denser mesh = more accurate but more expensive.
-            Default: [20, 20, 20]
-            
-        t_min: Minimum temperature for thermal conductivity calculation (Kelvin).
-            Default: 0.0
-            
-        t_max: Maximum temperature for thermal conductivity calculation (Kelvin).
-            Default: 1000.0
-            
-        t_step: Temperature step (Kelvin).
-            Default: 10.0
-            
-        relax_structure: Whether to relax the structure before calculation.
-            Recommended: True (equilibrium structure needed for accurate force constants)
-            Default: True
-            
-        fmax: Force convergence criterion for structure relaxation (eV/Angstrom).
-            Only used if relax_structure=True.
-            Default: 0.1
-            
-        **kwargs: Additional arguments:
-            - disp_kwargs: dict for phonon3.generate_displacements()
-            - thermal_conductivity_kwargs: dict for phonon3.run_thermal_conductivity()
-            - optimizer: Relaxation optimizer (default: "FIRE")
-            - write_phonon3: Path to save phono3py object
-            - write_kappa: Whether to write kappa files
-    
-    Returns:
-        Dictionary containing:
-        {
-            "success": bool,
-            
-            # Thermal conductivity results
-            "thermal_conductivity": [...],  # W/m·K at each temperature (averaged over 3 directions)
-            "temperatures": [...],          # K
-            
-            # Structure information
-            "structure": dict,              # Input structure as pymatgen dict
-            "relaxed": bool,                # Whether structure was relaxed
-            
-            # Calculator info
-            "calculator": str,
-            
-            # Calculation parameters
-            "parameters": {
-                "fc2_supercell": list,
-                "fc3_supercell": list,
-                "mesh_numbers": list,
-                ...
-            },
-            
-            # Units reference
-            "units": {
-                "temperature": "K",
-                "thermal_conductivity": "W/m·K"
-            }
-        }
-    
-    Raises:
-        ValueError: If structure_input cannot be parsed
-        RuntimeError: If phonon3 calculation fails
-    
-    Example:
-        >>> result = matcalc_calc_phonon3(
-        ...     structure_input=cif_string,
-        ...     calculator="M3GNet",
-        ...     fc3_supercell=[3, 3, 3],
-        ...     mesh_numbers=[30, 30, 30],
-        ...     t_max=500.0
-        ... )
-        >>> print(f"Thermal conductivity at 300K: {result['thermal_conductivity'][30]:.2f} W/m·K")
-    
-    Notes:
-        - Thermal conductivity calculations are expensive (many force calculations required)
-        - Larger supercells and denser meshes improve accuracy but increase cost
-        - ML potentials are fast but less accurate than DFT
-        - Structure must be at equilibrium for meaningful results
-        - Thermal conductivity is averaged over x, y, z directions
-        - Uses relaxation time approximation (RTA) - simplified but fast
-        - For very accurate results, consider using DFT-based phono3py calculations
+    Calculate lattice thermal conductivity using third-order force constants and Boltzmann transport equation (RTA).
     """
     try:
         from matcalc import Phonon3Calc
@@ -228,6 +208,7 @@ def matcalc_calc_phonon3(
         return {
             "success": False,
             "error": f"Failed to load calculator '{calculator}': {e}",
+            "details": "Check that calculator is available using `matgl.get_available_pretrained_models()`"
         }
 
     # Extract optional kwargs

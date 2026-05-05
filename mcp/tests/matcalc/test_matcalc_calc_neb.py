@@ -45,7 +45,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=[initial, final],
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=3,  # Small number for fast testing
             climb=True,
             fmax=0.3,  # Loose convergence for speed
@@ -78,7 +78,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=images_list,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=3,
             fmax=0.3,
             max_steps=100,
@@ -95,7 +95,7 @@ class TestNEBCalc:
         for n in [3, 5]:
             result = matcalc_calc_neb(
                 images=[initial, final],
-                calculator="M3GNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 n_images=n,
                 fmax=0.3,
                 max_steps=100,
@@ -112,7 +112,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=[initial, final],
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=3,
             climb=False,
             fmax=0.3,
@@ -130,7 +130,7 @@ class TestNEBCalc:
         for optimizer in ["BFGS", "FIRE"]:
             result = matcalc_calc_neb(
                 images=[initial, final],
-                calculator="M3GNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 n_images=3,
                 optimizer=optimizer,
                 fmax=0.3,
@@ -145,7 +145,7 @@ class TestNEBCalc:
         """Test NEB with different calculators."""
         initial, final = get_si_structures()
         
-        for calc in ["M3GNet", "CHGNet"]:
+        for calc in ["TensorNet-PES-MatPES-PBE-2025.2", "TensorNet-PES-MatPES-r2SCAN-2025.2"]:
             result = matcalc_calc_neb(
                 images=[initial, final],
                 calculator=calc,
@@ -164,7 +164,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=[initial, final],
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=3,
             fmax=0.5,  # Very loose
             max_steps=50,
@@ -180,7 +180,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=[initial],
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         )
         
         assert result["success"] is False
@@ -207,7 +207,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=[initial, final],
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=5,
             fmax=0.3,
             max_steps=100,
@@ -236,7 +236,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=[initial, final],
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=3,
             fmax=0.3,
             max_steps=50,
@@ -259,7 +259,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=[initial, final],
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=3,
             fmax=0.3,
             max_steps=50,
@@ -276,7 +276,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=[initial, final],
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=5,
             fmax=0.3,
             max_steps=100,
@@ -310,7 +310,7 @@ class TestNEBCalc:
         
         result = matcalc_calc_neb(
             images=images,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             n_images=4,
             fmax=0.3,
             max_steps=100,

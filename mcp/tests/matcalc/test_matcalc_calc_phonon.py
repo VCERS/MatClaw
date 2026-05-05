@@ -16,7 +16,7 @@ class TestPhononCalc:
         """Test basic phonon calculation with Si structure."""
         result = matcalc_calc_phonon(
             structure_input=str(CifWriter(cubic_si_structure)),
-        calculator="pbe",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_min=0.0,
             t_max=500.0,
@@ -60,7 +60,7 @@ class TestPhononCalc:
         """Test phonon calculation with structure relaxation."""
         result = matcalc_calc_phonon(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,
             t_step=100.0,
@@ -76,7 +76,7 @@ class TestPhononCalc:
         """Test that thermodynamic properties follow expected trends."""
         result = matcalc_calc_phonon(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_min=10.0,  # Start above 0 to avoid quantum effects
             t_max=500.0,
@@ -102,7 +102,7 @@ class TestPhononCalc:
         
     def test_different_calculators(self, cubic_si_structure):
         """Test phonon calculation with different ML potentials."""
-        calculators = ["pbe", "r2scan"]  # Use reliable calculators
+        calculators = ["TensorNet-PES-MatPES-PBE-2025.2", "TensorNet-PES-MatPES-r2SCAN-2025.2"]
         
         results = {}
         for calc in calculators:
@@ -133,7 +133,7 @@ class TestPhononCalc:
         for sc in supercells:
             result = matcalc_calc_phonon(
                 structure_input=str(CifWriter(cubic_si_structure)),
-                calculator="pbe",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 supercell_matrix=sc,
                 t_max=300.0,
                 relax_structure=False,
@@ -144,7 +144,7 @@ class TestPhononCalc:
         """Test different temperature ranges."""
         result = matcalc_calc_phonon(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_min=100.0,
             t_max=800.0,
@@ -165,7 +165,7 @@ class TestPhononCalc:
         
         result = matcalc_calc_phonon(
             structure_input=cif_str,
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,
             relax_structure=False,
@@ -180,7 +180,7 @@ class TestPhononCalc:
         
         result = matcalc_calc_phonon(
             structure_input=poscar_str,
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,
             relax_structure=False,
@@ -192,7 +192,7 @@ class TestPhononCalc:
         """Test error handling for invalid structure input."""
         result = matcalc_calc_phonon(
             structure_input="invalid structure",
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         )
         
         assert result["success"] is False
@@ -214,7 +214,7 @@ class TestPhononCalc:
         """Test that units are properly documented in output."""
         result = matcalc_calc_phonon(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,
             relax_structure=False,
@@ -238,7 +238,7 @@ class TestPhononCalc:
         for disp in displacements:
             result = matcalc_calc_phonon(
                 structure_input=str(CifWriter(cubic_si_structure)),
-                calculator="pbe",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 supercell_matrix=[2, 2, 2],
                 atom_disp=disp,
                 t_max=300.0,
@@ -250,7 +250,7 @@ class TestPhononCalc:
         """Test phonon stability analysis."""
         result = matcalc_calc_phonon(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,
             relax_structure=False,
@@ -271,7 +271,7 @@ class TestPhononCalc:
         """Test phonon calculation with pymatgen Structure object."""
         result = matcalc_calc_phonon(
             structure_input=cubic_si_structure,
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             supercell_matrix=[2, 2, 2],
             t_max=300.0,
             relax_structure=False,

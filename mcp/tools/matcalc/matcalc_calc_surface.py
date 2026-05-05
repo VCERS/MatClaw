@@ -41,17 +41,13 @@ def matcalc_calc_surface(
     calculator: Annotated[
         str,
         Field(
-            default="CHGNet",
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
             description=(
-                "Calculator/potential to use. Options:\n"
-                "- 'CHGNet' or 'CHGNet-MatPES-PBE-2025.2.10-2.7M-PES' (default, requires DGL)\n"
-                "- 'M3GNet' or 'M3GNet-MatPES-PBE-v2025.1-PES' (requires DGL)\n"
-                "- 'TensorNet-MatPES-PBE-v2025.1-PES' or 'pbe' (uses PYG backend)\n"
-                "- 'TensorNet-MatPES-r2SCAN-v2025.1-PES' or 'r2scan'\n"
-                "Or any other matcalc-supported universal calculator."
+                "Calculator/potential to use. "
+                "For the full list of available calculators, run `matgl.get_available_pretrained_models`"
             )
         )
-    ] = "CHGNet",
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
     min_slab_size: Annotated[
         float,
         Field(
@@ -216,7 +212,7 @@ def matcalc_calc_surface(
     except Exception as e:
         return {
             "error": f"Failed to load calculator '{calculator}': {str(e)}",
-            "details": "Check that calculator name is valid and model is available."
+            "details": "Check that calculator is available using `matgl.get_available_pretrained_models()`"
         }
     
     # Create SurfaceCalc

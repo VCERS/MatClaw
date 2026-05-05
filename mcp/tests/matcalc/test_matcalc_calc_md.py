@@ -49,7 +49,7 @@ class TestMDCalc:
         """Test basic NVT MD simulation."""
         result = matcalc_calc_md(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             timestep=1.0,
@@ -74,7 +74,7 @@ class TestMDCalc:
         """Test NVE (microcanonical) ensemble."""
         result = matcalc_calc_md(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nve",
             temperature=300.0,
             timestep=0.5,
@@ -93,7 +93,7 @@ class TestMDCalc:
         for temp in [100.0, 300.0, 600.0]:
             result = matcalc_calc_md(
                 structure_input=SI_POSCAR,
-                calculator="M3GNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 ensemble="nvt",
                 temperature=temp,
                 steps=10,
@@ -109,7 +109,7 @@ class TestMDCalc:
         for dt in [0.5, 1.0, 2.0]:
             result = matcalc_calc_md(
                 structure_input=SI_POSCAR,
-                calculator="M3GNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 ensemble="nvt",
                 temperature=300.0,
                 timestep=dt,
@@ -126,7 +126,7 @@ class TestMDCalc:
         """Test MD with CIF format input."""
         result = matcalc_calc_md(
             structure_input=SI_CIF,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             steps=5,
@@ -139,7 +139,7 @@ class TestMDCalc:
         """Test MD with POSCAR format input."""
         result = matcalc_calc_md(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             steps=5,
@@ -154,7 +154,7 @@ class TestMDCalc:
         
         result = matcalc_calc_md(
             structure_input=structure,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             steps=5,
@@ -170,7 +170,7 @@ class TestMDCalc:
         
         result = matcalc_calc_md(
             structure_input=structure_cif,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             steps=5,
@@ -183,7 +183,7 @@ class TestMDCalc:
         """Test that invalid structure input returns error."""
         result = matcalc_calc_md(
             structure_input="invalid structure data",
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             steps=5,
@@ -211,7 +211,7 @@ class TestMDCalc:
         """Test MD with initial structure relaxation."""
         result = matcalc_calc_md(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             steps=10,
@@ -227,7 +227,7 @@ class TestMDCalc:
         """Test MD without initial structure relaxation."""
         result = matcalc_calc_md(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             steps=10,
@@ -240,7 +240,7 @@ class TestMDCalc:
     @pytest.mark.slow
     def test_different_calculators(self):
         """Test MD with different ML calculators."""
-        for calc in ["M3GNet", "CHGNet"]:
+        for calc in ["TensorNet-PES-MatPES-PBE-2025.2", "TensorNet-PES-MatPES-r2SCAN-2025.2"]:
             result = matcalc_calc_md(
                 structure_input=SI_POSCAR,
                 calculator=calc,
@@ -257,7 +257,7 @@ class TestMDCalc:
         """Test that units are properly documented in output."""
         result = matcalc_calc_md(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             steps=5,
@@ -278,7 +278,7 @@ class TestMDCalc:
         """Test that pressure parameter is passed correctly."""
         result = matcalc_calc_md(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="npt",
             temperature=300.0,
             pressure=1.0,  # 1 GPa
@@ -298,7 +298,7 @@ class TestMDCalc:
         
         result = matcalc_calc_md(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             ensemble="nvt",
             temperature=300.0,
             timestep=timestep,

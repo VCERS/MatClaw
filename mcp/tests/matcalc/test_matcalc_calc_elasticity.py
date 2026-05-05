@@ -20,9 +20,9 @@ class TestElasticityCalc:
         """Test basic elasticity calculation with dict input."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",  # Use alias
-            relax_structure=True,  # Use matcalc defaults
-            relax_deformed_structures=False,  # Use matcalc defaults  
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
+            relax_structure=True,
+            relax_deformed_structures=False,
             fmax=0.2,  # Relaxed tolerance for faster test
         )
         
@@ -58,7 +58,7 @@ class TestElasticityCalc:
         """Test that elastic tensor has correct structure and symmetry."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_cscl_structure)),
-            calculator="TensorNet-MatPES-PBE-v2025.1-PES",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )
@@ -86,7 +86,7 @@ class TestElasticityCalc:
         """Test mechanical stability analysis."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )
@@ -107,13 +107,13 @@ class TestElasticityCalc:
             assert any(ev <= 0 for ev in eigenvalues), \
                 "Unstable structure should have at least one non-positive eigenvalue"
 
-    def test_voigt_reuss_hill_averages(self, cubic_nacl_structure):
+    def test_voigt_reuss_hill_averages(self, cubic_si_structure):
         """Test that Voigt, Reuss, and Hill averages are properly computed."""
         result = matcalc_calc_elasticity(
-            input_structure=str(CifWriter(cubic_nacl_structure)),
-            calculator="pbe",
-            relax_structure=True,  # Use matcalc defaults
-            relax_deformed_structures=False,  # Use matcalc defaults
+            input_structure=str(CifWriter(cubic_si_structure)),
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
+            relax_structure=False,
+            relax_deformed_structures=False,  # Fast calculation, no relaxation of strained structures
             fmax=0.2,
         )
         
@@ -151,7 +151,7 @@ class TestElasticityCalc:
         """Test that derived properties are correctly calculated."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )
@@ -186,7 +186,7 @@ class TestElasticityCalc:
         """Test ductility classification based on Pugh ratio."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )
@@ -214,7 +214,7 @@ class TestElasticityCalc:
         """Test elastic anisotropy classification."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )
@@ -241,7 +241,7 @@ class TestElasticityCalc:
         """Test elasticity calculation with structure relaxation enabled."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(stressed_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,  # Enable relaxation
             relax_deformed_structures=True,
             fmax=0.2,
@@ -285,7 +285,7 @@ class TestElasticityCalc:
         """Test elasticity calculation without relaxing deformed structures (faster)."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             relax_deformed_structures=False,  # Disabled for speed
             fmax=0.5,  # Not used since no relaxation
@@ -306,7 +306,7 @@ class TestElasticityCalc:
         
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,  # Use matcalc defaults
             relax_deformed_structures=False,  # Use matcalc defaults
             norm_strains=custom_norm_strains,
@@ -323,10 +323,7 @@ class TestElasticityCalc:
 
     def test_different_calculators(self, cubic_si_structure):
         """Test that different calculator names/aliases work."""
-        calculators_to_test = [
-            "pbe",  # Alias
-            "TensorNet-MatPES-PBE-v2025.1-PES",  # Full name
-        ]
+        calculators_to_test = ["TensorNet-PES-MatPES-PBE-2025.2", "TensorNet-PES-MatPES-r2SCAN-2025.2"]
         
         for calc_name in calculators_to_test:
             result = matcalc_calc_elasticity(
@@ -348,7 +345,7 @@ class TestElasticityCalc:
         """Test elasticity calculation with CIF string input."""
         result = matcalc_calc_elasticity(
             input_structure=cif_string_si,
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )
@@ -363,7 +360,7 @@ class TestElasticityCalc:
         """Test that all expected output fields are present."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )
@@ -407,7 +404,7 @@ class TestElasticityCalc:
     def test_parameters_recorded(self, cubic_si_structure):
         """Test that all input parameters are recorded in output."""
         inputs = {
-            "calculator": "pbe",
+            "calculator": "TensorNet-PES-MatPES-r2SCAN-2025.2",
             "relax_structure": False,
             "relax_deformed_structures": False,  # Use matcalc defaults
             "fmax": 0.15,
@@ -434,7 +431,7 @@ class TestElasticityCalc:
         """Test that calculation time is reported."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.3,
         )
@@ -449,7 +446,7 @@ class TestElasticityCalc:
         # Try with an invalid structure type
         result = matcalc_calc_elasticity(
             input_structure=12345,  # Invalid type
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         )
         
         assert result["success"] is False
@@ -477,7 +474,7 @@ class TestElasticityCalc:
         """
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(stressed_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             relax_deformed_structures=False,  # Use matcalc defaults
             fmax=0.1,  # Tighter convergence
@@ -505,7 +502,7 @@ class TestEdgeCases:
         """Test with very tight force convergence."""
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             relax_deformed_structures=True,
             fmax=0.05,  # Very tight
@@ -519,7 +516,7 @@ class TestEdgeCases:
         # Use only 2 strain points (minimum for fitting)
         result = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             norm_strains=[-0.003, 0.003],
             shear_strains=[-0.003, 0.003],
@@ -535,14 +532,14 @@ class TestEdgeCases:
         # Call twice with same input - should give same results
         result1 = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_nacl_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )
         
         result2 = matcalc_calc_elasticity(
             input_structure=str(CifWriter(cubic_nacl_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
             fmax=0.2,
         )

@@ -8,9 +8,10 @@ universal ML potentials (e.g., TensorNet-MatPES-PBE, M3GNet, CHGNet).
 import os
 import tempfile
 from contextlib import contextmanager
-from typing import Any
+from typing import Annotated, Any
 
 import numpy as np
+from pydantic import Field
 from pymatgen.core import Structure
 
 
@@ -31,128 +32,99 @@ def _temporary_working_directory():
 
 
 def matcalc_calc_phonon(
-    structure_input: str,
-    calculator: str = "TensorNet-MatPES-PBE",
-    atom_disp: float = 0.015,
-    supercell_matrix: list[list[int]] | None = None,
-    t_min: float = 0.0,
-    t_max: float = 1000.0,
-    t_step: float = 10.0,
-    relax_structure: bool = True,
-    fmax: float = 0.1,
+    structure_input: Annotated[
+        str,
+        Field(
+            description=(
+                "Structure as CIF string, POSCAR string, dict, or pymatgen Structure. "
+                "Can be: (1) CIF format string (must start with 'data_' or contain '_cell_'), "
+                "(2) POSCAR format string, (3) Dictionary with structure data, "
+                "(4) Pymatgen Structure object."
+            )
+        )
+    ],
+    calculator: Annotated[
+        str,
+        Field(
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
+            description=(
+                "Calculator/potential to use. "
+                "For the full list of available calculators, run `matgl.get_available_pretrained_models`"
+            )
+        )
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
+    atom_disp: Annotated[
+        float,
+        Field(
+            default=0.015,
+            gt=0.0,
+            description=(
+                "Atomic displacement distance for calculating force constants in Angstroms. "
+                "Smaller values increase accuracy but may be numerically less stable. Default: 0.015."
+            )
+        )
+    ] = 0.015,
+    supercell_matrix: Annotated[
+        list[list[int]] | None,
+        Field(
+            default=None,
+            description=(
+                "Supercell matrix for phonon calculations. Larger supercells give more accurate results "
+                "but are more expensive. Can be: (1) List of 3 integers [a, b, c] for diagonal supercell, "
+                "(2) 3x3 matrix [[a1,a2,a3], [b1,b2,b3], [c1,c2,c3]]. "
+                "Default: [[2, 0, 0], [0, 2, 0], [0, 0, 2]] (2×2×2 supercell)."
+            )
+        )
+    ] = None,
+    t_min: Annotated[
+        float,
+        Field(
+            default=0.0,
+            ge=0.0,
+            description="Minimum temperature for thermodynamic properties in Kelvin. Default: 0.0."
+        )
+    ] = 0.0,
+    t_max: Annotated[
+        float,
+        Field(
+            default=1000.0,
+            gt=0.0,
+            description="Maximum temperature for thermodynamic properties in Kelvin. Default: 1000.0."
+        )
+    ] = 1000.0,
+    t_step: Annotated[
+        float,
+        Field(
+            default=10.0,
+            gt=0.0,
+            description="Temperature step for thermodynamic properties in Kelvin. Default: 10.0."
+        )
+    ] = 10.0,
+    relax_structure: Annotated[
+        bool,
+        Field(
+            default=True,
+            description=(
+                "Whether to relax the structure before phonon calculation. "
+                "Recommended: True (ensuring structure is at equilibrium improves accuracy). Default: True."
+            )
+        )
+    ] = True,
+    fmax: Annotated[
+        float,
+        Field(
+            default=0.1,
+            gt=0.0,
+            description=(
+                "Force convergence criterion for structure relaxation in eV/Angstrom. "
+                "Only used if relax_structure=True. Default: 0.1."
+            )
+        )
+    ] = 0.1,
     **kwargs,
 ) -> dict[str, Any]:
     """
-    Calculate phonon properties and thermodynamic quantities using matcalc.
-    
-    This tool uses PhononCalc from matcalc to compute phonon dispersion,
-    density of states, and temperature-dependent thermodynamic properties
-    (free energy, entropy, heat capacity) using universal ML potentials.
-    
-    Args:
-        structure_input: Structure as CIF string, POSCAR string, dict, or pymatgen Structure.
-            Can be:
-            - CIF format string (must start with 'data_' or contain '_cell_')
-            - POSCAR format string
-            - Dictionary with structure data
-            - Pymatgen Structure object
-            
-        calculator: Name of the ML potential calculator to use.
-            Options: "TensorNet-MatPES-PBE", "r2SCAN", "M3GNet", "CHGNet"
-            Default: "TensorNet-MatPES-PBE"
-            
-        atom_disp: Atomic displacement distance for calculating force constants (in Angstroms).
-            Smaller values increase accuracy but may be numerically less stable.
-            Default: 0.015
-            
-        supercell_matrix: Supercell matrix for phonon calculations.
-            Larger supercells give more accurate phonon results but are more expensive.
-            Can be:
-            - List of 3 integers: [a, b, c] for diagonal supercell
-            - 3x3 matrix: [[a1,a2,a3], [b1,b2,b3], [c1,c2,c3]]
-            Default: [[2, 0, 0], [0, 2, 0], [0, 0, 2]] (2×2×2 supercell)
-            
-        t_min: Minimum temperature for thermodynamic properties (in Kelvin).
-            Default: 0.0
-            
-        t_max: Maximum temperature for thermodynamic properties (in Kelvin).
-            Default: 1000.0
-            
-        t_step: Temperature step for thermodynamic properties (in Kelvin).
-            Default: 10.0
-            
-        relax_structure: Whether to relax the structure before phonon calculation.
-            Recommended: True (ensuring structure is at equilibrium improves accuracy)
-            Default: True
-            
-        fmax: Force convergence criterion for structure relaxation (eV/Angstrom).
-            Only used if relax_structure=True.
-            Default: 0.1
-            
-        **kwargs: Additional arguments passed to matcalc PhononCalc or RelaxCalc.
-    
-    Returns:
-        Dictionary containing:
-        {
-            "success": bool,
-            
-            # Thermal properties
-            "thermal_properties": {
-                "temperatures": [T1, T2, ...],  # K
-                "free_energy": [F1, F2, ...],   # kJ/mol
-                "entropy": [S1, S2, ...],        # J/K/mol
-                "heat_capacity": [Cv1, Cv2, ...] # J/K/mol
-            },
-            
-            # Phonon stability analysis
-            "stability": {
-                "is_stable": bool,  # True if no imaginary modes
-                "num_imaginary_modes": int,
-                "max_imaginary_frequency": float | None,  # THz
-            },
-            
-            # Key phonon metrics
-            "debye_temperature": float,  # K (from Debye model fit)
-            
-            # Structure information
-            "structure": dict,  # Pymatgen Structure as dict
-            "relaxed": bool,    # Whether structure was relaxed
-            
-            # Calculator info
-            "calculator": str,
-            
-            # Units reference
-            "units": {
-                "temperature": "K",
-                "free_energy": "kJ/mol",
-                "entropy": "J/K/mol",
-                "heat_capacity": "J/K/mol",
-                "frequency": "THz",
-                "debye_temperature": "K"
-            }
-        }
-    
-    Raises:
-        ValueError: If structure_input cannot be parsed
-        RuntimeError: If phonon calculation fails
-    
-    Example:
-        >>> result = matcalc_calc_phonon(
-        ...     structure_input=cif_string,
-        ...     calculator="M3GNet",
-        ...     supercell_matrix=[3, 3, 3],
-        ...     t_max=500.0
-        ... )
-        >>> print(f"Debye temperature: {result['debye_temperature']:.1f} K")
-        >>> print(f"Stable: {result['stability']['is_stable']}")
-    
-    Notes:
-        - Phonon calculations require larger supercells for accurate results
-        - ML potentials are fast but less accurate than DFT
-        - Imaginary frequencies indicate structural instability
-        - Thermodynamic properties are calculated from phonon DOS using harmonic approximation
-        - For very accurate results, consider using DFT-based phonon calculations
-        - Structure relaxation is recommended before phonon calculation
+    Calculate phonon properties and thermodynamic quantities using universal ML potentials.
     """
     try:
         from matcalc import PhononCalc
@@ -200,6 +172,7 @@ def matcalc_calc_phonon(
         return {
             "success": False,
             "error": f"Failed to load calculator '{calculator}': {e}",
+            "details": "Check that calculator is available using `matgl.get_available_pretrained_models()`" 
         }
 
     # Set up PhononCalc

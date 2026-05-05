@@ -29,17 +29,13 @@ def matcalc_calc_eos(
     calculator: Annotated[
         str,
         Field(
-            default="TensorNet-MatPES-PBE-v2025.1-PES",
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
             description=(
-                "Calculator/potential to use. Options:\n"
-                "- 'TensorNet-MatPES-PBE-v2025.1-PES' or 'pbe' (default, fast and accurate)\n"
-                "- 'TensorNet-MatPES-r2SCAN-v2025.1-PES' or 'r2scan' (higher accuracy)\n"
-                "- 'M3GNet-MatPES-PBE-v2025.1-PES' or 'm3gnet'\n"
-                "- 'CHGNet-MatPES-PBE-2025.2.10-2.7M-PES' or 'chgnet'\n"
-                "Or any other matcalc-supported universal calculator."
+                "Calculator/potential to use. "
+                "For the full list of available calculators, run `matgl.get_available_pretrained_models`"
             )
         )
-    ] = "TensorNet-MatPES-PBE-v2025.1-PES",
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
     relax_structure: Annotated[
         bool,
         Field(
@@ -232,7 +228,8 @@ def matcalc_calc_eos(
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Failed to load calculator '{calculator}': {e}"
+                "error": f"Failed to load calculator '{calculator}': {e}",
+                "details": "Check that calculator is available using `matgl.get_available_pretrained_models()`"
             }
         
         # Initialize EOSCalc
@@ -256,8 +253,7 @@ def matcalc_calc_eos(
         except Exception as e:
             return {
                 "success": False,
-                "error": f"EOS calculation failed: {e}. "
-                        f"Structure may be unstable or volume range inappropriate."
+                "error": f"EOS calculation failed: {e}."
             }
         
         # Extract volumes and energies from matcalc results

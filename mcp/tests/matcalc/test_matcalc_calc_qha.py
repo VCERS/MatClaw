@@ -47,7 +47,7 @@ class TestQHACalc:
         """Test basic QHA calculation with minimal parameters."""
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=300.0,
             t_step=50.0,
             scale_factors=[0.98, 0.99, 1.0, 1.01, 1.02],  # Fewer points for speed
@@ -81,7 +81,7 @@ class TestQHACalc:
         assert len(result["electronic_energies"]) == 5
         
         # Check metadata
-        assert result["calculator"] == "M3GNet"
+        assert result["calculator"] == "TensorNet-PES-MatPES-r2SCAN-2025.2"
         assert result["relaxed"] is False
         assert "units" in result
 
@@ -90,7 +90,7 @@ class TestQHACalc:
         """Test QHA calculation with structure relaxation."""
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=200.0,
             t_step=100.0,
             scale_factors=[0.98, 0.99, 1.0, 1.01, 1.02],
@@ -108,7 +108,7 @@ class TestQHACalc:
         # Wider range
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=100.0,
             scale_factors=[0.95, 0.97, 0.99, 1.0, 1.01, 1.03, 1.05],
             relax_structure=False,
@@ -125,7 +125,7 @@ class TestQHACalc:
         for eos_model in ["vinet", "murnaghan", "birch_murnaghan"]:
             result = matcalc_calc_qha(
                 structure_input=SI_POSCAR,
-                calculator="M3GNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 t_max=100.0,
                 t_step=50.0,
                 scale_factors=[0.98, 0.99, 1.0, 1.01, 1.02],
@@ -141,7 +141,7 @@ class TestQHACalc:
         """Test QHA with custom temperature range."""
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_min=100.0,
             t_max=500.0,
             t_step=100.0,
@@ -161,7 +161,7 @@ class TestQHACalc:
         """Test QHA with CIF format input."""
         result = matcalc_calc_qha(
             structure_input=SI_CIF,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=100.0,
             scale_factors=[1.0],  # Single point for speed
             relax_structure=False,
@@ -176,7 +176,7 @@ class TestQHACalc:
         """Test QHA with POSCAR format input."""
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=100.0,
             scale_factors=[1.0],  # Single point for speed
             relax_structure=False,
@@ -193,7 +193,7 @@ class TestQHACalc:
         
         result = matcalc_calc_qha(
             structure_input=structure,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=100.0,
             scale_factors=[0.98, 0.99, 1.0, 1.01, 1.02],
             relax_structure=False,
@@ -208,7 +208,7 @@ class TestQHACalc:
         
         result = matcalc_calc_qha(
             structure_input=structure_cif,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=100.0,
             scale_factors=[1.0],
             relax_structure=False,
@@ -222,7 +222,7 @@ class TestQHACalc:
         """Test QHA with invalid structure input."""
         result = matcalc_calc_qha(
             structure_input="invalid structure data",
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         )
         
         assert result["success"] is False
@@ -245,7 +245,7 @@ class TestQHACalc:
         """Test QHA with custom phonon calculation parameters."""
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=100.0,
             scale_factors=[0.98, 0.99, 1.0, 1.01, 1.02],
             phonon_calc_kwargs={
@@ -264,7 +264,7 @@ class TestQHACalc:
         # Test with empty dict to ensure parameter is accepted
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=100.0,
             scale_factors=[0.98, 0.99, 1.0, 1.01, 1.02],
             relax_structure=True,
@@ -280,7 +280,7 @@ class TestQHACalc:
         """Test that units are properly documented in output."""
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=100.0,
             scale_factors=[1.0],
             relax_structure=False,
@@ -302,7 +302,7 @@ class TestQHACalc:
         """Test that thermal expansion coefficients are reasonable."""
         result = matcalc_calc_qha(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             t_max=300.0,
             scale_factors=[0.98, 0.99, 1.0, 1.01, 1.02],
             relax_structure=False,

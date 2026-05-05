@@ -15,6 +15,10 @@ Use this tool to:
 from typing import Dict, Any, Optional, Union, Annotated, Tuple, List
 from pydantic import Field
 
+import matcalc as mtc
+from pymatgen.core import Structure, Molecule
+from pymatgen.analysis.adsorption import AdsorbateSiteFinder
+
 
 def matcalc_calc_adsorption(
     slab_structure: Annotated[
@@ -66,17 +70,13 @@ def matcalc_calc_adsorption(
     calculator: Annotated[
         str,
         Field(
-            default="CHGNet",
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
             description=(
-                "Calculator/potential to use. Options:\n"
-                "- 'CHGNet' or 'CHGNet-MatPES-PBE-2025.2.10-2.7M-PES' (default, requires DGL)\n"
-                "- 'M3GNet' or 'M3GNet-MatPES-PBE-v2025.1-PES' (requires DGL)\n"
-                "- 'TensorNet-MatPES-PBE-v2025.1-PES' or 'pbe' (uses PYG backend)\n"
-                "- 'TensorNet-MatPES-r2SCAN-v2025.1-PES' or 'r2scan'\n"
-                "Or any other matcalc-supported universal calculator."
+                "Calculator/potential to use. "
+                "For the full list of available calculators, run `matgl.get_available_pretrained_models`"
             )
         )
-    ] = "CHGNet",
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
     relax_adsorbate: Annotated[
         bool,
         Field(
@@ -182,9 +182,6 @@ def matcalc_calc_adsorption(
         ValueError: If structure/adsorbate parsing fails or site is invalid
         RuntimeError: If adsorption calculation fails
     """
-    import matcalc as mtc
-    from pymatgen.core import Structure, Molecule
-    from pymatgen.analysis.adsorption import AdsorbateSiteFinder
     
     # Parse slab structure
     try:
@@ -269,7 +266,7 @@ def matcalc_calc_adsorption(
     except Exception as e:
         return {
             "error": f"Failed to load calculator '{calculator}': {str(e)}",
-            "details": "Check that calculator name is valid and model is available."
+            "details": "Check that calculator is available using `matgl.get_available_pretrained_models()`"
         }
     
     # Create AdsorptionCalc
@@ -349,7 +346,7 @@ def matcalc_calc_adsorption(
         }
 
 
-def _parse_structure(structure_input: str) -> "Structure":
+def _parse_structure(structure_input: str) -> Structure:
     """
     Parse structure from string format.
     
@@ -362,8 +359,6 @@ def _parse_structure(structure_input: str) -> "Structure":
     Raises:
         ValueError: If parsing fails
     """
-    from pymatgen.core import Structure
-    
     if isinstance(structure_input, str):
         # Try CIF first, then POSCAR
         for fmt in ['cif', 'poscar']:
@@ -377,7 +372,7 @@ def _parse_structure(structure_input: str) -> "Structure":
         raise ValueError(f"structure_input must be dict or str, got {type(structure_input)}")
 
 
-def _parse_adsorbate(adsorbate: Union[str, List[float], Dict[str, Any]]) -> "Molecule":
+def _parse_adsorbate(adsorbate: Union[str, List[float], Dict[str, Any]]) -> Molecule:
     """
     Parse adsorbate from various formats.
     
@@ -390,8 +385,6 @@ def _parse_adsorbate(adsorbate: Union[str, List[float], Dict[str, Any]]) -> "Mol
     Raises:
         ValueError: If parsing fails
     """
-    from pymatgen.core import Molecule
-    
     if isinstance(adsorbate, str):
         # Treat as molecular formula
         try:

@@ -20,7 +20,7 @@ class TestPhonon3Calc:
         """Test basic phonon3 calculation with Si structure."""
         result = matcalc_calc_phonon3(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
             mesh_numbers=[10, 10, 10],  # Small mesh for faster testing
@@ -57,7 +57,7 @@ class TestPhonon3Calc:
         """Test phonon3 calculation with structure relaxation."""
         result = matcalc_calc_phonon3(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
             mesh_numbers=[8, 8, 8],
@@ -76,7 +76,7 @@ class TestPhonon3Calc:
         """Test with different fc2 and fc3 supercells."""
         result = matcalc_calc_phonon3(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],  # Can be different from fc2
             mesh_numbers=[8, 8, 8],
@@ -96,7 +96,7 @@ class TestPhonon3Calc:
         for mesh in meshes:
             result = matcalc_calc_phonon3(
                 structure_input=str(CifWriter(cubic_si_structure)),
-                calculator="pbe",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 fc2_supercell=[2, 2, 2],
                 fc3_supercell=[2, 2, 2],
                 mesh_numbers=mesh,
@@ -110,7 +110,7 @@ class TestPhonon3Calc:
         """Test different temperature ranges."""
         result = matcalc_calc_phonon3(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
             mesh_numbers=[8, 8, 8],
@@ -133,7 +133,7 @@ class TestPhonon3Calc:
         
         result = matcalc_calc_phonon3(
             structure_input=cif_str,
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
             mesh_numbers=[8, 8, 8],
@@ -150,7 +150,7 @@ class TestPhonon3Calc:
         
         result = matcalc_calc_phonon3(
             structure_input=poscar_str,
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
             mesh_numbers=[8, 8, 8],
@@ -164,7 +164,7 @@ class TestPhonon3Calc:
         """Test error handling for invalid structure input."""
         result = matcalc_calc_phonon3(
             structure_input="invalid structure",
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         )
         
         assert result["success"] is False
@@ -186,7 +186,7 @@ class TestPhonon3Calc:
         """Test that units are properly documented in output."""
         result = matcalc_calc_phonon3(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
             mesh_numbers=[8, 8, 8],
@@ -205,7 +205,7 @@ class TestPhonon3Calc:
         """Test conversion of [a,b,c] format to matrix format."""
         result = matcalc_calc_phonon3(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],  # Simple list format
             fc3_supercell=[[2, 0, 0], [0, 2, 0], [0, 0, 2]],  # Matrix format
             mesh_numbers=[8, 8, 8],
@@ -222,7 +222,7 @@ class TestPhonon3Calc:
         """Test phonon3 calculation with pymatgen Structure object."""
         result = matcalc_calc_phonon3(
             structure_input=cubic_si_structure,
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
             mesh_numbers=[8, 8, 8],
@@ -236,7 +236,7 @@ class TestPhonon3Calc:
         """Test that NaN values in thermal conductivity are handled gracefully."""
         result = matcalc_calc_phonon3(
             structure_input=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             fc2_supercell=[2, 2, 2],
             fc3_supercell=[2, 2, 2],
             mesh_numbers=[8, 8, 8],

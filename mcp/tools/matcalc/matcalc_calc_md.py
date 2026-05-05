@@ -5,160 +5,188 @@ This tool performs MD simulations on structures using universal ML potentials
 to calculate thermodynamic properties, sample phase space, and study dynamics.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
 import numpy as np
+from pydantic import Field
 from pymatgen.core import Structure
 
 
 def matcalc_calc_md(
-    structure_input: str,
-    calculator: str = "TensorNet-MatPES-PBE",
-    ensemble: str = "nvt",
-    temperature: float = 300.0,
-    timestep: float = 1.0,
-    steps: int = 100,
-    pressure: float | None = None,
-    relax_structure: bool = True,
-    fmax: float = 0.1,
-    optimizer: str = "FIRE",
-    trajfile: str | None = None,
-    logfile: str | None = None,
-    loginterval: int = 1,
-    taut: float | None = None,
-    taup: float | None = None,
-    friction: float = 0.001,
-    relax_calc_kwargs: dict[str, Any] | None = None,
+    structure_input: Annotated[
+        str,
+        Field(
+            description=(
+                "Structure as CIF string, POSCAR string, dict, or pymatgen Structure. "
+                "Can be: (1) CIF format string (must start with 'data_' or contain '_cell_'), "
+                "(2) POSCAR format string, (3) Dictionary with structure data, "
+                "(4) Pymatgen Structure object."
+            )
+        )
+    ],
+    calculator: Annotated[
+        str,
+        Field(
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
+            description=(
+                "Calculator/potential to use. "
+                "For the full list of available calculators, run `matgl.get_available_pretrained_models`"
+            )
+        )
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
+    ensemble: Annotated[
+        str,
+        Field(
+            default="nvt",
+            description=(
+                "MD ensemble for simulation. Options: 'nvt' (canonical), 'nve' (microcanonical), "
+                "'npt' (isothermal-isobaric), 'nvt-nh' (Nose-Hoover), 'npt-nh' (NPT Nose-Hoover), "
+                "'langevin', 'nvt-andersen', 'nvt-berendsen', 'npt-berendsen'. Default: 'nvt'."
+            )
+        )
+    ] = "nvt",
+    temperature: Annotated[
+        float,
+        Field(
+            default=300.0,
+            gt=0.0,
+            description="Temperature in Kelvin for the simulation. Default: 300.0."
+        )
+    ] = 300.0,
+    timestep: Annotated[
+        float,
+        Field(
+            default=1.0,
+            gt=0.0,
+            description=(
+                "Time step for MD integration in femtoseconds (fs). "
+                "Typical values: 0.5-2.0 fs depending on system dynamics. Default: 1.0."
+            )
+        )
+    ] = 1.0,
+    steps: Annotated[
+        int,
+        Field(
+            default=100,
+            ge=1,
+            description=(
+                "Number of MD steps to run. For production runs, use 10000+ steps. "
+                "Default: 100 (suitable for testing)."
+            )
+        )
+    ] = 100,
+    pressure: Annotated[
+        float | None,
+        Field(
+            default=None,
+            description=(
+                "Pressure in GPa for NPT ensemble. Only used if ensemble contains 'npt'. "
+                "If None and NPT is used, converts to ~0 GPa internally. Default: None."
+            )
+        )
+    ] = None,
+    relax_structure: Annotated[
+        bool,
+        Field(
+            default=True,
+            description=(
+                "Whether to relax the structure before MD. "
+                "Recommended: True to ensure structure is at equilibrium and avoid numerical instabilities. "
+                "Default: True."
+            )
+        )
+    ] = True,
+    fmax: Annotated[
+        float,
+        Field(
+            default=0.1,
+            gt=0.0,
+            description=(
+                "Force convergence criterion for structure relaxation in eV/Angstrom. "
+                "Only used if relax_structure=True. Default: 0.1."
+            )
+        )
+    ] = 0.1,
+    optimizer: Annotated[
+        str,
+        Field(
+            default="FIRE",
+            description=(
+                "Optimizer for structure relaxation. "
+                "Options: 'FIRE', 'BFGS', 'LBFGS', 'BFGSLineSearch'. Default: 'FIRE'."
+            )
+        )
+    ] = "FIRE",
+    trajfile: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Path to save trajectory file (e.g., 'trajectory.traj'). "
+                "If None, trajectory is not saved to file. Note: trajectory files can be large. Default: None."
+            )
+        )
+    ] = None,
+    logfile: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Path to save MD log file (e.g., 'md.log'). "
+                "If None, log is not saved to file. Default: None."
+            )
+        )
+    ] = None,
+    loginterval: Annotated[
+        int,
+        Field(
+            default=1,
+            ge=1,
+            description=(
+                "Interval (in steps) for logging MD information. "
+                "Use values > 1 for long simulations to reduce file size. Default: 1 (log every step)."
+            )
+        )
+    ] = 1,
+    taut: Annotated[
+        float | None,
+        Field(
+            default=None,
+            description=(
+                "Time constant for Berendsen/Nose-Hoover thermostat in fs. "
+                "If None, uses ensemble-specific defaults. Default: None."
+            )
+        )
+    ] = None,
+    taup: Annotated[
+        float | None,
+        Field(
+            default=None,
+            description=(
+                "Time constant for Berendsen/Nose-Hoover barostat in fs. "
+                "If None, uses ensemble-specific defaults. Default: None."
+            )
+        )
+    ] = None,
+    friction: Annotated[
+        float,
+        Field(
+            default=0.001,
+            gt=0.0,
+            description="Friction coefficient for Langevin dynamics in fs^-1. Default: 0.001."
+        )
+    ] = 0.001,
+    relax_calc_kwargs: Annotated[
+        dict[str, Any] | None,
+        Field(
+            default=None,
+            description="Additional keyword arguments for relaxation calculator. Default: None."
+        )
+    ] = None,
     **kwargs,
 ) -> dict[str, Any]:
     """
-    Run molecular dynamics simulation using matcalc.
-    
-    Performs MD simulation in various ensembles (NVE, NVT, NPT, etc.) using
-    universal ML potentials. Optionally relaxes the structure before MD.
-    
-    Args:
-        structure_input: Structure as CIF string, POSCAR string, dict, or pymatgen Structure.
-            Can be:
-            - CIF format string (must start with 'data_' or contain '_cell_')
-            - POSCAR format string
-            - Dictionary with structure data
-            - Pymatgen Structure object
-            
-        calculator: Name of the ML potential calculator to use.
-            Options: "TensorNet-MatPES-PBE", "r2SCAN", "M3GNet", "CHGNet"
-            Default: "TensorNet-MatPES-PBE"
-            
-        ensemble: MD ensemble for simulation.
-            Options: "nvt" (canonical), "nve" (microcanonical), "npt" (isothermal-isobaric),
-                     "nvt-nh" (Nose-Hoover), "npt-nh" (NPT Nose-Hoover), "langevin", 
-                     "nvt-andersen", "nvt-berendsen", "npt-berendsen"
-            Default: "nvt"
-            
-        temperature: Temperature in Kelvin for the simulation.
-            Default: 300.0
-            
-        timestep: Time step for MD integration in femtoseconds (fs).
-            Default: 1.0 fs
-            
-        steps: Number of MD steps to run.
-            Default: 100
-            
-        pressure: Pressure in GPa for NPT ensemble. Only used if ensemble contains "npt".
-            Default: None (converts to ~0 GPa internally if NPT is used)
-            
-        relax_structure: Whether to relax the structure before MD.
-            Recommended: True (ensures structure is at equilibrium)
-            Default: True
-            
-        fmax: Force convergence criterion for structure relaxation (eV/Angstrom).
-            Only used if relax_structure=True.
-            Default: 0.1
-            
-        optimizer: Optimizer for structure relaxation.
-            Options: "FIRE", "BFGS", "LBFGS", "BFGSLineSearch"
-            Default: "FIRE"
-            
-        trajfile: Path to save trajectory file (e.g., "trajectory.traj").
-            If None, trajectory is not saved to file.
-            Default: None
-            
-        logfile: Path to save MD log file (e.g., "md.log").
-            If None, log is not saved to file.
-            Default: None
-            
-        loginterval: Interval (in steps) for logging MD information.
-            Default: 1 (log every step)
-            
-        taut: Time constant for Berendsen/Nose-Hoover thermostat in fs.
-            If None, uses ensemble-specific defaults.
-            Default: None
-            
-        taup: Time constant for Berendsen/Nose-Hoover barostat in fs.
-            If None, uses ensemble-specific defaults.
-            Default: None
-            
-        friction: Friction coefficient for Langevin dynamics (fs^-1).
-            Default: 0.001
-            
-        relax_calc_kwargs: Additional keyword arguments for relaxation calculator.
-            Default: None
-            
-        **kwargs: Additional keyword arguments for MDCalc.
-            
-    Returns:
-        Dictionary containing:
-        {
-            "success": bool,
-            "energy": float,  # Final energy in eV
-            "structure": dict,  # Final structure as pymatgen Structure dict
-            "relaxed": bool,  # Whether structure was relaxed
-            
-            # MD information
-            "ensemble": str,
-            "temperature": float,  # K
-            "pressure": float | None,  # GPa
-            "steps": int,
-            "timestep": float,  # fs
-            "total_time": float,  # Total simulation time in ps
-            
-            # Calculator info
-            "calculator": str,
-            
-            # Units reference
-            "units": {
-                "energy": "eV",
-                "temperature": "K",
-                "pressure": "GPa",
-                "timestep": "fs",
-                "time": "ps",
-                "force": "eV/Angstrom"
-            }
-        }
-    
-    Raises:
-        ValueError: If structure_input cannot be parsed
-        RuntimeError: If MD simulation fails
-    
-    Example:
-        >>> result = matcalc_calc_md(
-        ...     structure_input=cif_string,
-        ...     calculator="M3GNet",
-        ...     ensemble="nvt",
-        ...     temperature=300.0,
-        ...     steps=1000,
-        ...     timestep=1.0
-        ... )
-        >>> print(f"Final energy: {result['energy']:.4f} eV")
-        >>> print(f"Simulation time: {result['total_time']:.2f} ps")
-    
-    Notes:
-        - MD simulations are computationally expensive; start with small step counts
-        - Structure relaxation is recommended before MD to avoid numerical instabilities
-        - Timestep should be chosen based on system dynamics (typically 0.5-2.0 fs)
-        - For production runs, use larger step counts (10000+) and save trajectories
-        - NPT ensemble requires pressure parameter
-        - Trajectory files can be large; use loginterval > 1 for long simulations
+    Run molecular dynamics simulation using universal ML potentials in various ensembles (NVE, NVT, NPT, etc.).
     """
     try:
         from matcalc import MDCalc
@@ -197,6 +225,7 @@ def matcalc_calc_md(
         return {
             "success": False,
             "error": f"Failed to load calculator '{calculator}': {e}",
+            "details": "Check that calculator is available using `matgl.get_available_pretrained_models()`"
         }
 
     # Set up MDCalc

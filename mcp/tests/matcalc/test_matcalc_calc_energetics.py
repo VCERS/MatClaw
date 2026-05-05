@@ -49,7 +49,7 @@ class TestEnergeticsCalc:
         """Test basic formation and cohesive energy calculation."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             elemental_refs="MatPES-PBE",
             relax_structure=True,
             fmax=0.1,
@@ -80,7 +80,7 @@ class TestEnergeticsCalc:
         """Test energetics without structure relaxation."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -96,7 +96,7 @@ class TestEnergeticsCalc:
         # Test MatPES-PBE (works with ML force fields)
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             elemental_refs="MatPES-PBE",
             relax_structure=False,
             fmax=0.3,
@@ -108,7 +108,7 @@ class TestEnergeticsCalc:
         # Test MatPES-r2SCAN
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             elemental_refs="MatPES-r2SCAN",
             relax_structure=False,
             fmax=0.3,
@@ -120,7 +120,7 @@ class TestEnergeticsCalc:
     @pytest.mark.slow
     def test_energetics_different_calculators(self):
         """Test energetics with different calculators."""
-        for calc in ["M3GNet", "CHGNet"]:
+        for calc in ["TensorNet-PES-MatPES-PBE-2025.2", "TensorNet-PES-MatPES-r2SCAN-2025.2"]:
             result = matcalc_calc_energetics(
                 structure_input=SI_POSCAR,
                 calculator=calc,
@@ -137,7 +137,7 @@ class TestEnergeticsCalc:
         for optimizer in ["FIRE", "BFGS"]:
             result = matcalc_calc_energetics(
                 structure_input=SI_POSCAR,
-                calculator="M3GNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 optimizer=optimizer,
                 relax_structure=True,
                 fmax=0.3,
@@ -151,7 +151,7 @@ class TestEnergeticsCalc:
         """Test energetics with CIF string input."""
         result = matcalc_calc_energetics(
             structure_input=SI_CIF,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -163,7 +163,7 @@ class TestEnergeticsCalc:
         """Test energetics with POSCAR string input."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -178,7 +178,7 @@ class TestEnergeticsCalc:
         
         result = matcalc_calc_energetics(
             structure_input=structure_cif,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -192,7 +192,7 @@ class TestEnergeticsCalc:
         
         result = matcalc_calc_energetics(
             structure_input=structure,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -203,7 +203,7 @@ class TestEnergeticsCalc:
         """Test energetics error handling with invalid structure."""
         result = matcalc_calc_energetics(
             structure_input="invalid structure data",
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         )
         
         assert result["success"] is False
@@ -225,7 +225,7 @@ class TestEnergeticsCalc:
         """Test that formation_stable flag is set correctly."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -242,7 +242,7 @@ class TestEnergeticsCalc:
         """Test that cohesive energy is calculated."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -258,7 +258,7 @@ class TestEnergeticsCalc:
         """Test energy calculation consistency."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -273,7 +273,7 @@ class TestEnergeticsCalc:
         """Test that units are properly documented."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -292,7 +292,7 @@ class TestEnergeticsCalc:
         """Test that calculation time is recorded."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,
         )
         
@@ -305,7 +305,7 @@ class TestEnergeticsCalc:
         """Test that all parameters are recorded in output."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             elemental_refs="MatPES-PBE",
             relax_structure=True,
             fmax=0.2,
@@ -316,7 +316,7 @@ class TestEnergeticsCalc:
         assert result["success"] is True
         params = result["parameters"]
         
-        assert params["calculator"] == "M3GNet"
+        assert params["calculator"] == "TensorNet-PES-MatPES-r2SCAN-2025.2"
         assert params["elemental_refs"] == "MatPES-PBE"
         assert params["relax_structure"] is True
         assert params["fmax"] == 0.2
@@ -329,7 +329,7 @@ class TestEnergeticsCalc:
         for fmax in [0.05, 0.1, 0.3]:
             result = matcalc_calc_energetics(
                 structure_input=SI_POSCAR,
-                calculator="M3GNet",
+                calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
                 relax_structure=True,
                 fmax=fmax,
             )
@@ -342,7 +342,7 @@ class TestEnergeticsCalc:
         """Test energetics with ground state reference."""
         result = matcalc_calc_energetics(
             structure_input=SI_POSCAR,
-            calculator="M3GNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             use_gs_reference=True,
             relax_structure=False,
         )

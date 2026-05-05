@@ -28,7 +28,7 @@ def test_adsorption_basic_ontop():
         adsorbate="CO",
         adsorption_site="ontop",
         distance=2.0,
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_adsorbate=False,  # Faster
         relax_slab=False,
         max_steps=10
@@ -62,7 +62,7 @@ def test_adsorption_with_relaxation():
         adsorbate="O",
         adsorption_site="ontop",
         distance=2.0,
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_adsorbate=True,
         relax_slab=True,
         fmax=0.1,
@@ -99,7 +99,7 @@ def test_adsorption_different_adsorbates():
             adsorbate=ads,
             adsorption_site="ontop",
             distance=2.0,
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_adsorbate=False,
             relax_slab=False,
             max_steps=10
@@ -128,7 +128,7 @@ def test_adsorption_hollow_site():
         adsorbate="O",
         adsorption_site="hollow",
         distance=2.0,
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_adsorbate=False,
         relax_slab=False,
         max_steps=10
@@ -157,7 +157,7 @@ def test_adsorption_bridge_site():
         adsorbate="CO",
         adsorption_site="bridge",
         distance=2.0,
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_adsorbate=False,
         relax_slab=False,
         max_steps=10
@@ -189,7 +189,7 @@ def test_adsorption_different_distances():
             adsorbate="O",
             adsorption_site="ontop",
             distance=dist,
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_adsorbate=False,
             relax_slab=False,
             max_steps=10
@@ -221,7 +221,7 @@ def test_adsorption_string_input():
         adsorbate="CO",
         adsorption_site="ontop",
         distance=2.0,
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_adsorbate=False,
         relax_slab=False,
         max_steps=10
@@ -251,7 +251,7 @@ def test_adsorption_molecule_dict():
         adsorbate=str(XYZ(co_molecule)),
         adsorption_site="ontop",
         distance=2.0,
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_adsorbate=False,
         relax_slab=False,
         max_steps=10
@@ -281,7 +281,7 @@ def test_adsorption_different_optimizers():
             adsorbate="O",
             adsorption_site="ontop",
             distance=2.0,
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_adsorbate=True,
             relax_slab=False,
             optimizer=opt,
@@ -312,7 +312,7 @@ def test_adsorption_different_fmax():
             adsorbate="O",
             adsorption_site="ontop",
             distance=2.0,
-            calculator="CHGNet",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_adsorbate=True,
             relax_slab=False,
             fmax=fmax,
@@ -340,7 +340,7 @@ def test_adsorption_energy_sign():
         adsorbate="O",
         adsorption_site="ontop",
         distance=2.0,
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_adsorbate=False,
         relax_slab=False,
         max_steps=10
@@ -369,7 +369,7 @@ def test_adsorption_invalid_structure():
         adsorbate="CO",
         adsorption_site="ontop",
         distance=2.0,
-        calculator="CHGNet"
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2"
     )
     
     assert "error" in result
@@ -392,7 +392,7 @@ def test_adsorption_invalid_adsorbate():
         adsorbate={"invalid": "molecule"},
         adsorption_site="ontop",
         distance=2.0,
-        calculator="CHGNet"
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2"
     )
     
     assert "error" in result
@@ -415,7 +415,7 @@ def test_adsorption_output_structure():
         adsorbate="CO",
         adsorption_site="ontop",
         distance=2.0,
-        calculator="CHGNet",
+        calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         relax_adsorbate=False,
         relax_slab=False,
         max_steps=10

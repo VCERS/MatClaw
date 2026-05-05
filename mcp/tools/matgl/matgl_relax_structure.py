@@ -174,8 +174,8 @@ def matgl_relax_structure(
                     f"Install with: pip install torch-geometric"
         }
     
+    # Matgl doesn't support switching backends after loading a model, so subprocess is required to switch backends
     # Check for backend conflict - if DGL backend already loaded, use subprocess
-    # Skip this check if we're already in a subprocess (indicated by env var)
     import os
     import matgl.config
     if matgl.config.BACKEND == "DGL" and not os.environ.get("MATGL_SUBPROCESS"):
@@ -290,7 +290,7 @@ print(json.dumps(result))
             return {
                 "success": False,
                 "error": f"Failed to load model '{model}': {e}. "
-                        f"Check model name or network connection."
+                        f"Check if model is available using `matgl.get_available_pretrained_models()"
             }
         
         # Initialize relaxer

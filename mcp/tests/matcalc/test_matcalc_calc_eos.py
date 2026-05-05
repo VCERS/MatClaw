@@ -18,7 +18,7 @@ class TestEOSCalc:
         """Test basic EOS calculation with Si structure."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.2,
             n_points=7,  # Fewer points for faster testing
@@ -53,7 +53,7 @@ class TestEOSCalc:
         """Test that EOS fits have good R² scores."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.2,
             n_points=11,  # More points for better fitting
@@ -73,7 +73,7 @@ class TestEOSCalc:
         """Test fitting with multiple EOS models."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.2,
             n_points=9,
@@ -108,7 +108,7 @@ class TestEOSCalc:
         """Test that recommended model is selected based on R²."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.2,
             n_points=9,
@@ -129,7 +129,7 @@ class TestEOSCalc:
         """Test EOS calculation with pre-relaxed structure."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,  # Skip initial relaxation
             n_points=7,
             fmax=0.2,
@@ -142,7 +142,7 @@ class TestEOSCalc:
         """Test EOS with custom volume sampling range."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.3,
             n_points=9,
@@ -156,26 +156,12 @@ class TestEOSCalc:
         # Should span ~0.85 to ~1.15 of equilibrium volume
         vol_ratio = max(volumes) / min(volumes)
         assert vol_ratio > 1.2, f"Volume range too narrow: {vol_ratio}"
-        
-    def test_different_calculators(self, cubic_si_structure):
-        """Test that calculator aliases work."""
-        for calc_name in ["pbe", "TensorNet-MatPES-PBE-v2025.1-PES"]:
-            result = matcalc_calc_eos(
-                input_structure=str(CifWriter(cubic_si_structure)),
-                calculator=calc_name,
-                relax_structure=True,
-                fmax=0.3,
-                n_points=5,  # Minimal points for speed
-            )
-            
-            assert result["success"] is True, f"Failed with calculator {calc_name}"
-            assert result["parameters"]["calculator"] == calc_name
             
     def test_cif_string_input(self, cif_string_si):
         """Test EOS calculation with CIF string input."""
         result = matcalc_calc_eos(
             input_structure=cif_string_si,
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.3,
             n_points=7,
@@ -187,7 +173,7 @@ class TestEOSCalc:
         """Test that all expected output fields are present."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.2,
             n_points=7,
@@ -221,7 +207,7 @@ class TestEOSCalc:
     def test_parameters_recorded(self, cubic_si_structure):
         """Test that all input parameters are recorded."""
         inputs = {
-            "calculator": "pbe",
+            "calculator": "TensorNet-PES-MatPES-r2SCAN-2025.2",
             "relax_structure": False,
             "fmax": 0.15,
             "n_points": 9,
@@ -246,7 +232,7 @@ class TestEOSCalc:
         """Test that calculation time is reported."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.3,
             n_points=7,
@@ -260,7 +246,7 @@ class TestEOSCalc:
         """Test error handling for invalid structure."""
         result = matcalc_calc_eos(
             input_structure=12345,  # Invalid type
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
         )
         
         assert result["success"] is False
@@ -285,7 +271,7 @@ class TestEdgeCases:
         """Test EOS with minimum number of points."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.3,
             n_points=5,  # Minimum recommended
@@ -298,7 +284,7 @@ class TestEdgeCases:
         """Test EOS with tight convergence criteria."""
         result = matcalc_calc_eos(
             input_structure=str(CifWriter(cubic_si_structure)),
-            calculator="pbe",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=True,
             fmax=0.05,  # Tight convergence
             n_points=7,

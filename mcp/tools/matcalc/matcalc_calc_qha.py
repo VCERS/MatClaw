@@ -6,147 +6,132 @@ thermal expansion, Gibbs free energy, and heat capacity using the quasi-harmonic
 approximation with universal ML potentials.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
 import numpy as np
+from pydantic import Field
 from pymatgen.core import Structure
 
 
 def matcalc_calc_qha(
-    structure_input: str,
-    calculator: str = "TensorNet-MatPES-PBE",
-    t_min: float = 0.0,
-    t_max: float = 1000.0,
-    t_step: float = 10.0,
-    scale_factors: list[float] | None = None,
-    eos: str = "vinet",
-    relax_structure: bool = True,
-    fmax: float = 0.1,
-    optimizer: str = "FIRE",
-    relax_calc_kwargs: dict[str, Any] | None = None,
-    phonon_calc_kwargs: dict[str, Any] | None = None,
+    structure_input: Annotated[
+        str,
+        Field(
+            description=(
+                "Structure as CIF string, POSCAR string, dict, or pymatgen Structure. "
+                "Can be: (1) CIF format string (must start with 'data_' or contain '_cell_'), "
+                "(2) POSCAR format string, (3) Dictionary with structure data, "
+                "(4) Pymatgen Structure object."
+            )
+        )
+    ],
+    calculator: Annotated[
+        str,
+        Field(
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
+            description=(
+                "Calculator/potential to use. "
+                "For the full list of available calculators, run `matgl.get_available_pretrained_models`"
+            )
+        )
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
+    t_min: Annotated[
+        float,
+        Field(
+            default=0.0,
+            ge=0.0,
+            description="Minimum temperature in Kelvin. Default: 0.0."
+        )
+    ] = 0.0,
+    t_max: Annotated[
+        float,
+        Field(
+            default=1000.0,
+            gt=0.0,
+            description="Maximum temperature in Kelvin. Default: 1000.0."
+        )
+    ] = 1000.0,
+    t_step: Annotated[
+        float,
+        Field(
+            default=10.0,
+            gt=0.0,
+            description="Temperature step in Kelvin. Default: 10.0."
+        )
+    ] = 10.0,
+    scale_factors: Annotated[
+        list[float] | None,
+        Field(
+            default=None,
+            description=(
+                "List of volume scaling factors for QHA calculations. The structure will be scaled "
+                "by these factors to sample different volumes. "
+                "Default: [0.95, 0.96, 0.97, 0.98, 0.99, 1.0, 1.01, 1.02, 1.03, 1.04, 1.05]."
+            )
+        )
+    ] = None,
+    eos: Annotated[
+        str,
+        Field(
+            default="vinet",
+            description=(
+                "Equation of state model for fitting. "
+                "Options: 'vinet', 'murnaghan', 'birch_murnaghan'. Default: 'vinet'."
+            )
+        )
+    ] = "vinet",
+    relax_structure: Annotated[
+        bool,
+        Field(
+            default=True,
+            description=(
+                "Whether to relax the structure before QHA calculation. "
+                "Recommended: True (ensures structure is at equilibrium). Default: True."
+            )
+        )
+    ] = True,
+    fmax: Annotated[
+        float,
+        Field(
+            default=0.1,
+            gt=0.0,
+            description=(
+                "Force convergence criterion for structure relaxation in eV/Angstrom. "
+                "Only used if relax_structure=True. Default: 0.1."
+            )
+        )
+    ] = 0.1,
+    optimizer: Annotated[
+        str,
+        Field(
+            default="FIRE",
+            description=(
+                "Optimizer for structure relaxation. "
+                "Options: 'FIRE', 'BFGS', 'LBFGS', 'BFGSLineSearch'. Default: 'FIRE'."
+            )
+        )
+    ] = "FIRE",
+    relax_calc_kwargs: Annotated[
+        dict[str, Any] | None,
+        Field(
+            default=None,
+            description="Additional keyword arguments for RelaxCalc. Default: None."
+        )
+    ] = None,
+    phonon_calc_kwargs: Annotated[
+        dict[str, Any] | None,
+        Field(
+            default=None,
+            description=(
+                "Additional keyword arguments for PhononCalc used within QHA. "
+                "Example: {'supercell_matrix': [[3, 0, 0], [0, 3, 0], [0, 0, 3]]}. Default: None."
+            )
+        )
+    ] = None,
     **kwargs,
 ) -> dict[str, Any]:
     """
-    Calculate quasi-harmonic approximation (QHA) thermodynamic properties using matcalc.
-    
-    This tool uses QHACalc from matcalc to compute temperature-dependent properties
-    including thermal expansion coefficient, Gibbs free energy, bulk modulus at
-    constant pressure, heat capacity at constant pressure, and Grüneisen parameter.
-    
-    The QHA method calculates phonon properties at different volumes (defined by
-    scale_factors), then determines how thermodynamic properties vary with temperature
-    by accounting for volume changes.
-    
-    Args:
-        structure_input: Structure as CIF string, POSCAR string, dict, or pymatgen Structure.
-            Can be:
-            - CIF format string (must start with 'data_' or contain '_cell_')
-            - POSCAR format string
-            - Dictionary with structure data
-            - Pymatgen Structure object
-            
-        calculator: Name of the ML potential calculator to use.
-            Options: "TensorNet-MatPES-PBE", "r2SCAN", "M3GNet", "CHGNet"
-            Default: "TensorNet-MatPES-PBE"
-            
-        t_min: Minimum temperature (in Kelvin).
-            Default: 0.0
-            
-        t_max: Maximum temperature (in Kelvin).
-            Default: 1000.0
-            
-        t_step: Temperature step (in Kelvin).
-            Default: 10.0
-            
-        scale_factors: List of volume scaling factors for QHA calculations.
-            The structure will be scaled by these factors to sample different volumes.
-            Default: [0.95, 0.96, 0.97, 0.98, 0.99, 1.0, 1.01, 1.02, 1.03, 1.04, 1.05]
-            
-        eos: Equation of state model for fitting.
-            Options: "vinet", "murnaghan", "birch_murnaghan"
-            Default: "vinet"
-            
-        relax_structure: Whether to relax the structure before QHA calculation.
-            Recommended: True (ensures structure is at equilibrium)
-            Default: True
-            
-        fmax: Force convergence criterion for structure relaxation (eV/Angstrom).
-            Only used if relax_structure=True.
-            Default: 0.1
-            
-        optimizer: Optimizer for structure relaxation.
-            Options: "FIRE", "BFGS", "LBFGS", "BFGSLineSearch"
-            Default: "FIRE"
-            
-        relax_calc_kwargs: Additional keyword arguments for RelaxCalc.
-            Default: None
-            
-        phonon_calc_kwargs: Additional keyword arguments for PhononCalc used within QHA.
-            Example: {"supercell_matrix": [[3, 0, 0], [0, 3, 0], [0, 0, 3]]}
-            Default: None
-            
-        **kwargs: Additional arguments passed to matcalc QHACalc.
-    
-    Returns:
-        Dictionary containing:
-        {
-            "success": bool,
-            
-            # Temperature-dependent properties
-            "temperatures": [T1, T2, ...],  # K
-            "thermal_expansion_coefficients": [α1, α2, ...],  # K^-1 (volumetric)
-            "gibbs_free_energies": [G1, G2, ...],  # eV
-            "bulk_modulus_P": [K1, K2, ...],  # GPa (at constant pressure)
-            "heat_capacity_P": [Cp1, Cp2, ...],  # J/K/mol (at constant pressure)
-            "gruneisen_parameters": [γ1, γ2, ...],  # dimensionless
-            
-            # Volume-energy data
-            "scale_factors": [s1, s2, ...],  # dimensionless
-            "volumes": [V1, V2, ...],  # Angstrom^3
-            "electronic_energies": [E1, E2, ...],  # eV
-            
-            # Structure information
-            "structure": dict,  # Pymatgen Structure as dict
-            "relaxed": bool,    # Whether structure was relaxed
-            
-            # Calculator info
-            "calculator": str,
-            "eos_model": str,
-            
-            # Units reference
-            "units": {
-                "temperature": "K",
-                "thermal_expansion": "K^-1",
-                "gibbs_free_energy": "eV",
-                "bulk_modulus": "GPa",
-                "heat_capacity": "J/K/mol",
-                "volume": "Angstrom^3",
-                "energy": "eV"
-            }
-        }
-    
-    Raises:
-        ValueError: If structure_input cannot be parsed
-        RuntimeError: If QHA calculation fails
-    
-    Example:
-        >>> result = matcalc_calc_qha(
-        ...     structure_input=cif_string,
-        ...     calculator="M3GNet",
-        ...     t_max=500.0,
-        ...     scale_factors=[0.97, 0.98, 0.99, 1.0, 1.01, 1.02, 1.03]
-        ... )
-        >>> print(f"Thermal expansion at 300K: {result['thermal_expansion_coefficients'][30]:.2e} K^-1")
-        >>> print(f"Gibbs free energy at 300K: {result['gibbs_free_energies'][30]:.4f} eV")
-    
-    Notes:
-        - QHA is more accurate than harmonic approximation for thermal expansion
-        - Requires phonon calculations at multiple volumes (computationally expensive)
-        - ML potentials make QHA calculations feasible for larger systems
-        - Thermal expansion coefficient is volumetric (divide by 3 for linear)
-        - For highly anharmonic systems, consider Phonon3 (anharmonic phonon methods)
-        - Structure relaxation is strongly recommended before QHA
+    Calculate temperature-dependent thermodynamic properties using quasi-harmonic approximation (QHA).
     """
     try:
         from matcalc import QHACalc
@@ -190,6 +175,7 @@ def matcalc_calc_qha(
         return {
             "success": False,
             "error": f"Failed to load calculator '{calculator}': {e}",
+            "details": "Check that calculator is available using `matgl.get_available_pretrained_models()`"
         }
 
     # Set up QHACalc
