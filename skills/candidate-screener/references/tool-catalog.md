@@ -312,7 +312,7 @@ Relax crystal structure using ML potentials from MatGL (TensorNet models, PYG ba
 
 **Key parameters:**
 - `input_structure`: pymatgen Structure dict or CIF/POSCAR string
-- `model`: TensorNet model name (default `"TensorNet-MatPES-PBE-v2025.1-PES"`)
+- `model`: TensorNet model name (default `"TensorNet-PES-MatPES-r2SCAN-2025.2"`)
 - `relax_cell`: whether to relax lattice parameters (default `True`)
 - `fmax`: force convergence in eV/Å (default 0.1)
 - `max_steps`: max optimization steps (default 500)
@@ -345,7 +345,7 @@ Predict formation energy using M3GNet/MEGNet models (DGL backend). **PRIMARY TOO
 
 **Key parameters:**
 - `input_structure`: pymatgen Structure dict or CIF/POSCAR string
-- `model`: model name (default `"M3GNet-MP-2018.6.1-Eform"`, alternative `"MEGNet-MP-2018.6.1-Eform"`)
+- `model`: model name (default `"MEGNet-MP-2018.6.1-Eform"`, alternative `"MEGNet-MP-2018.6.1-Eform"`)
 
 **Returns:**
 ```python
@@ -353,7 +353,7 @@ Predict formation energy using M3GNet/MEGNet models (DGL backend). **PRIMARY TOO
   "success": True,
   "formation_energy_eV_per_atom": -2.35,
   "total_formation_energy_eV": -65.8,
-  "model_used": "M3GNet-MP-2018.6.1-Eform",
+  "model_used": "MEGNet-MP-2018.6.1-Eform",
   "formula": "LiFePO4",
   "num_sites": 28,
   "interpretation": "Stable (exothermic formation)",
@@ -414,7 +414,7 @@ Calculate full elastic tensor, bulk/shear/Young's modulus, Poisson's ratio.
 
 **Key parameters:**
 - `input_structure`: pymatgen Structure dict or CIF/POSCAR string
-- `calculator`: ML potential (default `"TensorNet-MatPES-PBE-v2025.1-PES"`)
+- `calculator`: ML potential (default `"TensorNet-PES-MatPES-r2SCAN-2025.2"`)
 - `relax_structure`: relax before calculation (default `False`, already relaxed)
 - `relax_deformed_structures`: relax atoms in strained structures (default `True`)
 - `fmax`: force tolerance (default 0.1 eV/Å)
@@ -506,7 +506,7 @@ Compute volume-energy relationship, equilibrium volume, and bulk modulus by fitt
 
 **Key parameters:**
 - `input_structure`: pymatgen Structure dict or CIF/POSCAR string
-- `calculator`: ML potential (default `"TensorNet-MatPES-PBE-v2025.1-PES"`)
+- `calculator`: ML potential (default `"TensorNet-PES-MatPES-r2SCAN-2025.2"`)
 - `relax_structure`: relax before calculation (default `False`, already relaxed)
 - `n_points`: number of volume points (default 11)
 - `max_abs_strain`: maximum volume strain (default 0.1, ±10%)

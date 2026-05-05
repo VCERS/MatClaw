@@ -27,19 +27,15 @@ def matgl_relax_structure(
         )
     ],
     model: Annotated[
-        Literal[
-            "TensorNet-MatPES-PBE-v2025.1-PES",
-            "TensorNet-MatPES-r2SCAN-v2025.1-PES"
-        ],
+        str,
         Field(
-            default="TensorNet-MatPES-PBE-v2025.1-PES",
+            default="TensorNet-PES-MatPES-r2SCAN-2025.2",
             description=(
-                "ML potential model to use for relaxation. Options:\n"
-                "- TensorNet-MatPES-PBE-v2025.1-PES (default, PBE functional, fast and accurate)\n"
-                "- TensorNet-MatPES-r2SCAN-v2025.1-PES (r2SCAN functional, higher accuracy for complex systems)"
+                "ML potential model to use for relaxation. "
+                "For the full list of available models, run `matgl.get_available_pretrained_models()`"
             )
         )
-    ] = "TensorNet-MatPES-PBE-v2025.1-PES",
+    ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
     relax_cell: Annotated[
         bool,
         Field(
@@ -123,7 +119,7 @@ def matgl_relax_structure(
            - Fast screening of many candidates
     
     Model Selection Guide:
-        - TensorNet-MatPES-PBE-v2025.1-PES: Best for general use, PBE functional (default)
+        - TensorNet-PES-MatPES-r2SCAN-2025.2: Best for general use, PBE functional (default)
         - TensorNet-MatPES-r2SCAN-v2025.1-PES: Higher accuracy with r2SCAN functional,
           better for complex bonding and strongly correlated materials
     
@@ -199,9 +195,9 @@ result = matgl_relax_structure(
     input_structure={repr(input_structure)},
     model={repr(model)},
     relax_cell={repr(relax_cell)},
-    fmax={repr(fmax)},
-    steps={repr(steps)},
     optimizer={repr(optimizer)},
+    fmax={repr(fmax)},
+    max_steps={repr(max_steps)},
     verbose={repr(verbose)}
 )
 print(json.dumps(result))
@@ -317,8 +313,7 @@ print(json.dumps(result))
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Relaxation failed: {e}. "
-                        f"Structure may be unstable or contain unphysical geometries."
+                "error": f"Relaxation failed: {e}."
             }
         
         # Extract results

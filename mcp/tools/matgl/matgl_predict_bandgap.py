@@ -27,12 +27,13 @@ def matgl_predict_bandgap(
         )
     ],
     model: Annotated[
-        Literal["MEGNet-MP-2019.4.1-BandGap-mfi"],
+        str,
         Field(
             default="MEGNet-MP-2019.4.1-BandGap-mfi",
             description=(
-                "ML model to use for band gap prediction. Currently only one model is supported:\n"
-                "- MEGNet-MP-2019.4.1-BandGap-mfi (Materials Graph Network trained on MP data)"
+                "ML model to use for band gap prediction. "
+                "Defaults to MEGNet-MP-2019.4.1-BandGap-mfi, a legacy DGL model saved in matgl github. "
+                "For the full list of available models, run `matgl.get_available_pretrained_models()`"
             )
         )
     ] = "MEGNet-MP-2019.4.1-BandGap-mfi",
@@ -119,15 +120,24 @@ def matgl_predict_bandgap(
         import sys
         
         # Prepare the Python code to execute in subprocess
+        mcp_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         code = f"""
 import os
+import sys
+
+# Add MCP directory to path for imports
+sys.path.insert(0, {repr(mcp_dir)})
+
 os.environ['MATGL_SUBPROCESS'] = '1'  # Flag to skip backend check
 from tools.matgl.matgl_predict_bandgap import matgl_predict_bandgap
 import json
+
 result = matgl_predict_bandgap(
     input_structure={repr(input_structure)},
     model={repr(model)}
 )
+
+# Print only JSON result to stdout
 print(json.dumps(result))
 """
         
@@ -138,15 +148,24 @@ print(json.dumps(result))
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout
-                cwd=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                cwd=mcp_dir
             )
             
             if result.returncode == 0:
-                return json.loads(result.stdout)
+                try:
+                    return json.loads(result.stdout)
+                except json.JSONDecodeError as e:
+                    return {
+                        "success": False,
+                        "error": f"Failed to parse subprocess output: {e}",
+                        "stdout": result.stdout,
+                        "stderr": result.stderr
+                    }
             else:
                 return {
                     "success": False,
-                    "error": f"Subprocess prediction failed: {result.stderr}"
+                    "error": f"Subprocess prediction failed: {result.stderr}",
+                    "stdout": result.stdout
                 }
         except subprocess.TimeoutExpired:
             return {
@@ -186,8 +205,19 @@ print(json.dumps(result))
         matgl.set_backend('DGL')
         
         # Load the band gap prediction model
+        # Check if it's a legacy model that needs special loading
         try:
-            ml_model = matgl.load_model(model)
+            from utils.model_downloader import LEGACY_MATGL_MODELS, load_legacy_matgl_model
+            
+            # Check if we're in a subprocess (downloads should be quiet to avoid stdout pollution)
+            in_subprocess = os.environ.get("MATGL_SUBPROCESS") == "1"
+            
+            if model in LEGACY_MATGL_MODELS:
+                # Use legacy model loader
+                ml_model = load_legacy_matgl_model(model, verbose=not in_subprocess)
+            else:
+                # Use standard matgl loader
+                ml_model = matgl.load_model(model)
         except Exception as e:
             return {
                 "success": False,

@@ -32,14 +32,14 @@ NEED to relax structures?
 #### Available MatGL Tools:
 
 1. **`matgl_relax_structure`** (PYG backend)
-   - Relaxes structures using TensorNet-MatPES-PBE-v2025.1-PES
+   - Relaxes structures using TensorNet-PES-MatPES-r2SCAN-2025.2
    - **MANDATORY** before ALL ML predictions (MatGL and matcalc)
    - ~5-10s per structure
    - **IMPORTANT:** Cannot call MatGL prediction tools in same Python session after this (backend conflict)
 
 2. **`matgl_predict_eform`** (DGL backend)
    - Predicts formation energy directly
-   - Models: M3GNet-MP-2018.6.1-Eform (primary), MEGNet-MP-2018.6.1-Eform (fallback)
+   - Models: MEGNet-MP-2018.6.1-Eform (primary), MEGNet-MP-2018.6.1-Eform (fallback)
    - ~0.5-1s per structure
    - **PRIMARY TOOL for formation energy screening**
 
@@ -54,7 +54,7 @@ NEED to relax structures?
 ### matcalc Tools (Structure-Based Calculations)
 
 **Backend:** ASE + ML potentials (TensorNet, CHGNet, M3GNet)  
-**Models:** TensorNet-MatPES-PBE-v2025.1-PES (primary), CHGNet, M3GNet  
+**Models:** TensorNet-PES-MatPES-r2SCAN-2025.2 (primary), CHGNet, M3GNet  
 **Speed:** Slower (~10-60s per property depending on complexity)  
 **Use case:** Detailed property calculations beyond formation energy/band gap
 
@@ -115,7 +115,7 @@ NEED to relax structures?
 - Example: MatGL identifies 42 stable candidates → matcalc calculates mechanical properties for top 20
 
 ✅ **When you need 2025 ML potentials**
-- TensorNet-MatPES-PBE-v2025.1-PES (state-of-the-art)
+- TensorNet-PES-MatPES-r2SCAN-2025.2 (state-of-the-art)
 - CHGNet (magnetic materials)
 
 ---
@@ -205,15 +205,15 @@ elasticity = matcalc_calc_elasticity(
 ### ML Model Selection Guide
 
 **Formation Energy:**
-- Primary: `M3GNet-MP-2018.6.1-Eform` (matgl_predict_eform)
+- Primary: `MEGNet-MP-2018.6.1-Eform` (matgl_predict_eform)
 - Fallback: `MEGNet-MP-2018.6.1-Eform` (matgl_predict_eform)
-- Alternative: `TensorNet-MatPES-PBE-v2025.1-PES` via matcalc_calc_energetics (slower)
+- Alternative: `TensorNet-PES-MatPES-r2SCAN-2025.2` via matcalc_calc_energetics (slower)
 
 **Band Gap:**
 - Only option: `MEGNet-MP-2019.4.1-BandGap-mfi` (matgl_predict_bandgap)
 
 **Mechanical Properties:**
-- Primary: `TensorNet-MatPES-PBE-v2025.1-PES` (matcalc_calc_elasticity)
+- Primary: `TensorNet-PES-MatPES-r2SCAN-2025.2` (matcalc_calc_elasticity)
 - Alternative: `CHGNet` for magnetic materials
 
 **Vibrational Properties:**
@@ -222,9 +222,9 @@ elasticity = matcalc_calc_elasticity(
 
 **Surface Properties:**
 - Primary: `CHGNet` (matcalc_calc_surface)
-- Alternative: `TensorNet-MatPES-PBE-v2025.1-PES`
+- Alternative: `TensorNet-PES-MatPES-r2SCAN-2025.2`
 
-**Rule:** Use TensorNet-MatPES-PBE-v2025.1-PES for most matcalc calculations (state-of-the-art 2025 model). Use CHGNet for magnetic materials and surfaces.
+**Rule:** Use TensorNet-PES-MatPES-r2SCAN-2025.2 for most matcalc calculations (state-of-the-art 2025 model). Use CHGNet for magnetic materials and surfaces.
 
 ---
 
@@ -394,10 +394,10 @@ FOR each top_candidate:
    - Cached from previous Materials Project / DFT calculations
 
 3. **ASE cached (ML matcalc 2025):** Confidence = 0.8
-   - TensorNet-MatPES-PBE-v2025.1-PES calculations
+   - TensorNet-PES-MatPES-r2SCAN-2025.2 calculations
 
 4. **MatGL M3GNet predictions:** Confidence = 0.75
-   - M3GNet-MP-2018.6.1-Eform for formation energy
+   - MEGNet-MP-2018.6.1-Eform for formation energy
 
 5. **MatGL MEGNet predictions:** Confidence = 0.65-0.7
    - MEGNet-MP-2018.6.1-Eform for formation energy

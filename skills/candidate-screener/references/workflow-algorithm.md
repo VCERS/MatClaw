@@ -247,7 +247,7 @@ EXCEPT error:
 TRY:
     CALL matgl_predict_eform(
         input_structure=candidate.structure,  # Now relaxed
-        model="M3GNet-MP-2018.6.1-Eform"
+        model="MEGNet-MP-2018.6.1-Eform"
     )
     SET candidate.properties.formation_energy_per_atom = result.formation_energy_eV_per_atom
     SET candidate.properties.eform_model = result.model_used
@@ -287,7 +287,7 @@ IF screening_requires_mechanical_properties:
     TRY:
         CALL matcalc_calc_elasticity(
             input_structure=candidate.structure,  # Relaxed
-            calculator="TensorNet-MatPES-PBE-v2025.1-PES",
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
             relax_structure=False,  # Already relaxed
             relax_deformed_structures=True
         )
@@ -354,7 +354,7 @@ CALL ase_store_result(
         "formula": candidate.formula,
         "eform_model": candidate.properties.eform_model,
         "bandgap_model": candidate.properties.bandgap_model,
-        "matcalc_calculator": "TensorNet-MatPES-PBE-v2025.1-PES"  # Primary calculator used
+        "matcalc_calculator": "TensorNet-PES-MatPES-r2SCAN-2025.2"  # Primary calculator used
     }
 )
 

@@ -37,14 +37,14 @@ class TestMLPredictEform:
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="M3GNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"
         )
         
         # Check basic success
         assert result["success"] is True
         assert "formation_energy_eV_per_atom" in result
         assert "model_used" in result
-        assert result["model_used"] == "M3GNet-MP-2018.6.1-Eform"
+        assert result["model_used"] == "MEGNet-MP-2018.6.1-Eform"
         
         # Check that we got a reasonable formation energy value
         eform = result["formation_energy_eV_per_atom"]
@@ -103,7 +103,7 @@ class TestMLPredictEform:
         for struct in structures:
             result = matgl_predict_eform(
                 input_structure=str(CifWriter(struct)),
-                model="M3GNet-MP-2018.6.1-Eform"
+                model="MEGNet-MP-2018.6.1-Eform"
             )
             
             assert result["success"] is True
@@ -135,7 +135,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=cif_string,
-            model="M3GNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"
         )
         
         assert result["success"] is True
@@ -155,7 +155,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="M3GNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"
         )
         
         assert result["success"] is True
@@ -178,7 +178,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="M3GNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"
         )
         
         assert result["success"] is True
@@ -202,7 +202,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="M3GNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"
         )
         
         assert result["success"] is True
@@ -216,7 +216,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         """Test that invalid structures are handled gracefully."""
         result = matgl_predict_eform(
             input_structure="not a valid structure",
-            model="M3GNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"
         )
         
         assert result["success"] is False
@@ -238,7 +238,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="M3GNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"
         )
         
         assert result["success"] is False
@@ -259,7 +259,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result_m3gnet = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="M3GNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"
         )
         
         result_megnet = matgl_predict_eform(

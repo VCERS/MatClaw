@@ -36,7 +36,7 @@ IF relax_structure:
 **Algorithm:**
 ```
 TRY:
-    result = matgl_predict_eform(structure, model="M3GNet-MP-2018.6.1-Eform")
+    result = matgl_predict_eform(structure, model="MEGNet-MP-2018.6.1-Eform")
     SET candidate.properties.formation_energy = result.value
     RETURN success
 EXCEPT error1:
@@ -273,7 +273,7 @@ ELSE:
 FUNCTION ml_predict_with_fallback(structure, property_type):
     # Define model hierarchy (best to worst)
     IF property_type == "formation_energy":
-        models = ["M3GNet-MP-2018.6.1-Eform", "MEGNet-MP-2018.6.1-Eform"]
+        models = ["MEGNet-MP-2018.6.1-Eform", "MEGNet-MP-2018.6.1-Eform"]
     ELSE IF property_type == "band_gap":
         models = ["MEGNet-MP-2019.4.1-BandGap-mfi"]
     
