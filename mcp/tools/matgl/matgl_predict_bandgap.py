@@ -75,7 +75,7 @@ def matgl_predict_bandgap(
     Returns:
         Dictionary containing:
             success                 (bool)      Whether prediction succeeded
-            band_gap_eV             (float)     Predicted electronic band gap (eV)
+            band_gap             (float)     Predicted electronic band gap (eV)
             model_used              (str)       Model name used for prediction
             formula                 (str)       Chemical formula of the structure
             num_sites               (int)       Number of atoms in the structure
@@ -258,7 +258,7 @@ print(json.dumps(result))
         # Build response
         response = {
             "success": True,
-            "band_gap_eV": round(bandgap, 6),
+            "band_gap": round(bandgap, 6),
             "model_used": model,
             "formula": formula,
             "num_sites": num_sites,

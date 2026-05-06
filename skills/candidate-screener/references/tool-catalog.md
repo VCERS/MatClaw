@@ -351,8 +351,8 @@ Predict formation energy using M3GNet/MEGNet models (DGL backend). **PRIMARY TOO
 ```python
 {
   "success": True,
-  "formation_energy_eV_per_atom": -2.35,
-  "total_formation_energy_eV": -65.8,
+  "formation_energy_per_atom": -2.35,
+  "total_formation_energy": -65.8,
   "model_used": "MEGNet-MP-2018.6.1-Eform",
   "formula": "LiFePO4",
   "num_sites": 28,
@@ -385,7 +385,7 @@ Predict electronic band gap using MEGNet model (DGL backend). **ONLY TOOL for ba
 ```python
 {
   "success": True,
-  "band_gap_eV": 0.82,
+  "band_gap": 0.82,
   "model_used": "MEGNet-MP-2019.4.1-BandGap-mfi",
   "formula": "LiFePO4",
   "material_class": "Narrow Band Gap Semiconductor",

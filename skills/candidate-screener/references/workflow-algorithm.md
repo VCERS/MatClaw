@@ -249,7 +249,7 @@ TRY:
         input_structure=candidate.structure,  # Now relaxed
         model="MEGNet-MP-2018.6.1-Eform"
     )
-    SET candidate.properties.formation_energy_per_atom = result.formation_energy_eV_per_atom
+    SET candidate.properties.formation_energy_per_atom = result.formation_energy_per_atom
     SET candidate.properties.eform_model = result.model_used
     SET candidate.properties.eform_source = "MatGL_prediction"
 EXCEPT error:
@@ -259,7 +259,7 @@ EXCEPT error:
             input_structure=candidate.structure,
             model="MEGNet-MP-2018.6.1-Eform"
         )
-        SET candidate.properties.formation_energy_per_atom = result.formation_energy_eV_per_atom
+        SET candidate.properties.formation_energy_per_atom = result.formation_energy_per_atom
         SET candidate.properties.eform_model = result.model_used
         SET candidate.properties.eform_source = "MatGL_prediction"
     EXCEPT error2:
@@ -273,7 +273,7 @@ TRY:
         input_structure=candidate.structure,  # Now relaxed
         model="MEGNet-MP-2019.4.1-BandGap-mfi"
     )
-    SET candidate.properties.band_gap = result.band_gap_eV
+    SET candidate.properties.band_gap = result.band_gap
     SET candidate.properties.material_class = result.material_class
     SET candidate.properties.bandgap_model = result.model_used
     SET candidate.properties.bandgap_source = "MatGL_prediction"

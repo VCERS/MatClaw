@@ -42,12 +42,12 @@ class TestMLPredictBandgap:
         
         # Check basic success
         assert result["success"] is True
-        assert "band_gap_eV" in result
+        assert "band_gap" in result
         assert "model_used" in result
         assert result["model_used"] == "MEGNet-MP-2019.4.1-BandGap-mfi"
         
         # Check that we got a reasonable band gap value
-        bandgap = result["band_gap_eV"]
+        bandgap = result["band_gap"]
         assert isinstance(bandgap, float)
         assert bandgap >= 0, "Band gap should be non-negative"
         # CsCl should be an insulator with large band gap
@@ -76,7 +76,7 @@ class TestMLPredictBandgap:
         )
         
         assert result["success"] is True
-        bandgap = result["band_gap_eV"]
+        bandgap = result["band_gap"]
         # Metals should have very small or zero band gap
         assert bandgap < 0.5, "Cu should be metallic with small/zero band gap"
         assert "Metal" in result["material_class"] or "Narrow" in result["material_class"]
@@ -105,7 +105,7 @@ class TestMLPredictBandgap:
         )
         
         assert result["success"] is True
-        assert "band_gap_eV" in result
+        assert "band_gap" in result
         assert "material_class" in result
         assert "interpretation" in result
         # Model should return valid data even if quantitatively inaccurate
@@ -136,9 +136,9 @@ class TestMLPredictBandgap:
         for struct in structures:
             result = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
             assert result["success"] is True
-            assert "band_gap_eV" in result
-            assert result["band_gap_eV"] >= 0
-            print(f"{result['formula']}: {result['band_gap_eV']:.3f} eV ({result['material_class']})")
+            assert "band_gap" in result
+            assert result["band_gap"] >= 0
+            print(f"{result['formula']}: {result['band_gap']:.3f} eV ({result['material_class']})")
 
     @skip_if_no_dgl
     def test_cif_string_input(self):
@@ -157,7 +157,7 @@ class TestMLPredictBandgap:
         result = matgl_predict_bandgap(input_structure=cif_string)
         
         assert result["success"] is True
-        assert "band_gap_eV" in result
+        assert "band_gap" in result
         assert result["formula"] == "CsCl"
 
     @skip_if_no_dgl
@@ -212,7 +212,7 @@ class TestMLPredictBandgap:
         assert info["formula"] == "CsCl"
 
     def test_invalid_structure_handling(self):
-        """Test handling of invalid structure input."""
+    """Test handling of invalid structure input."""
         result = matgl_predict_bandgap(
             input_structure={"invalid": "structure"}
         )
@@ -261,7 +261,7 @@ class TestMLPredictBandgap:
         for struct, min_gap, max_gap, description in test_cases:
             result = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
             assert result["success"] is True
-            bandgap = result["band_gap_eV"]
+            bandgap = result["band_gap"]
             assert min_gap <= bandgap <= max_gap, (
                 f"{description}: expected band gap between {min_gap}-{max_gap} eV, "
                 f"got {bandgap:.3f} eV"

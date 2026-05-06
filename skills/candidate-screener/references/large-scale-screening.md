@@ -397,8 +397,8 @@ class PhosphorScreener:
                 {"input_structure": relaxed, "hull_tolerance": 0.1}
             )
             
-            candidate["properties"]["formation_energy_per_atom"] = eform["formation_energy_eV_per_atom"]
-            candidate["properties"]["band_gap"] = bandgap["band_gap_eV"]
+            candidate["properties"]["formation_energy_per_atom"] = eform["formation_energy_per_atom"]
+            candidate["properties"]["band_gap"] = bandgap["band_gap"]
             candidate["properties"]["energy_above_hull"] = stability.get("energy_above_hull")
             candidate["properties"]["is_stable"] = stability["stability_category"] == "stable"
             candidate["properties"]["property_sources"] = {

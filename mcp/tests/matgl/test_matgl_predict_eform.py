@@ -37,17 +37,17 @@ class TestMLPredictEform:
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-MP-2018.6.1-Eform"P
         )
         
         # Check basic success
         assert result["success"] is True
-        assert "formation_energy_eV_per_atom" in result
+        assert "formation_energy_per_atom" in result
         assert "model_used" in result
         assert result["model_used"] == "MEGNet-MP-2018.6.1-Eform"
         
         # Check that we got a reasonable formation energy value
-        eform = result["formation_energy_eV_per_atom"]
+        eform = result["formation_energy_per_atom"]
         assert isinstance(eform, float)
         # CsCl should be stable (negative formation energy)
         assert eform < 0, "CsCl should have negative formation energy (stable)"
@@ -76,7 +76,7 @@ class TestMLPredictEform:
         
         assert result["success"] is True
         assert result["model_used"] == "MEGNet-MP-2018.6.1-Eform"
-        assert "formation_energy_eV_per_atom" in result
+        assert "formation_energy_per_atom" in result
 
     @skip_if_no_dgl
     def test_different_structures(self):
@@ -107,8 +107,8 @@ class TestMLPredictEform:
             )
             
             assert result["success"] is True
-            assert "formation_energy_eV_per_atom" in result
-            print(f"{struct.composition.reduced_formula}: {result['formation_energy_eV_per_atom']:.4f} eV/atom")
+            assert "formation_energy_per_atom" in result
+            print(f"{struct.composition.reduced_formula}: {result['formation_energy_per_atom']:.4f} eV/atom")
 
     @skip_if_no_dgl
     def test_cif_string_input(self):
@@ -139,7 +139,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         assert result["success"] is True
-        assert "formation_energy_eV_per_atom" in result
+        assert "formation_energy_per_atom" in result
 
     @skip_if_no_dgl
     def test_interpretation_field(self):
@@ -182,11 +182,11 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         )
         
         assert result["success"] is True
-        assert "total_formation_energy_eV" in result
+        assert "total_formation_energy" in result
         
         # Check that total = per_atom * num_sites
-        expected_total = result["formation_energy_eV_per_atom"] * result["num_sites"]
-        assert abs(result["total_formation_energy_eV"] - expected_total) < 1e-5
+        expected_total = result["formation_energy_per_atom"] * result["num_sites"]
+        assert abs(result["total_formation_energy"] - expected_total) < 1e-5
 
     @skip_if_no_dgl
     def test_structure_info_included(self):
@@ -271,10 +271,10 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         assert result_megnet["success"] is True
         
         # Both should predict negative (stable) formation energy for CsCl
-        assert result_m3gnet["formation_energy_eV_per_atom"] < 0
-        assert result_megnet["formation_energy_eV_per_atom"] < 0
+        assert result_m3gnet["formation_energy_per_atom"] < 0
+        assert result_megnet["formation_energy_per_atom"] < 0
         
         # Predictions should be reasonably close (within 1 eV/atom)
-        diff = abs(result_m3gnet["formation_energy_eV_per_atom"] - 
-                   result_megnet["formation_energy_eV_per_atom"])
+        diff = abs(result_m3gnet["formation_energy_per_atom"] - 
+                   result_megnet["formation_energy_per_atom"])
         assert diff < 1.0, "Model predictions should be reasonably consistent"

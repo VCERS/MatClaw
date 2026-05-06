@@ -72,11 +72,11 @@ def matgl_predict_eform(
     Returns:
         Dictionary containing:
             success                     (bool)      Whether prediction succeeded
-            formation_energy_eV_per_atom (float)   Predicted formation energy (eV/atom)
+            formation_energy_per_atom (float)   Predicted formation energy (eV/atom)
             model_used                  (str)       Model name used for prediction
             formula                     (str)       Chemical formula of the structure
             num_sites                   (int)       Number of atoms in the structure
-            total_formation_energy_eV   (float)     Total formation energy for the cell (eV)
+            total_formation_energy   (float)     Total formation energy for the cell (eV)
             structure_info              (dict)      Basic info about the structure
             interpretation              (str)       Human-readable stability assessment
             error                       (str)       Error message if prediction failed
@@ -251,8 +251,8 @@ print(json.dumps(result))
         # Build response
         response = {
             "success": True,
-            "formation_energy_eV_per_atom": round(eform_per_atom, 6),
-            "total_formation_energy_eV": round(total_eform, 6),
+            "formation_energy_per_atom": round(eform_per_atom, 6),
+            "total_formation_energy": round(total_eform, 6),
             "model_used": model,
             "formula": formula,
             "num_sites": num_sites,
