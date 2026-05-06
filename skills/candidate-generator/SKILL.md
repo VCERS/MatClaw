@@ -382,7 +382,7 @@ for structure in final_structures:
 > working directory (e.g., `matclaw-tests/.../batch_generation.py` or `run_generation.py`).
 > Adapt the logic as needed for the specific project structure and requirements.
 
-**Template Features (Updated):**
+**Template Features:**
 - ✅ **Dynamic tool selection** - Reads tool name from plan (not hardcoded)
 - ✅ **Flexible base structure resolution** - 5 fallback options
 - ✅ **Generic parameter handling** - Works with any tool

@@ -111,13 +111,13 @@ async def connect_mcp(connection_type: str = None):
     Connection determined by (in order):
     1. connection_type parameter (if provided)
     2. MATCLAW_MCP_URL env var (if set, use SSE)
-    3. Default: stdio with relative path to ../../../mcp/server.py
+    3. Default: stdio with relative path to ../../mcp/server.py
     
     Args:
         connection_type: Optional explicit connection type ("stdio" or "sse")
         
     Yields:
-        ClientSession for MCP communication
+        Tuple of (session, read, write) for MCP communication
     """
     if connection_type is None:
         # Auto-detect based on environment
@@ -132,23 +132,24 @@ async def connect_mcp(connection_type: str = None):
         logger.info(f"Connecting to MCP server via SSE: {url}")
         async with sse_client(url) as (read, write):
             session = ClientSession(read, write)
-            await session.initialize()
-            logger.info("Connected to MCP server via SSE")
-            yield session
+            async with session:
+                await session.initialize()
+                logger.info("Connected to MCP server via SSE")
+                yield session, read, write
         
     elif connection_type == "stdio":
         # Local server subprocess
         server_path = os.getenv(
             "MATCLAW_SERVER_PATH",
-            str(Path(__file__).parent.parent.parent.parent / "mcp" / "server.py")
+            str(Path(__file__).parent.parent.parent / "mcp" / "server.py")
         )
         
         # Use venv Python (required for dependencies)
         mcp_dir = Path(server_path).parent
-        venv_python = mcp_dir / ".venv" / "Scripts" / "python.exe"
+        venv_python = mcp_dir / "venv" / "Scripts" / "python.exe"
         if not venv_python.exists():
             # Fallback for Unix-like systems
-            venv_python = mcp_dir / ".venv" / "bin" / "python"
+            venv_python = mcp_dir / "venv" / "bin" / "python"
         
         if not venv_python.exists():
             raise FileNotFoundError(
@@ -174,9 +175,10 @@ async def connect_mcp(connection_type: str = None):
         )
         async with stdio_client(server_params) as (read, write):
             session = ClientSession(read, write)
-            await session.initialize()
-            logger.info("Connected to MCP server via stdio")
-            yield session
+            async with session:
+                await session.initialize()
+                logger.info("Connected to MCP server via stdio")
+                yield session, read, write
     
     else:
         raise ValueError(f"Unknown connection type: {connection_type}. Use 'stdio' or 'sse'.")

@@ -16,18 +16,6 @@ import torch
 import torch.nn.functional as F
 from pymatgen.core import Composition
 
-# torch_scatter is an optional dependency - check if available
-try:
-    from torch_scatter import scatter_mean
-except ImportError:
-    raise ImportError(
-        "torch_scatter is required for elemwise_retro tools but not installed.\n"
-        "Install it with one of these commands:\n"
-        "  For GLIBC >= 2.32: pip install torch-scatter -f https://data.pyg.org/whl/torch-2.10.0+cpu.html\n"
-        "  For GLIBC <  2.32: conda install pytorch-scatter -c pyg\n"
-        "See requirements.txt for more details."
-    )
-
 # Import model downloader for automatic model downloads
 from utils import model_downloader
 
@@ -262,6 +250,17 @@ def _predict_precursor_sets_internal(
     stoichiometry_dict: Dict[str, List[str]]
 ) -> List[Tuple[List[str], float]]:
     """Internal function to predict precursor sets using the model."""
+    try:
+        from torch_scatter import scatter_mean
+    except ImportError:
+        raise ImportError(
+            "torch_scatter is required for elemwise_retro tools but not installed.\n"
+            "Install it with one of these commands:\n"
+            "  For GLIBC >= 2.32: pip install torch-scatter -f https://data.pyg.org/whl/torch-2.10.0+cpu.html\n"
+            "  For GLIBC <  2.32: conda install pytorch-scatter -c pyg\n"
+            "See requirements.txt for more details."
+        )
+    
     # Build graph representations
     dataset = []
     x_tar_set = []
@@ -549,49 +548,3 @@ def er_predict_precursors(
         return predictor.predict(target_formula, top_k)
     except Exception as e:
         raise RuntimeError(f"Precursor prediction failed: {str(e)}") from e
-
-
-# ============================================================================
-# CLI Interface (for testing)
-# ============================================================================
-
-if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(
-        description='Predict synthesis precursors for inorganic materials'
-    )
-    parser.add_argument(
-        'target',
-        type=str,
-        help='Target material formula (e.g., "Li7La3Zr2O12")'
-    )
-    parser.add_argument(
-        '--top-k',
-        type=int,
-        default=5,
-        help='Number of precursor sets to return (default: 5)'
-    )
-    parser.add_argument(
-        '--json',
-        action='store_true',
-        help='Output results as JSON'
-    )
-    
-    args = parser.parse_args()
-    
-    # Run prediction
-    result = er_predict_precursors(args.target, args.top_k)
-    
-    if args.json:
-        print(json.dumps(result, indent=2))
-    else:
-        print(f"\nPrecursor Predictions for {result['target']}")
-        print("=" * 80)
-        
-        for i, pred in enumerate(result['precursor_sets'], 1):
-            print(f"\nRank {i} (confidence: {pred['confidence']:.4f}):")
-            print(f"  {pred['precursors']}")
-        
-        print(f"\n{'=' * 80}")
-        print(f"Device: {result['metadata']['device']}")
