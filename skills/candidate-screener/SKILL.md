@@ -238,6 +238,7 @@ For each validated candidate, try sources in order:
 
 2.3 ML calculation (3rd priority - ONLY if 2.1 and 2.2 failed):
     a. matgl_relax_structure (REQUIRED first!)
+       → SAVE relaxed structure (relaxed_structure_cif field)
     b. matgl_predict_eform (formation energy - fast)
     c. matgl_predict_bandgap (band gap - fast)
     d. (Optional) matcalc_calc_elasticity (mechanical - if needed)
@@ -254,6 +255,7 @@ Result: candidates_with_properties
 - ALWAYS relax structures before ML predictions
 - MatGL for formation energy/band gap, matcalc for everything else
 - ALWAYS cache results in ASE database
+- ALWAYS save relaxed structures for DFT validation, synthesis planning, and downstream analysis
 
 **STEP 3: CRITERIA-BASED FILTERING (Phase 3)**
 
@@ -532,11 +534,14 @@ FOR top 15:
     {
       "rank": 1,
       "formula": "LiFePO4",
+      "cif_string": "# Original structure from candidate-generator",
+      "relaxed_structure_cif": "# Relaxed structure (if ML calculated)",
       "properties": {
         "formation_energy_per_atom": -2.341,
         "band_gap": 0.8,
         "source": "Materials_Project",
-        "confidence": "high"
+        "confidence": "high",
+        "relaxed": true
       },
       "scores": {"total_score": 0.94},
       "recommendation": "Top priority - DFT-verified",
@@ -552,6 +557,12 @@ FOR top 15:
   }
 }
 ```
+
+**Structure Preservation:**
+- `cif_string`: Original structure from candidate-generator skill (always preserved)
+- `relaxed_structure_cif`: ML-relaxed structure (saved when ML calculations performed)
+- **Why save both:** Original for provenance tracking, relaxed for DFT validation/synthesis planning
+- **Optional:** Write relaxed structures to separate CIF files (`relaxed/{candidate_id}_relaxed.cif`) for direct DFT input
 
 ---
 
@@ -619,6 +630,25 @@ eform = matgl_predict_eform(candidate.structure)  # Unrelaxed → inaccurate!
 ```python
 relaxed = matgl_relax_structure(candidate.structure, fmax=0.1)
 eform = matgl_predict_eform(relaxed["final_structure"])  # Accurate ✓
+```
+
+---
+
+### ❌ WRONG: Discard relaxed structure after prediction
+
+```python
+relaxed = matgl_relax_structure(candidate.structure)
+eform = matgl_predict_eform(relaxed["final_structure"])
+# relaxed structure lost! Can't verify with DFT later
+```
+
+### ✅ CORRECT: Save relaxed structure
+
+```python
+relaxed = matgl_relax_structure(candidate.structure)
+candidate["relaxed_structure_cif"] = relaxed["final_structure"]  # Preserve ✓
+eform = matgl_predict_eform(relaxed["final_structure"])
+# Now available for DFT validation, synthesis planning, etc.
 ```
 
 ---

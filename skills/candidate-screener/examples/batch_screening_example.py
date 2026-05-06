@@ -510,6 +510,15 @@ class BatchScreener:
             
             relaxed_structure = relaxed["final_structure"]
             
+            # Save relaxed structure (CRITICAL: preserve for DFT validation)
+            candidate["relaxed_structure_cif"] = relaxed_structure
+            
+            # Write relaxed structure to individual CIF file for direct DFT input
+            relaxed_dir = Path("relaxed_structures")
+            relaxed_dir.mkdir(exist_ok=True)
+            with open(relaxed_dir / f"{candidate['id']}_relaxed.cif", "w") as f:
+                f.write(relaxed_structure)
+            
             # Step 2: Predict formation energy
             result = await session.call_tool(
                 "matgl_predict_eform",
@@ -534,6 +543,7 @@ class BatchScreener:
                 "formation_energy_per_atom": eform_result["formation_energy_per_atom"],
                 "band_gap": bandgap_result["band_gap"],
                 "energy_above_hull": None,  # Not available from ML
+                "relaxed": True,
                 "confidence": 0.70,
                 "requires_dft_verification": True
             })
