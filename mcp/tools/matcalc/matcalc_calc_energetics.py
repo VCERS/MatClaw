@@ -183,16 +183,6 @@ def matcalc_calc_energetics(
     from pymatgen.io.cif import CifWriter
     initial_structure_cif = str(CifWriter(structure))
     
-    # Set appropriate backend based on calculator type
-    try:
-        import matgl
-        if any(model in calculator.upper() for model in ["M3GNET", "CHGNET"]):
-            matgl.set_backend('DGL')
-        else:
-            matgl.set_backend('PYG')
-    except Exception:
-        pass  # Backend setting is optional
-    
     # Load calculator
     try:
         calc = mtc.load_fp(calculator)

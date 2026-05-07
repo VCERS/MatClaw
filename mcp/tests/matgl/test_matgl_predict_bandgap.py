@@ -7,22 +7,12 @@ Run with: pytest tests/matgl/test_matgl_predict_bandgap.py -v
 import pytest
 from pymatgen.io.cif import CifWriter
 from tools.matgl.matgl_predict_bandgap import matgl_predict_bandgap
-
-
-# Check if DGL is available
-try:
-    import dgl
-    DGL_AVAILABLE = True
-except:
-    DGL_AVAILABLE = False
-
-skip_if_no_dgl = pytest.mark.skipif(not DGL_AVAILABLE, reason="DGL backend not available")
+import dgl # needs to be imported even if not used directly
 
 
 class TestMatglPredictBandgap:
     """Tests for ML band gap prediction."""
 
-    @skip_if_no_dgl
     def test_basic_prediction_with_dict_input(self):
         """Test basic band gap prediction with dict input."""
         from pymatgen.core import Lattice, Structure
@@ -58,7 +48,6 @@ class TestMatglPredictBandgap:
         assert result["num_sites"] == 2
         assert "material_class" in result
 
-    @skip_if_no_dgl
     def test_metallic_structure(self):
         """Test with a metallic structure (zero band gap)."""
         from pymatgen.core import Lattice, Structure
@@ -81,7 +70,6 @@ class TestMatglPredictBandgap:
         assert bandgap < 0.5, "Cu should be metallic with small/zero band gap"
         assert "Metal" in result["material_class"] or "Narrow" in result["material_class"]
 
-    @skip_if_no_dgl
     def test_semiconductor_structure(self):
         """Test with a semiconductor structure."""
         from pymatgen.core import Lattice, Structure
@@ -106,7 +94,6 @@ class TestMatglPredictBandgap:
         # Check it's classified as some type of semiconductor (not insulator)
         assert "Semiconductor" in result["material_class"] or "gap" in result["material_class"].lower()
 
-    @skip_if_no_dgl
     def test_different_structures(self):
         """Test prediction for different structure types with various band gaps."""
         from pymatgen.core import Lattice, Structure
@@ -135,7 +122,6 @@ class TestMatglPredictBandgap:
             assert result["band_gap"] >= 0
             print(f"{result['formula']}: {result['band_gap']:.3f} eV ({result['material_class']})")
 
-    @skip_if_no_dgl
     def test_cif_string_input(self):
         """Test with CIF string input."""
         from pymatgen.core import Lattice, Structure
@@ -155,7 +141,6 @@ class TestMatglPredictBandgap:
         assert "band_gap" in result
         assert result["formula"] == "CsCl"
 
-    @skip_if_no_dgl
     def test_material_classification(self):
         """Test that material classification is provided."""
         from pymatgen.core import Lattice, Structure
@@ -182,7 +167,6 @@ class TestMatglPredictBandgap:
         ]
         assert result["material_class"] in valid_classes
 
-    @skip_if_no_dgl
     def test_structure_info_included(self):
         """Test that structure information is included in result."""
         from pymatgen.core import Lattice, Structure
@@ -206,7 +190,6 @@ class TestMatglPredictBandgap:
         assert info["num_sites"] == 2
         assert info["formula"] == "CsCl"
 
-    @skip_if_no_dgl
     def test_different_functionals(self):
         """Test band gap prediction with different DFT functionals."""
         from pymatgen.core import Lattice, Structure
@@ -247,7 +230,6 @@ class TestMatglPredictBandgap:
         assert len(set(results.values())) > 1, \
             "Different functionals should produce different predictions"
 
-    @skip_if_no_dgl
     def test_default_functional_is_gllb_sc(self):
         """Test that GLLB-SC is the default functional."""
         from pymatgen.core import Lattice, Structure
@@ -284,27 +266,6 @@ class TestMatglPredictBandgap:
         assert result["success"] is False
         assert "error" in result
 
-    def test_dgl_unavailable_error(self):
-        """Test that helpful error is returned when DGL is not available."""
-        if DGL_AVAILABLE:
-            pytest.skip("DGL is available, cannot test unavailability error")
-        
-        from pymatgen.core import Lattice, Structure
-        
-        struct = Structure.from_spacegroup(
-            "Pm-3m",
-            Lattice.cubic(4.1437),
-            ["Cs", "Cl"],
-            [[0, 0, 0], [0.5, 0.5, 0.5]]
-        )
-        
-        result = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
-        
-        assert result["success"] is False
-        assert "error" in result
-        assert "DGL" in result["error"]
-
-    @skip_if_no_dgl
     def test_band_gap_ranges(self):
         """Test that different materials fall into expected band gap ranges."""
         from pymatgen.core import Lattice, Structure

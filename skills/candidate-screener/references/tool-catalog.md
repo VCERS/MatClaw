@@ -339,7 +339,7 @@ Relax crystal structure using ML potentials from MatGL (TensorNet models, PYG ba
 
 #### 12. `matgl_predict_eform` — Formation Energy Prediction
 
-Predict formation energy using M3GNet/MEGNet models (DGL backend). **PRIMARY TOOL for formation energy screening.**
+Predict formation energy using M3GNet/MEGNet models. **PRIMARY TOOL for formation energy screening.**
 
 **⚠️ PREREQUISITE:** Structure must be relaxed with `matgl_relax_structure`.
 
@@ -373,7 +373,7 @@ Predict formation energy using M3GNet/MEGNet models (DGL backend). **PRIMARY TOO
 
 #### 13. `matgl_predict_bandgap` — Band Gap Prediction
 
-Predict electronic band gap using MEGNet model (DGL backend). **ONLY TOOL for band gap prediction.**
+Predict electronic band gap using MEGNet model. **ONLY TOOL for band gap prediction.**
 
 **⚠️ PREREQUISITE:** Structure must be relaxed with `matgl_relax_structure`.
 

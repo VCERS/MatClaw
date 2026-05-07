@@ -24,26 +24,26 @@ NEED to relax structures?
 
 ### MatGL Tools (Direct Property Predictions)
 
-**Backend:** DGL (Deep Graph Library) for predictions, PYG (PyTorch Geometric) for relaxation  
-**Models:** M3GNet (2018), MEGNet (2018-2019) - trained on Materials Project DFT data  
+**Backend:** PYG (PyTorch Geometric)
+**Models:** Various models such as TensorNet, M3GNet, MEGNet
 **Speed:** Fast (~0.5-2s per structure)  
 **Use case:** High-throughput screening for formation energy and band gap
 
 #### Available MatGL Tools:
 
-1. **`matgl_relax_structure`** (PYG backend)
+1. **`matgl_relax_structure`**
    - Relaxes structures using TensorNet-PES-MatPES-r2SCAN-2025.2
    - **MANDATORY** before ALL ML predictions (MatGL and matcalc)
    - ~5-10s per structure
    - **IMPORTANT:** Cannot call MatGL prediction tools in same Python session after this (backend conflict)
 
-2. **`matgl_predict_eform`** (DGL backend)
+2. **`matgl_predict_eform`**
    - Predicts formation energy directly
    - Models: MEGNet-Eform-MP-2018.6.1 (primary), MEGNet-Eform-MP-2018.6.1 (fallback)
    - ~0.5-1s per structure
    - **PRIMARY TOOL for formation energy screening**
 
-3. **`matgl_predict_bandgap`** (DGL backend)
+3. **`matgl_predict_bandgap`**
    - Predicts electronic band gap directly
    - Model: MEGNet-BandGap-mfi-MP-2019.4.1
    - ~0.5-1s per structure
@@ -452,24 +452,6 @@ FOR candidate in 100_candidates:
 FOR candidate in 100_candidates:
     eform = matgl_predict_eform(candidate.structure)
 # Total: 1-2 minutes
-```
-
----
-
-### ❌ WRONG: Mix MatGL backends
-
-```python
-# BAD: PYG backend conflict
-relaxed = matgl_relax_structure(structure)  # PYG
-eform = matgl_predict_eform(relaxed["final_structure"])  # DGL - CRASH!
-```
-
-### ✅ CORRECT: Use MCP tools (backend isolated)
-
-```python
-# GOOD: MCP server handles backend switching
-relaxed = matgl_relax_structure(structure)  # MCP isolates PYG
-eform = matgl_predict_eform(relaxed["final_structure"])  # MCP isolates DGL
 ```
 
 ---

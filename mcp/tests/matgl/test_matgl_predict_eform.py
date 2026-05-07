@@ -7,22 +7,12 @@ Run with: pytest tests/matgl/test_matgl_predict_eform.py -v
 import pytest
 from pymatgen.io.cif import CifWriter
 from tools.matgl.matgl_predict_eform import matgl_predict_eform
-
-
-# Check if DGL is available
-try:
-    import dgl
-    DGL_AVAILABLE = True
-except:
-    DGL_AVAILABLE = False
-
-skip_if_no_dgl = pytest.mark.skipif(not DGL_AVAILABLE, reason="DGL backend not available")
+import dgl # needs to be imported even if not used directly
 
 
 class TestMatglPredictEform:
     """Tests for ML formation energy prediction."""
 
-    @skip_if_no_dgl
     def test_basic_prediction_with_dict_input(self):
         """Test basic formation energy prediction with dict input."""
         from pymatgen.core import Lattice, Structure
@@ -57,7 +47,6 @@ class TestMatglPredictEform:
         assert result["formula"] == "CsCl"
         assert result["num_sites"] == 2
 
-    @skip_if_no_dgl
     def test_megnet_model(self):
         """Test with MEGNet model."""
         from pymatgen.core import Lattice, Structure
@@ -78,7 +67,6 @@ class TestMatglPredictEform:
         assert result["model_used"] == "MEGNet-Eform-MP-2018.6.1"
         assert "formation_energy_per_atom" in result
 
-    @skip_if_no_dgl
     def test_different_structures(self):
         """Test prediction for different structure types."""
         from pymatgen.core import Lattice, Structure
@@ -110,7 +98,6 @@ class TestMatglPredictEform:
             assert "formation_energy_per_atom" in result
             print(f"{struct.composition.reduced_formula}: {result['formation_energy_per_atom']:.4f} eV/atom")
 
-    @skip_if_no_dgl
     def test_cif_string_input(self):
         """Test prediction with CIF string input."""
         cif_string = """data_CsCl
@@ -141,7 +128,6 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         assert result["success"] is True
         assert "formation_energy_per_atom" in result
 
-    @skip_if_no_dgl
     def test_interpretation_field(self):
         """Test that interpretation field is provided."""
         from pymatgen.core import Lattice, Structure
@@ -163,7 +149,6 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         assert isinstance(result["interpretation"], str)
         assert len(result["interpretation"]) > 0
 
-    @skip_if_no_dgl
     def test_total_formation_energy(self):
         """Test that total formation energy is calculated correctly."""
         from pymatgen.core import Lattice, Structure
@@ -188,7 +173,6 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         expected_total = result["formation_energy_per_atom"] * result["num_sites"]
         assert abs(result["total_formation_energy"] - expected_total) < 1e-5
 
-    @skip_if_no_dgl
     def test_structure_info_included(self):
         """Test that structure info is included in response."""
         from pymatgen.core import Lattice, Structure
@@ -222,30 +206,6 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         assert result["success"] is False
         assert "error" in result
 
-    def test_dgl_unavailable_error(self):
-        """Test that helpful error is returned when DGL is not available."""
-        if DGL_AVAILABLE:
-            pytest.skip("DGL is available, skipping DGL unavailability test")
-        
-        from pymatgen.core import Lattice, Structure
-        
-        struct = Structure.from_spacegroup(
-            "Pm-3m",
-            Lattice.cubic(4.1437),
-            ["Cs", "Cl"],
-            [[0, 0, 0], [0.5, 0.5, 0.5]]
-        )
-        
-        result = matgl_predict_eform(
-            input_structure=str(CifWriter(struct)),
-            model="MEGNet-Eform-MP-2018.6.1"
-        )
-        
-        assert result["success"] is False
-        assert "error" in result
-        assert "DGL" in result["error"]
-
-    @skip_if_no_dgl
     def test_model_comparison(self):
         """Compare predictions from both M3GNet and MEGNet models."""
         from pymatgen.core import Lattice, Structure

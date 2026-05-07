@@ -92,86 +92,6 @@ def matgl_predict_eform(
                     f"Install with: pip install matgl pymatgen"
         }
     
-    # Check if DGL is available (required for formation energy models)
-    try:
-        import dgl
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"DGL backend not available: {e}. "
-                    f"Formation energy prediction requires DGL. "
-                    f"Install with: pip install dgl -f https://data.dgl.ai/wheels/torch-2.0/repo.html"
-        }
-    
-    # Matgl doesn't support switching backends after loading a model, so subprocess is required to switch backends
-    # Check for backend conflict - if PYG backend already loaded, use subprocess
-    import os
-    import matgl.config
-    if matgl.config.BACKEND == "PYG" and not os.environ.get("MATGL_SUBPROCESS"):
-        # Backend conflict detected - PYG already loaded, need DGL
-        # Run this same function in subprocess with fresh DGL backend
-        import subprocess
-        import json
-        import sys
-        
-        # Prepare the Python code to execute in subprocess
-        mcp_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        code = f"""
-import os
-import sys
-
-# Add MCP directory to path for imports
-sys.path.insert(0, {repr(mcp_dir)})
-
-os.environ['MATGL_SUBPROCESS'] = '1'  # Flag to skip backend check
-from tools.matgl.matgl_predict_eform import matgl_predict_eform
-import json
-
-result = matgl_predict_eform(
-    input_structure={repr(input_structure)},
-    model={repr(model)}
-)
-
-print(json.dumps(result))
-"""
-        
-        # Run prediction in subprocess using same Python executable
-        try:
-            result = subprocess.run(
-                [sys.executable, "-c", code],
-                capture_output=True,
-                text=True,
-                timeout=300,  # 5 minute timeout
-                cwd=mcp_dir
-            )
-            
-            if result.returncode == 0:
-                try:
-                    return json.loads(result.stdout)
-                except json.JSONDecodeError as e:
-                    return {
-                        "success": False,
-                        "error": f"Failed to parse subprocess output: {e}",
-                        "stdout": result.stdout,
-                        "stderr": result.stderr
-                    }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Subprocess prediction failed: {result.stderr}",
-                    "stdout": result.stdout
-                }
-        except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "error": "Prediction timed out after 5 minutes"
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Subprocess execution failed: {e}"
-            }
-    
     try:
         # Parse input structure
         if "data_" in input_structure or "_cell_" in input_structure:
@@ -195,13 +115,8 @@ print(json.dumps(result))
         formula = structure.composition.reduced_formula
         num_sites = len(structure)
         
-        # Set backend for MatGL (required for property prediction models)
-        matgl.set_backend('DGL')
-        
         # Load the formation energy prediction model
         try:
-            # Check if we're in a subprocess (downloads should be quiet to avoid stdout pollution)
-            in_subprocess = os.environ.get("MATGL_SUBPROCESS") == "1"
             ml_model = matgl.load_model(model)
         except Exception as e:
             return {
