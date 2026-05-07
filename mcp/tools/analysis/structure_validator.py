@@ -155,7 +155,7 @@ def structure_validator(
     Returns
     -------
     dict:
-        valid               (bool)  Overall validation result (True if all checks pass).
+        is_valid            (bool)  Overall validation result (True if all checks pass).
         checks_performed    (list)  Names of all validation checks performed.
         checks_passed       (list)  Names of checks that passed.
         checks_failed       (list)  Names of checks that failed.
@@ -194,7 +194,7 @@ def structure_validator(
         from pymatgen.io.vasp import Poscar
     except ImportError as e:
         return {
-            "valid": False,
+            "is_valid": False,
             "error": f"Failed to import pymatgen: {e}. Install with: pip install pymatgen"
         }
     
@@ -213,7 +213,7 @@ def structure_validator(
             structure = poscar.structure
     except Exception as e:
         return {
-            "valid": False,
+            "is_valid": False,
             "error": f"Failed to parse input structure: {e}"
         }
     
@@ -607,17 +607,17 @@ def structure_validator(
                         issues, warnings, details, structure_info)
 
 
-def _build_result(valid, checks_performed, checks_passed, checks_failed, issues, warnings, details, structure_info):
+def _build_result(is_valid, checks_performed, checks_passed, checks_failed, issues, warnings, details, structure_info):
     """Helper to build standardized result dictionary."""
     result = {
-        "valid": valid,
+        "is_valid": is_valid,
         "checks_performed": checks_performed,
         "checks_passed": checks_passed,
         "checks_failed": checks_failed,
         "issues": issues,
         "details": details,
         "structure_info": structure_info,
-        "message": "Structure passed all validation checks" if valid else f"Structure failed {len(checks_failed)} check(s)",
+        "message": "Structure passed all validation checks" if is_valid else f"Structure failed {len(checks_failed)} check(s)",
     }
     
     if warnings:

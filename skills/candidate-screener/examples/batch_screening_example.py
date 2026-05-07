@@ -524,10 +524,13 @@ class BatchScreener:
                 "matgl_predict_eform",
                 {
                     "input_structure": relaxed_structure,
-                    "model": "M3GNet-MP-2021.2.8-PES"
+                    "model": "MEGNet-MP-2018.6.1-Eform"
                 }
             )
             eform_result = parse_tool_result(result)
+            
+            if not eform_result or "formation_energy_per_atom" not in eform_result:
+                logger.warning(f"    {candidate['id']}: Error parsing matgl_predict_eform response. Check tool response format.")
             
             # Step 3: Predict band gap
             result = await session.call_tool(
@@ -537,6 +540,9 @@ class BatchScreener:
                 }
             )
             bandgap_result = parse_tool_result(result)
+            
+            if not bandgap_result or "band_gap" not in bandgap_result:
+                logger.warning(f"    {candidate['id']}: Error parsing matgl_predict_bandgap response. Check tool response format.")
             
             candidate["properties"].update({
                 "source": "ML_MatGL",

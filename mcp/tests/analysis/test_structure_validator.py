@@ -12,11 +12,11 @@ class TestStructureValidator:
     """Tests for structure validation."""
 
     def test_valid_structure_passes(self, simple_nacl_structure):
-        """A valid NaCl structure should pass all checks."""
+        """A is_valid NaCl structure should pass all checks."""
         result = structure_validator(input_structure=simple_nacl_structure)
         
         # Debug output
-        if not result["valid"]:
+        if not result["is_valid"]:
             print("\nValidation failed:")
             print(f"Checks failed: {result['checks_failed']}")
             print(f"Issues: {result['issues']}")
@@ -27,7 +27,7 @@ class TestStructureValidator:
                 if detail.get('passed') is False:
                     print(f"  {check}: {detail}")
         
-        assert result["valid"] is True
+        assert result["is_valid"] is True
         assert len(result["checks_failed"]) == 0
         assert "overlapping_atoms" in result["checks_passed"]
         assert result["details"]["overlapping_atoms"]["passed"] is True
@@ -39,7 +39,7 @@ class TestStructureValidator:
             min_distance_threshold=0.5
         )
         
-        assert result["valid"] is False
+        assert result["is_valid"] is False
         assert "overlapping_atoms" in result["checks_failed"]
         assert len(result["details"]["overlapping_atoms"]["problematic_pairs"]) > 0
         assert result["details"]["overlapping_atoms"]["min_distance"] < 0.5
@@ -58,7 +58,7 @@ class TestStructureValidator:
             assert abs(result["details"]["charge_neutrality"]["total_charge"]) > 0.1
 
     def test_valid_licoo2_structure(self, valid_licoo2_structure):
-        """A realistic valid structure should pass all checks."""
+        """A realistic is_valid structure should pass all checks."""
         result = structure_validator(input_structure=valid_licoo2_structure)
         
         # Should pass most checks (oxidation states might be tricky)
@@ -87,7 +87,7 @@ class TestStructureValidator:
             min_distance_threshold=0.5
         )
         
-        assert result["valid"] is False
+        assert result["is_valid"] is False
         # With overlapping atoms failing first, other checks might not be performed
         assert "overlapping_atoms" in result["checks_failed"]
 
@@ -147,7 +147,7 @@ Na 0.0 0.0 0.0
 Cl 0.5 0.5 0.5
 """
         result = structure_validator(input_structure=cif_string)
-        assert result["valid"] is True
+        assert result["is_valid"] is True
 
     def test_poscar_string_input(self):
         """Should accept POSCAR string as input."""
@@ -165,7 +165,7 @@ direct
         result = structure_validator(input_structure=poscar_string)
         
         # Debug output  
-        if not result.get("valid"):
+        if not result.get("is_valid"):
             print("\nPOSCAR validation failed:")
             if 'error' in result:
                 print(f"Error: {result['error']}")
@@ -173,13 +173,13 @@ direct
                 print(f"Checks failed: {result['checks_failed']}")
                 print(f"Issues: {result['issues']}")
         
-        assert result["valid"] is True
+        assert result["is_valid"] is True
 
     def test_invalid_input_type(self):
         """Should handle invalid input gracefully."""
         result = structure_validator(input_structure=12345)
         
-        assert result["valid"] is False
+        assert result["is_valid"] is False
         assert "error" in result
 
     def test_malformed_structure_dict(self):
@@ -187,7 +187,7 @@ direct
         bad_dict = {"invalid": "structure"}
         result = structure_validator(input_structure=bad_dict)
         
-        assert result["valid"] is False
+        assert result["is_valid"] is False
         assert "error" in result
 
 
@@ -230,7 +230,7 @@ class TestOutputFormat:
         result = structure_validator(input_structure=simple_nacl_structure)
         
         required_fields = [
-            "valid",
+            "is_valid",
             "checks_performed",
             "checks_passed",
             "checks_failed",
@@ -259,7 +259,7 @@ class TestOutputFormat:
             min_distance_threshold=0.5
         )
         
-        assert result["valid"] is False
+        assert result["is_valid"] is False
         assert len(result["issues"]) > 0
         assert isinstance(result["issues"][0], str)
 
@@ -278,7 +278,7 @@ class TestOutputFormat:
             
             # Some checks may warn or fail due to invalid element
             # Just check the result is well-formed
-            assert "valid" in result
+            assert "is_valid" in result
             assert isinstance(result.get("warnings", []), list)
         except:
             # If structure creation fails, that's also acceptable

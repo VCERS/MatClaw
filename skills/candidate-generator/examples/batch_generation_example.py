@@ -402,8 +402,12 @@ class BatchGenerator:
             )
             
             data = parse_tool_result(result)
+
+            if not data or 'materials' not in data:
+                logger.error(f"  Error parsing mp_search_materials response. Check tool response format.")
+                return None
             
-            if data and 'materials' in data and len(data['materials']) > 0:
+            if len(data['materials']) > 0:
                 # Prefer stable materials (energy_above_hull = 0)
                 stable_materials = [
                     m for m in data['materials'] 
