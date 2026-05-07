@@ -247,7 +247,7 @@ EXCEPT error:
 TRY:
     CALL matgl_predict_eform(
         input_structure=candidate.structure,  # Now relaxed
-        model="MEGNet-MP-2018.6.1-Eform"
+        model="MEGNet-Eform-MP-2018.6.1"
     )
     SET candidate.properties.formation_energy_per_atom = result.formation_energy_per_atom
     SET candidate.properties.eform_model = result.model_used
@@ -257,7 +257,7 @@ EXCEPT error:
     TRY:
         CALL matgl_predict_eform(
             input_structure=candidate.structure,
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         SET candidate.properties.formation_energy_per_atom = result.formation_energy_per_atom
         SET candidate.properties.eform_model = result.model_used
@@ -271,7 +271,7 @@ EXCEPT error:
 TRY:
     CALL matgl_predict_bandgap(
         input_structure=candidate.structure,  # Now relaxed
-        model="MEGNet-MP-2019.4.1-BandGap-mfi"
+        model="MEGNet-BandGap-mfi-MP-2019.4.1"
     )
     SET candidate.properties.band_gap = result.band_gap
     SET candidate.properties.material_class = result.material_class

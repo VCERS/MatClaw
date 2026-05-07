@@ -59,8 +59,8 @@ Generate a structured JSON tracking file that records:
     "ml_settings": {
       "relaxation_fmax": 0.1,
       "relaxation_max_steps": 500,
-      "eform_model": "MEGNet-MP-2018.6.1-Eform",
-      "bandgap_model": "MEGNet-MP-2019.4.1-BandGap-mfi"
+      "eform_model": "MEGNet-Eform-MP-2018.6.1",
+      "bandgap_model": "MEGNet-BandGap-mfi-MP-2019.4.1"
     }
   },
   "candidates": [

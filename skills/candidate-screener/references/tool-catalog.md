@@ -345,7 +345,7 @@ Predict formation energy using M3GNet/MEGNet models (DGL backend). **PRIMARY TOO
 
 **Key parameters:**
 - `input_structure`: pymatgen Structure dict or CIF/POSCAR string
-- `model`: model name (default `"MEGNet-MP-2018.6.1-Eform"`, alternative `"MEGNet-MP-2018.6.1-Eform"`)
+- `model`: model name (default `"MEGNet-Eform-MP-2018.6.1"`)
 
 **Returns:**
 ```python
@@ -353,7 +353,7 @@ Predict formation energy using M3GNet/MEGNet models (DGL backend). **PRIMARY TOO
   "success": True,
   "formation_energy_per_atom": -2.35,
   "total_formation_energy": -65.8,
-  "model_used": "MEGNet-MP-2018.6.1-Eform",
+  "model_used": "MEGNet-Eform-MP-2018.6.1",
   "formula": "LiFePO4",
   "num_sites": 28,
   "interpretation": "Stable (exothermic formation)",
@@ -379,14 +379,14 @@ Predict electronic band gap using MEGNet model (DGL backend). **ONLY TOOL for ba
 
 **Key parameters:**
 - `input_structure`: pymatgen Structure dict or CIF/POSCAR string
-- `model`: model name (default `"MEGNet-MP-2019.4.1-BandGap-mfi"`)
+- `model`: model name (default `"MEGNet-BandGap-mfi-MP-2019.4.1"`)
 
 **Returns:**
 ```python
 {
   "success": True,
   "band_gap": 0.82,
-  "model_used": "MEGNet-MP-2019.4.1-BandGap-mfi",
+  "model_used": "MEGNet-BandGap-mfi-MP-2019.4.1",
   "formula": "LiFePO4",
   "material_class": "Narrow Band Gap Semiconductor",
   "interpretation": "Narrow gap semiconductor (IR-sensitive)"

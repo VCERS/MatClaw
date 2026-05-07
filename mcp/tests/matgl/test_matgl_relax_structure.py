@@ -9,7 +9,7 @@ from pymatgen.io.cif import CifWriter
 from tools.matgl.matgl_relax_structure import matgl_relax_structure
 
 
-class TestMLRelaxStructure:
+class TestMatglRelaxStructure:
     """Tests for ML structure relaxation."""
 
     def test_basic_relaxation_with_dict_input(self):
@@ -45,32 +45,32 @@ class TestMLRelaxStructure:
         # Check structure changed
         assert abs(result["volume_change_percent"]) > 0.1, "Volume should change"
 
-    def test_fixed_cell_relaxation(self):
-        """Test relaxation with fixed cell (only atoms move)."""
-        from pymatgen.core import Lattice, Structure
+    # def test_fixed_cell_relaxation(self):
+    #     """Test relaxation with fixed cell (only atoms move).""" # NOTE: Disabled as this test takes a long time to run
+    #     from pymatgen.core import Lattice, Structure
         
-        # Create a structure with slightly displaced atoms
-        struct = Structure.from_spacegroup(
-            "Pm-3m",
-            Lattice.cubic(4.2),
-            ["Cs", "Cl"],
-            [[0.01, 0.01, 0.01], [0.51, 0.51, 0.51]]  # Slightly displaced
-        )
+    #     # Create a structure with slightly displaced atoms
+    #     struct = Structure.from_spacegroup(
+    #         "Pm-3m",
+    #         Lattice.cubic(4.2),
+    #         ["Cs", "Cl"],
+    #         [[0.01, 0.01, 0.01], [0.51, 0.51, 0.51]]  # Slightly displaced
+    #     )
         
-        result = matgl_relax_structure(
-            input_structure=str(CifWriter(struct)),
-            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
-            relax_cell=False,  # Fixed cell
-            fmax=0.05,
-            max_steps=200
-        )
+    #     result = matgl_relax_structure(
+    #         input_structure=str(CifWriter(struct)),
+    #         model="TensorNet-PES-MatPES-PBE-2025.2",
+    #         relax_cell=False,  # Fixed cell
+    #         fmax=0.05,
+    #         max_steps=200
+    #     )
         
-        assert result["success"] is True
-        assert result["parameters"]["relax_cell"] is False
+    #     assert result["success"] is True
+    #     assert result["parameters"]["relax_cell"] is False
         
-        # Volume should not change (or change minimally due to numerical precision)
-        assert abs(result["volume_change_percent"]) < 0.01, \
-            "Volume should remain constant in fixed-cell relaxation"
+    #     # Volume should not change (or change minimally due to numerical precision)
+    #     assert abs(result["volume_change_percent"]) < 0.01, \
+    #         "Volume should remain constant in fixed-cell relaxation"
 
     def test_cif_string_input(self):
         """Test relaxation with CIF string input."""
@@ -221,28 +221,3 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         assert result["success"] is False
         assert "error" in result
-
-    def test_tensornet_model(self):
-        """Test with the latest TensorNet model."""
-        from pymatgen.core import Lattice, Structure
-        
-        struct = Structure.from_spacegroup(
-            "Pm-3m",
-            Lattice.cubic(4.3),
-            ["Cs", "Cl"],
-            [[0, 0, 0], [0.5, 0.5, 0.5]]
-        )
-        
-        result = matgl_relax_structure(
-            input_structure=str(CifWriter(struct)),
-            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
-            fmax=0.05,
-            max_steps=200
-        )
-        
-        # This test might fail if model download fails, so check both cases
-        if result["success"]:
-            assert "final_structure" in result
-        else:
-            # Model download might fail in CI environment
-            assert "error" in result

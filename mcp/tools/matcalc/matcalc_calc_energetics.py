@@ -142,7 +142,7 @@ def matcalc_calc_energetics(
     Returns:
         Dictionary containing:
             success                         (bool)      Whether calculation completed successfully
-            formation_energy_per_atom    (float)     Formation energy per atom (eV/atom)
+            formation_energy_per_atom       (float)     Formation energy per atom (eV/atom)
             cohesive_energy_per_atom_eV     (float)     Cohesive energy per atom (always positive)
             total_energy_eV                 (float)     Total energy of structure (eV)
             energy_per_atom_eV              (float)     Total energy per atom (eV/atom)

@@ -19,7 +19,7 @@ except:
 skip_if_no_dgl = pytest.mark.skipif(not DGL_AVAILABLE, reason="DGL backend not available")
 
 
-class TestMLPredictEform:
+class TestMatglPredictEform:
     """Tests for ML formation energy prediction."""
 
     @skip_if_no_dgl
@@ -37,14 +37,14 @@ class TestMLPredictEform:
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"P
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         # Check basic success
         assert result["success"] is True
         assert "formation_energy_per_atom" in result
         assert "model_used" in result
-        assert result["model_used"] == "MEGNet-MP-2018.6.1-Eform"
+        assert result["model_used"] == "MEGNet-Eform-MP-2018.6.1"
         
         # Check that we got a reasonable formation energy value
         eform = result["formation_energy_per_atom"]
@@ -71,11 +71,11 @@ class TestMLPredictEform:
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         assert result["success"] is True
-        assert result["model_used"] == "MEGNet-MP-2018.6.1-Eform"
+        assert result["model_used"] == "MEGNet-Eform-MP-2018.6.1"
         assert "formation_energy_per_atom" in result
 
     @skip_if_no_dgl
@@ -103,7 +103,7 @@ class TestMLPredictEform:
         for struct in structures:
             result = matgl_predict_eform(
                 input_structure=str(CifWriter(struct)),
-                model="MEGNet-MP-2018.6.1-Eform"
+                model="MEGNet-Eform-MP-2018.6.1"
             )
             
             assert result["success"] is True
@@ -135,7 +135,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=cif_string,
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         assert result["success"] is True
@@ -155,7 +155,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         assert result["success"] is True
@@ -178,7 +178,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         assert result["success"] is True
@@ -202,7 +202,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         assert result["success"] is True
@@ -216,7 +216,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         """Test that invalid structures are handled gracefully."""
         result = matgl_predict_eform(
             input_structure="not a valid structure",
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         assert result["success"] is False
@@ -238,7 +238,7 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         assert result["success"] is False
@@ -259,12 +259,12 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         result_m3gnet = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         result_megnet = matgl_predict_eform(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2018.6.1-Eform"
+            model="MEGNet-Eform-MP-2018.6.1"
         )
         
         assert result_m3gnet["success"] is True

@@ -524,7 +524,7 @@ class BatchScreener:
                 "matgl_predict_eform",
                 {
                     "input_structure": relaxed_structure,
-                    "model": "MEGNet-MP-2018.6.1-Eform"
+                    "model": "MEGNet-Eform-MP-2018.6.1"
                 }
             )
             eform_result = parse_tool_result(result)

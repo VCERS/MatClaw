@@ -19,7 +19,7 @@ except:
 skip_if_no_dgl = pytest.mark.skipif(not DGL_AVAILABLE, reason="DGL backend not available")
 
 
-class TestMLPredictBandgap:
+class TestMatglPredictBandgap:
     """Tests for ML band gap prediction."""
 
     @skip_if_no_dgl
@@ -37,14 +37,14 @@ class TestMLPredictBandgap:
         
         result = matgl_predict_bandgap(
             input_structure=str(CifWriter(struct)),
-            model="MEGNet-MP-2019.4.1-BandGap-mfi"
+            model="MEGNet-BandGap-mfi-MP-2019.4.1"
         )
         
         # Check basic success
         assert result["success"] is True
         assert "band_gap" in result
         assert "model_used" in result
-        assert result["model_used"] == "MEGNet-MP-2019.4.1-BandGap-mfi"
+        assert result["model_used"] == "MEGNet-BandGap-mfi-MP-2019.4.1"
         
         # Check that we got a reasonable band gap value
         bandgap = result["band_gap"]
@@ -83,13 +83,7 @@ class TestMLPredictBandgap:
 
     @skip_if_no_dgl
     def test_semiconductor_structure(self):
-        """Test with a semiconductor structure.
-        
-        Note: MEGNet legacy models systematically underpredict band gaps for ideal
-        crystallographic structures because they were trained on DFT-relaxed 
-        structures which have lower band gaps. This test verifies the tool works,
-        not that predictions are quantitatively accurate.
-        """
+        """Test with a semiconductor structure."""
         from pymatgen.core import Lattice, Structure
         
         # Create a simple GaAs structure (zinc blende semiconductor)
@@ -105,11 +99,12 @@ class TestMLPredictBandgap:
         )
         
         assert result["success"] is True
-        assert "band_gap" in result
-        assert "material_class" in result
-        assert "interpretation" in result
-        # Model should return valid data even if quantitatively inaccurate
-        # (MEGNet underpredicts GaAs: ~0.015 eV vs experimental 1.42 eV)
+        bandgap = result["band_gap"]
+        # GaAs has a direct band gap, typically better predicted than Si
+        assert bandgap >= 0, f"GaAs should have non-negative band gap, got {bandgap}"
+        assert bandgap < 3.0, f"GaAs band gap should be reasonable, got {bandgap}"
+        # Check it's classified as some type of semiconductor (not insulator)
+        assert "Semiconductor" in result["material_class"] or "gap" in result["material_class"].lower()
 
     @skip_if_no_dgl
     def test_different_structures(self):
@@ -211,8 +206,77 @@ class TestMLPredictBandgap:
         assert info["num_sites"] == 2
         assert info["formula"] == "CsCl"
 
+    @skip_if_no_dgl
+    def test_different_functionals(self):
+        """Test band gap prediction with different DFT functionals."""
+        from pymatgen.core import Lattice, Structure
+        
+        # Use GaAs as test case (well-known semiconductor, ~1.4 eV experimental)
+        struct = Structure.from_spacegroup(
+            "F-43m",
+            Lattice.cubic(5.65),
+            ["Ga", "As"],
+            [[0, 0, 0], [0.25, 0.25, 0.25]]
+        )
+        
+        functionals = ["PBE", "GLLB-SC", "HSE", "SCAN"]
+        results = {}
+        
+        for functional in functionals:
+            result = matgl_predict_bandgap(
+                input_structure=str(CifWriter(struct)),
+                functional=functional
+            )
+            
+            assert result["success"] is True, f"Failed with functional {functional}"
+            assert "band_gap" in result
+            assert "functional" in result
+            assert result["functional"] == functional
+            results[functional] = result["band_gap"]
+            print(f"{functional}: {result['band_gap']:.4f} eV ({result['material_class']})")
+        
+        # GLLB-SC should give reasonable value for GaAs (~0.9-1.1 eV for DFT-level)
+        assert 0.5 < results["GLLB-SC"] < 1.5, \
+            f"GLLB-SC should give reasonable GaAs band gap, got {results['GLLB-SC']}"
+        
+        # PBE typically gives much lower values (may even be negative/near-zero)
+        assert results["PBE"] < results["GLLB-SC"], \
+            "PBE should give lower band gap than GLLB-SC"
+        
+        # All functionals should produce different results
+        assert len(set(results.values())) > 1, \
+            "Different functionals should produce different predictions"
+
+    @skip_if_no_dgl
+    def test_default_functional_is_gllb_sc(self):
+        """Test that GLLB-SC is the default functional."""
+        from pymatgen.core import Lattice, Structure
+        
+        struct = Structure.from_spacegroup(
+            "F-43m",
+            Lattice.cubic(5.65),
+            ["Ga", "As"],
+            [[0, 0, 0], [0.25, 0.25, 0.25]]
+        )
+        
+        # Call without specifying functional
+        result_default = matgl_predict_bandgap(input_structure=str(CifWriter(struct)))
+        
+        # Call with explicit GLLB-SC
+        result_explicit = matgl_predict_bandgap(
+            input_structure=str(CifWriter(struct)),
+            functional="GLLB-SC"
+        )
+        
+        assert result_default["success"] is True
+        assert result_explicit["success"] is True
+        assert result_default["functional"] == "GLLB-SC"
+        assert result_explicit["functional"] == "GLLB-SC"
+        # Results should be identical
+        assert abs(result_default["band_gap"] - result_explicit["band_gap"]) < 0.001
+
     def test_invalid_structure_handling(self):
-    """Test handling of invalid structure input."""
+        """Test handling of invalid structure input."""
         result = matgl_predict_bandgap(
             input_structure={"invalid": "structure"}
         )

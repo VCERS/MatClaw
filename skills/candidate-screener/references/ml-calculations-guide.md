@@ -39,13 +39,13 @@ NEED to relax structures?
 
 2. **`matgl_predict_eform`** (DGL backend)
    - Predicts formation energy directly
-   - Models: MEGNet-MP-2018.6.1-Eform (primary), MEGNet-MP-2018.6.1-Eform (fallback)
+   - Models: MEGNet-Eform-MP-2018.6.1 (primary), MEGNet-Eform-MP-2018.6.1 (fallback)
    - ~0.5-1s per structure
    - **PRIMARY TOOL for formation energy screening**
 
 3. **`matgl_predict_bandgap`** (DGL backend)
    - Predicts electronic band gap directly
-   - Model: MEGNet-MP-2019.4.1-BandGap-mfi
+   - Model: MEGNet-BandGap-mfi-MP-2019.4.1
    - ~0.5-1s per structure
    - **ONLY TOOL for band gap prediction**
 
@@ -205,12 +205,12 @@ elasticity = matcalc_calc_elasticity(
 ### ML Model Selection Guide
 
 **Formation Energy:**
-- Primary: `MEGNet-MP-2018.6.1-Eform` (matgl_predict_eform)
-- Fallback: `MEGNet-MP-2018.6.1-Eform` (matgl_predict_eform)
+- Primary: `MEGNet-Eform-MP-2018.6.1` (matgl_predict_eform)
+- Fallback: `MEGNet-Eform-MP-2018.6.1` (matgl_predict_eform)
 - Alternative: `TensorNet-PES-MatPES-r2SCAN-2025.2` via matcalc_calc_energetics (slower)
 
 **Band Gap:**
-- Only option: `MEGNet-MP-2019.4.1-BandGap-mfi` (matgl_predict_bandgap)
+- Only option: `MEGNet-BandGap-mfi-MP-2019.4.1` (matgl_predict_bandgap)
 
 **Mechanical Properties:**
 - Primary: `TensorNet-PES-MatPES-r2SCAN-2025.2` (matcalc_calc_elasticity)
@@ -397,11 +397,11 @@ FOR each top_candidate:
    - TensorNet-PES-MatPES-r2SCAN-2025.2 calculations
 
 4. **MatGL M3GNet predictions:** Confidence = 0.75
-   - MEGNet-MP-2018.6.1-Eform for formation energy
+   - MEGNet-Eform-MP-2018.6.1 for formation energy
 
 5. **MatGL MEGNet predictions:** Confidence = 0.65-0.7
-   - MEGNet-MP-2018.6.1-Eform for formation energy
-   - MEGNet-MP-2019.4.1-BandGap-mfi for band gap
+   - MEGNet-Eform-MP-2018.6.1 for formation energy
+   - MEGNet-BandGap-mfi-MP-2019.4.1 for band gap
 
 6. **Estimated from similar materials:** Confidence = 0.5
    - Last resort fallback

@@ -29,14 +29,13 @@ def matgl_predict_eform(
     model: Annotated[
         str,
         Field(
-            default="MEGNet-MP-2018.6.1-Eform",
+            default="MEGNet-Eform-MP-2018.6.1",
             description=(
-                "ML model to use for formation energy prediction. "
-                "Defaults to MEGNet-MP-2018.6.1-Eform, a legacy DGL model saved in matgl github. "
+                "ML model to use for formation energy prediction. Defaults to MEGNet-Eform-MP-2018.6.1. "
                 "For the full list of available models, run `matgl.get_available_pretrained_models()`"
             )
         )
-    ] = "MEGNet-MP-2018.6.1-Eform",
+    ] = "MEGNet-Eform-MP-2018.6.1",
 ) -> Dict[str, Any]:
     """
     Predict formation energy of a crystal structure using ML models.
@@ -56,8 +55,8 @@ def matgl_predict_eform(
         4. Pre-DFT screening: Identify promising candidates before expensive calculations
     
     Model Selection:
-        - MEGNet-MP-2018.6.1-Eform: More accurate, recommended for most cases
-        - MEGNet-MP-2018.6.1-Eform: Faster predictions, good for very large screenings
+        - MEGNet-Eform-MP-2018.6.1: More accurate, recommended for most cases
+        - MEGNet-Eform-MP-2018.6.1: Faster predictions, good for very large screenings
     
     Typical Formation Energy Ranges:
         - Highly stable compounds: -3 to -1 eV/atom (e.g., oxides, nitrides)
@@ -200,24 +199,16 @@ print(json.dumps(result))
         matgl.set_backend('DGL')
         
         # Load the formation energy prediction model
-        # Check if it's a legacy model that needs special loading
         try:
-            from utils.model_downloader import LEGACY_MATGL_MODELS, load_legacy_matgl_model
-            
             # Check if we're in a subprocess (downloads should be quiet to avoid stdout pollution)
             in_subprocess = os.environ.get("MATGL_SUBPROCESS") == "1"
-            
-            if model in LEGACY_MATGL_MODELS:
-                # Use legacy model loader
-                ml_model = load_legacy_matgl_model(model, verbose=not in_subprocess)
-            else:
-                # Use standard matgl loader
-                ml_model = matgl.load_model(model)
+            ml_model = matgl.load_model(model)
         except Exception as e:
             return {
                 "success": False,
                 "error": f"Failed to load model '{model}': {e}. "
-                        f"Check if model is available using `matgl.get_available_pretrained_models()"
+                        f"Check if model is available using `matgl.get_available_pretrained_models()`"
+
             }
         
         # Predict formation energy
