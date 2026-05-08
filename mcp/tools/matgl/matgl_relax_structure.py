@@ -188,29 +188,18 @@ def matgl_relax_structure(
         initial_lattice = structure.lattice
         initial_volume = initial_lattice.volume
         
-        # Handle disordered structures (partial occupancies) as ASE Atoms (used by MatGL) cannot handle disorder
-        # Note: Majority-species approximation valid for dilute doping (< 10%)
-        # For higher concentrations or when disorder is functionally important,
-        # use supercell methods or SQS approaches instead
+        # Check for disordered structures (partial occupancies)
+        # MatGL/ASE cannot handle disorder - use pymatgen_majority_orderer first
         if not structure.is_ordered:
-            # Create ordered approximation by taking majority species at each site
-            ordered_sites = []
-            for site in structure:
-                # Get species with highest occupancy
-                dominant_species = max(site.species.items(), key=lambda x: x[1])
-                element, occupancy = dominant_species
-                # Create new site with only dominant species
-                from pymatgen.core import PeriodicSite
-                ordered_site = PeriodicSite(
-                    element,
-                    site.frac_coords,
-                    site.lattice,
-                    properties=site.properties
+            return {
+                "success": False,
+                "error": (
+                    "Structure has partial site occupancies (disordered). "
+                    "MatGL and ASE require fully ordered structures. "
+                    "Use pymatgen_majority_orderer, pymatgen_enumeration_orderer, "
+                    "or pymatgen_sqs_orderer to convert to ordered structure first."
                 )
-                ordered_sites.append(ordered_site)
-            
-            # Create ordered structure
-            structure = Structure.from_sites(ordered_sites)
+            }
         
         # Load ML potential model
         try:

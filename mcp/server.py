@@ -38,9 +38,10 @@ from tools.pymatgen import (
     pymatgen_substitution_predictor,
     pymatgen_ion_exchange_generator,
     pymatgen_perturbation_generator,
-    pymatgen_order_enumerator,
-    pymatgen_defect_generator,
+    pymatgen_majority_orderer,
+    pymatgen_enumeration_orderer,
     pymatgen_sqs_orderer,
+    pymatgen_defect_generator,
     pymatgen_disorder_generator,
 )
 from tools.analysis import (
@@ -149,7 +150,7 @@ mcp.tool()(pymatgen_substitution_generator)
 mcp.tool()(pymatgen_substitution_predictor)
 mcp.tool()(pymatgen_ion_exchange_generator)
 mcp.tool()(pymatgen_perturbation_generator)
-mcp.tool()(pymatgen_order_enumerator)
+mcp.tool()(pymatgen_enumeration_orderer)
 mcp.tool()(pymatgen_defect_generator)
 mcp.tool()(pymatgen_sqs_orderer)
 mcp.tool()(pymatgen_disorder_generator)

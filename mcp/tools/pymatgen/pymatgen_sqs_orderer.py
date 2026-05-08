@@ -1,23 +1,23 @@
 """
-Tool for generating Special Quasirandom Structures (SQS) for disordered alloy and
-solid-solution modelling in inorganic materials.
+Generate Special Quasirandom Structures (SQS) for disordered alloys and solid solutions.
 
-A SQS is a small, fully ordered supercell whose pair (and optionally higher-order)
-correlation functions best mimic those of a perfectly random alloy at the same composition.
-They are the standard approach for modelling disordered bulk systems — high-entropy oxides,
-solid-solution cathodes, mixed perovskites, etc. — with periodic DFT codes.
+An SQS is a fully ordered supercell whose short-range correlation functions approximate a
+perfectly random alloy at the same composition. This is the standard periodic-cell
+approximation for modelling concentrated substitutional disorder.
 
-Relationship to pymatgen_order_enumerator
-----------------------------------------------
-  order_enumerator: enumerates ALL symmetry-distinct ordered configurations
-      - best for small cells, low-symmetry mixing, finding ground-state orderings.
-  pymatgen_sqs_orderer: finds the SINGLE best quasirandom approximant
-      - best for solid-solution / high-entropy systems where disorder is the target.
+Best for:
+    - Solid solutions and random-alloy modelling
+    - High-entropy oxides and multicomponent disordered materials
+    - Cases where disorder itself, rather than a single ordered configuration, is the target
 
-Backend
--------
-  Default: pure Python / NumPy Monte Carlo — no external binary dependencies.
-  Optional: ATAT mcsqs binary via pymatgen's mcsqs_caller (use_mcsqs=True).
+Relationship to the other orderers:
+    - pymatgen_majority_orderer: one compact approximation, no supercell
+    - pymatgen_enumeration_orderer: several explicit ordered candidates in a chosen supercell
+    - pymatgen_sqs_orderer: one or more quasirandom ordered supercells for random disorder
+
+Backend:
+    - Default: built-in Python/NumPy Monte Carlo
+    - Optional: ATAT mcsqs via pymatgen when use_mcsqs=True
 """
 
 from typing import Dict, Any, Optional, List, Union, Annotated
@@ -175,57 +175,48 @@ def pymatgen_sqs_orderer(
                 "Output format for the returned structures. "
                 "'cif': CIF string (default). "
                 "'poscar': VASP POSCAR string. "
-                "'json': JSON-serialised Structure dict string."
+                "'json': JSON-serialised Structure dict string. "
+                "'ase': ASE-compatible atoms dictionary."
             )
         )
     ] = "cif"
 ) -> Dict[str, Any]:
     """
-    Generate Special Quasirandom Structures (SQS) for disordered solid-solution modelling.
+    Generate one or more quasirandom ordered supercells from disordered inputs.
 
-    Takes disordered structures with fractional site occupancies and produces fully ordered
-    supercells whose Warren-Cowley pair correlation functions match those of a perfectly
-    random alloy as closely as possible.
+    The built-in Monte Carlo backend:
+    1. Builds the requested supercell.
+    2. Identifies mixing sublattices.
+    3. Randomly assigns species while preserving the target composition.
+    4. Measures how closely the resulting short-range order matches a random alloy.
+    5. Improves the configuration by swapping species to reduce the SQS objective.
+    6. Returns the best candidate structures, typically ranked by SQS error.
 
-    Algorithm (built-in Monte Carlo backend)
-    -----------------------------------------
-    1.  Build a supercell of the requested size from the disordered input.
-    2.  Identify mixing sublattices (groups of sites with partial occupancy).
-    3.  Assign species to sublattice sites at random, preserving the target stoichiometry
-        exactly (integer site counts obtained by nearest-integer rounding with correction).
-    4.  Detect nearest-neighbour shells by distance clustering up to a cutoff.
-    5.  Compute Warren-Cowley (WC) short-range order parameters α_AB(r) for all species
-        pairs in each shell.  For a perfectly random alloy α = 0 everywhere.
-    6.  Run Monte Carlo: at each step, swap two randomly chosen atoms of different species
-        on the same sublattice.  Accept swaps that reduce the weighted SQS objective:
-            E = Σ_{shells} w_s · Σ_{pairs (A,B)} α_AB(s)²
-        Reject swaps that increase E (pure greedy minimisation — no temperature).
-    7.  Track the best configuration encountered.  Repeat from step 3 for each candidate.
-    8.  Sort candidates by final SQS error and return.
+    The goal is not to find a ground-state ordering. The goal is to find a compact,
+    ordered structure whose local correlations resemble random disorder.
 
-    Returns
-    -------
-    dict:
-        success             (bool)  Whether at least one SQS was generated.
-        count               (int)   Number of SQS structures returned.
-        structures          (list)  Ordered SQS structures in requested output_format.
-        metadata            (list)  Per-structure metadata:
-            index               (int)   1-based sequential index.
-            source_formula      (str)   Reduced formula of the disordered input.
-            sqs_formula         (str)   Reduced formula of the SQS supercell.
-            n_sites             (int)   Number of atoms in the SQS supercell.
-            supercell_size      (int)   Expansion factor relative to the input cell.
-            sqs_error           (float) Weighted sum of squared WC parameters (lower = better).
-            warren_cowley       (dict)  WC parameters α_AB(s) per shell per pair.
-            composition         (dict)  Actual element counts in the SQS.
-            n_mc_steps          (int)   MC steps executed.
-            backend             (str)   'monte_carlo' or 'mcsqs'.
-            mcsqs_used          (bool)  Whether the mcsqs binary was used.
-        input_info          (dict)  Summary of the input structures.
-        sqs_params          (dict)  Parameters used for the SQS run.
-        message             (str)   Human-readable status message.
-        warnings            (list)  Non-fatal warnings (absent if none).
-        error               (str)   Error message if success=False.
+    Returns:
+        dict:
+            success             (bool)  Whether at least one SQS was generated.
+            count               (int)   Number of returned SQS structures.
+            structures          (list)  Ordered SQS structures in the requested output_format.
+            metadata            (list)  Per-structure metadata:
+                index               (int)   Sequential index (1-based).
+                source_formula      (str)   Reduced formula of the disordered input.
+                sqs_formula         (str)   Reduced formula of the returned SQS supercell.
+                n_sites             (int)   Number of sites in the SQS supercell.
+                supercell_size      (int)   Effective size multiplier relative to the input cell.
+                sqs_error           (float) Objective value; lower means a better random-alloy match.
+                warren_cowley       (dict)  Warren-Cowley parameters by shell and pair.
+                composition         (dict)  Element counts in the returned supercell.
+                n_mc_steps          (int)   Monte Carlo steps executed.
+                backend             (str)   'monte_carlo' or 'mcsqs'.
+                mcsqs_used          (bool)  Whether the external mcsqs binary was used.
+            input_info          (dict)  Summary of the input structures.
+            sqs_params          (dict)  Parameters used for the run.
+            message             (str)   Human-readable summary.
+            warnings            (list)  Non-fatal warnings (absent if none).
+            error               (str)   Error message if success=False.
     """
     import numpy as np
 

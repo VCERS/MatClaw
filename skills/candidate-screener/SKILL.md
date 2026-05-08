@@ -1,7 +1,9 @@
 ---
 name: candidate-screener
 description: >
-  Validate, enrich with properties, and rank candidate structures for materials discovery. Takes candidates from candidate-generator skill, validates structures, retrieves properties from Materials Project/ASE database/ML calculations hierarchically, applies screening criteria, and ranks by multi-objective optimization. ML calculations use MatGL for formation energy and band gap predictions, and matcalc for mechanical (elasticity), vibrational (phonons), surface, thermal, and reaction properties. Use this skill to transform raw candidate lists into ranked, property-enriched sets ready for synthesis or DFT calculations. Trigger keywords: screen candidates, validate structures, property retrieval, rank materials, filter candidates, battery screening, catalyst discovery, thermoelectric materials, phosphor screening, mechanical properties, phonon stability, surface energies.
+  Transform candidate structures into ranked, property-enriched, synthesis-ready materials through intelligent validation, hierarchical property retrieval, and multi-objective optimization. Validates structure integrity, retrieves properties via intelligent hierarchy (Materials Project DFT → ASE cache → ML prediction with MatGL/matcalc), handles disordered structures through preprocessing layer (majority/enumeration/SQS ordering), applies application-specific screening criteria, and ranks by confidence-weighted multi-objective methods. Core strength: Complete transparency - tracks rejection reasons, flags ML uncertainties for DFT verification, implements confidence scoring, and provides complete provenance. Supports all screening workflows: battery cathodes (voltage, capacity, stability), catalysts (surface energies, adsorption), thermoelectrics (band gap, transport), phosphors (optical properties, rare-earth incorporation), mechanical materials (elasticity, phonons), and custom multi-criteria screening. When NOT to trigger: simple property lookup without ranking/filtering (use MP/ASE tools directly), VASP/DFT result analysis (use vasp-ase skill), active learning with Bayesian optimization (use active-learning skill).
+  
+  Trigger keywords: screen candidates, validate structures, property retrieval, hierarchical data, rank materials, filter candidates, multi-objective optimization, battery screening, catalyst discovery, thermoelectric materials, phosphor screening, mechanical properties, phonon stability, surface energies, formation energy prediction, band gap prediction, disordered structures, dilute doping, solid solutions, materials discovery pipeline, high-throughput screening, candidate ranking, confidence scoring, MP + ML hybrid, MatGL predictions, matcalc calculations, structure preprocessing, ordering strategies, synthesis-ready candidates.
 ---
 
 # Candidate Screener Skill
@@ -22,7 +24,7 @@ Validates and enriches candidate structures with properties using hierarchical d
    - Fall back to cached results (ASE database)
    - Only run ML calculations if necessary (MatGL + matcalc)
 
-2. **Never silently exclude** - always log rejection reasons
+2. **Complete transparency** - log rejection reasons for diagnostics and refinement
    - Invalid structures: rejected with cause
    - ML prediction failures: flagged for DFT verification
    - Failed criteria: recorded with specific thresholds
@@ -36,7 +38,7 @@ Validates and enriches candidate structures with properties using hierarchical d
 4. **Two ML ecosystems:**
    - **MatGL** (direct predictions): Fast formation energy + band gap (~0.5-1s each)
    - **matcalc** (structure-based calculations): Mechanical, vibrational, surface, thermal properties (~20-60s each)
-   - Always relax structures first (5-10s)
+   - Relax structures first (ML models trained on equilibrium geometries, 5-10s)
 
 ---
 
@@ -63,7 +65,7 @@ Validates and enriches candidate structures with properties using hierarchical d
 |-----------|-------|------------|-------|
 | **MatGL** | `matgl_predict_eform`, `matgl_predict_bandgap` | Formation energy, band gap | 0.5-1s |
 | **matcalc** | `matcalc_calc_elasticity`, `matcalc_calc_phonon`, `matcalc_calc_surface`, etc. | Mechanical, vibrational, surface, thermal | 20-60s |
-| **Relaxation** | `matgl_relax_structure` | MANDATORY before all predictions (handles disorder automatically) | 5-10s |
+| **Relaxation** | `matgl_relax_structure` | Before all predictions (removes artifacts, handles disorder) | 5-10s |
 
 **MatGL tools (fast screening):**
 - `matgl_predict_eform`: Formation energy (M3GNet/MEGNet 2018 models)
@@ -90,92 +92,56 @@ Validates and enriches candidate structures with properties using hierarchical d
 **Storage:**
 - `ase_store_result`: Cache results in ASE database for future runs
 
-**For complete tool specifications, see [references/tool-catalog.md](references/tool-catalog.md)**
+**Use the condensed table below for normal operation. If parameter details matter, inspect the tool schema directly instead of maintaining a parallel local catalog.**
 
 ---
-## Structure Relaxation — Disorder Handling
+## Preprocessing: Disorder Resolution (Step 0)
 
-**Critical context:** `matgl_relax_structure` automatically handles disordered structures (partial occupancies). Understanding this behavior is essential for screening workflows involving doped or substituted materials.
+**Why preprocessing matters:** MatGL/matcalc use ASE, which cannot represent partial site occupancies. Disordered structures (fractional occupancy from doping, solid solutions) require conversion to fully ordered structures before screening because ASE's Atoms object only supports integer site occupancies.
 
-### ASE Compatibility Constraint
+**When disordered structures appear:**
+- `candidate-generator` outputs (disorder_generator, ion_exchange_generator)  
+- Materials Project rare-earth / mixed-valence compounds
+- User-provided CIF files with crystallographic disorder
 
-MatGL uses ASE (Atomic Simulation Environment) as its structure representation backend. ASE has a fundamental limitation: it cannot represent partial site occupancies. Every atomic site must have occupancy = 1.0. When pymatgen structures with fractional occupancy (e.g., Sr₀.₉₇Sm₀.₀₃MoO₄ from `pymatgen_disorder_generator`) are converted to ASE, the conversion layer raises `ValueError: ASE Atoms only supports ordered structures`.
+**Three ordering strategies:**
 
-### Automatic Majority-Species Approximation
+| Strategy | Tool | Use Case | Validity Range | Speed |
+|----------|------|----------|----------------|-------|
+| **Majority** | `pymatgen_majority_orderer` | Dilute doping, fast screening | < 10% dopant valid, 10-20% questionable | Fastest (1 structure) |
+| **Enumeration** | `pymatgen_enumeration_orderer` | Site-specific studies, exhaustive exploration | All configurations valid | 10-50× structures |
+| **SQS** | `pymatgen_sqs_orderer` | Solid solutions, high-entropy, > 20% mixing | Most accurate for concentrated disorder | Slow (large supercells) |
 
-The `matgl_relax_structure` tool detects disordered structures and automatically applies the **majority-species approximation**:
+**Decision logic:**
+```
+IF structure.is_ordered → Skip preprocessing
+ELIF metadata.requires_ordering exists → Use specified strategy
+ELIF doping_concentration < 10% → majority_orderer (safe default)
+ELIF doping_concentration > 20% → SQS ordering (flag if generator didn't provide SQS metadata)
+ELSE → majority_orderer with DFT validation flag
+```
 
-1. For each site with partial occupancy, identify the species with highest occupancy fraction
-2. Replace the partial occupancy with full occupancy (1.0) of that species
-3. Continue relaxation with the ordered approximation
+**Validation flags after preprocessing:**
+```python
+candidate['preprocessing_metadata'] = {
+    "was_disordered": True,
+    "strategy": "majority",
+    "approximation_valid": (doping < 0.10),
+    "requires_dft_validation": (doping >= 0.10)
+}
+```
 
-**Example:**
-- Input: Sr₀.₉₇Sm₀.₀₃MoO₄ (3% Sm doping on Sr sites)
-- Automatic conversion: SrMoO₄ (Sm removed, Sr occupancy 0.97 → 1.0)
-- Relaxation: Proceeds normally on the ordered structure
+**For complete decision trees, implementation examples, and physical basis explanations, see [references/preprocessing-guide.md](references/preprocessing-guide.md)**
 
-### Validity Constraints — When This Approximation Works
 
-**Physical reasoning:** The approximation assumes dopant atoms are sufficiently dilute that removing them doesn't fundamentally alter the material's structure or properties. The host lattice dominates bonding, coordination, and electronic structure.
-
-✅ **Valid for dilute doping (< 10% dopant concentration):**
-- Host lattice structure dominates
-- Dopant provides minor perturbations to properties
-- Relaxed geometry closely matches true doped structure
-- Common in phosphors, wide-gap semiconductors, ionic conductors with aliovalent doping
-- **Screening decision:** Use disorder_generator → majority-species is appropriate
-
-⚠️ **Questionable for intermediate (10-20% dopant concentration):**
-- Dopant-dopant interactions start to matter
-- Local structure distortions may be significant
-- **Screening decision:** Use for initial fast screening, but validate top candidates with SQS structures
-
-❌ **Invalid for high concentration (> 20%) or solid solutions:**
-- Dopant-dopant interactions dominate
-- Spatial arrangement affects properties (clustering, ordering, phase separation)
-- Removing dopants fundamentally changes the material
-- **Screening decision:** Generate with pymatgen_sqs_orderer instead (ordered supercell, no approximation needed)
-
-### When Disordered Structures Appear
-
-Disordered structures in screening workflows typically come from:
-
-1. **pymatgen_disorder_generator** (expected by design)
-   - Explicit fractional substitution (e.g., "3% Sm on Sr sites")
-   - Most common source in screening workflows
-
-2. **pymatgen_ion_exchange_generator** (sometimes)
-   - Charge balancing can create fractional occupancies
-   - E.g., replacing Li⁺ with Ca²⁺ at 50% to maintain neutrality
-
-3. **Materials Project database** (rare)
-   - Some mineral structures have crystallographic disorder
-   - Mixed-valence compounds
-
-### Tool Behavior Summary
-
-**What happens automatically:**
-- Tool detects `not structure.is_ordered` via pymatgen
-- Logs warning: "Structure has partial occupancy, applying majority-species approximation"
-- Converts to ordered structure
-- Relaxes normally
-- Returns relaxed structure with metadata flag `disorder_approximation_applied: true`
-
-**User action required:**
-- Check candidate doping concentration
-- If > 10%, consider regenerating top candidates with `pymatgen_sqs_orderer`
-- Re-screen with accurate SQS structures (no approximation)
-- Compare results to assess approximation impact
-
-**No action needed for:**
-- Dilute doping (< 10%) → approximation is valid
-- Initial fast screening (can always refine later)
-- Structure came from MP or already ordered → no conversion occurs
+**Use in ranking (Step 4):**
+- Structures with `approximation_valid=False` get lower confidence scores
+- Flag high-scoring ML predictions for DFT verification (validates approximations before synthesis investment)
 
 ---
 ## Universal Essential Properties
 
-**ALL materials screenings must retrieve these minimum properties (regardless of application):**
+**Essential properties for all materials screenings (baseline characterization):**
 
 ### 1. Validation (Phase 1)
 - ✅ **Structure valid**: No overlapping atoms, valid geometry
@@ -183,7 +149,7 @@ Disordered structures in screening workflows typically come from:
 - ⚠️ **Thermodynamic stability**: Energy above hull (optional pre-filter)
 
 ### 2. Basic Properties (Phase 2)
-- ✅ **Formation energy** (REQUIRED): Thermodynamic stability indicator
+- ✅ **Formation energy**: Thermodynamic stability indicator (negative = stable relative to elements)
   - **Source priority:** MP → ASE → `matgl_predict_eform` (fast)
   - **NOT** `matcalc_calc_energetics` (20× slower, use only for cohesive energy)
 
@@ -201,532 +167,106 @@ Choose based on application:
 
 ---
 
-## MANDATORY Workflow Algorithm
+## Workflow Execution
 
-**Execute this exact sequence for every screening run. For detailed pseudocode, see [references/workflow-algorithm.md](references/workflow-algorithm.md)**
+**5-phase algorithm (expanded workflow, failure handling, and batch execution in [references/execution-guide.md](references/execution-guide.md)):**
 
-### Step-by-Step Overview
+1. **Preprocessing (Step 0)**: Resolve disordered structures (see decision table above)
+2. **Validation (Phase 1)**: Check structure validity, composition, stability, deduplicate
+3. **Property Retrieval (Phase 2)**: Hierarchical lookup (MP → ASE → ML), relax before predictions, cache all results
+4. **Filtering (Phase 3)**: Apply screening criteria, reject with specific reasons
+5. **Ranking (Phase 4)**: Multi-objective optimization, confidence-weighted scoring, flag ML predictions for DFT verification
 
-**STEP 0: INITIALIZATION**
-```
-Initialize: validated_candidates, rejected_candidates, candidates_with_properties
-Create ASE database: ase_connect_or_create_db(db_path="screening_YYYYMMDD.db")
-```
-
-**STEP 1: VALIDATION & ANALYSIS (Phase 1)**
-
-For each candidate:
-```
-1. structure_validator → REJECT if invalid, CONTINUE if valid
-2. composition_analyzer → Store elements, oxidation states
-3. (Optional) stability_analyzer → Flag if highly unstable
-4. (Optional) structure_fingerprinter → Deduplicate similar structures
-
-Result: validated_candidates
-```
-
-**STEP 2: HIERARCHICAL PROPERTY RETRIEVAL (Phase 2)**
-
-For each validated candidate, try sources in order:
-```
-2.1 Materials Project (1st priority):
-    mp_search_materials → IF found → mp_get_material_properties
-    → Cache in ASE, CONTINUE to next candidate
-
-2.2 ASE cache (2nd priority):
-    ase_query → IF found → CONTINUE to next candidate
-
-2.3 ML calculation (3rd priority - ONLY if 2.1 and 2.2 failed):
-    a. matgl_relax_structure (REQUIRED first!)
-       → SAVE relaxed structure (relaxed_structure_cif field)
-    b. matgl_predict_eform (formation energy - fast)
-    c. matgl_predict_bandgap (band gap - fast)
-    d. (Optional) matcalc_calc_elasticity (mechanical - if needed)
-    e. (Optional) matcalc_calc_phonon (vibrational - if needed)
-    f. (Optional) matcalc_calc_surface (surface - if catalyst)
-    g. (Optional) Other matcalc tools as needed
-    → Cache in ASE, FLAG for DFT verification
-
-Result: candidates_with_properties
-```
-
-**CRITICAL RULES:**
-- NEVER skip ahead in hierarchy (always try MP → ASE → ML)
-- ALWAYS relax structures before ML predictions
-- MatGL for formation energy/band gap, matcalc for everything else
-- ALWAYS cache results in ASE database
-- ALWAYS save relaxed structures for DFT validation, synthesis planning, and downstream analysis
-
-**STEP 3: CRITERIA-BASED FILTERING (Phase 3)**
-
-For each candidate with properties:
-```
-Define screening_criteria (application-specific)
-Check all criteria:
-  - Formation energy within range?
-  - Band gap within range?
-  - Stability above threshold?
-  - Mechanical properties acceptable?
-IF all criteria met → KEEP
-ELSE → REJECT with specific failure reasons
-
-Result: filtered_candidates
-```
-
-**STEP 4: MULTI-OBJECTIVE RANKING (Phase 4)**
-
-For filtered candidates:
-```
-Define objectives (property, direction, weight)
-Apply multi_objective_ranker(method="pareto" or "weighted_sum")
-Apply confidence weighting:
-  - MP: 1.0 × score
-  - ASE cached: 0.8-1.0 × score
-  - ML: 0.65-0.75 × score
-Flag high-scoring ML predictions for DFT verification
-
-Result: ranked_candidates
-```
-
-**STEP 5: OUTPUT GENERATION**
-```
-Generate screening_report:
-  - Summary statistics (input, validated, with_properties, passed, ranked)
-  - Data source breakdown (MP, ASE, ML counts)
-  - Top N candidates
-  - Rejected candidates with reasons
-  - Property distributions
-  - Database info
-```
+**Essential principles:**
+- Follow hierarchy order (MP → ASE → ML preserves data quality, DFT > ML approximations)
+- Relax structures before ML predictions (ML models trained on equilibrium geometries)
+- Cache all results in ASE database (prevents redundant calculations in future runs)
+- Save relaxed structures (needed for DFT validation and synthesis planning)
+- Track all exclusions with reasons (enables criteria refinement and debugging)
 
 ---
 
-## Hierarchical Property Retrieval Logic
+## Tool Selection Guides
 
-**Key decision: Which property source to use?**
+**Hierarchical retrieval priority:** MP (DFT-quality) → ASE cache (instant) → ML (fast approximation)  
+Follow hierarchy order - DFT data quality is worth the wait because it eliminates downstream validation needs.
 
-```
-FOR each candidate:
-    TRY Materials Project (best quality):
-        mp_search_materials(formula)
-        IF found → mp_get_material_properties → DONE ✓
-    
-    ELSE TRY ASE cache (instant):
-        ase_query(formula)
-        IF found → DONE ✓
-    
-    ELSE ML calculation (last resort):
-        1. matgl_relax_structure (REQUIRED!)
-        2. matgl_predict_eform (formation energy, fast)
-        3. matgl_predict_bandgap (band gap, fast)
-        4. matcalc_calc_* (mechanical/phonons/surfaces, slower, conditional)
-        FLAG for DFT verification → DONE ⚠️
-```
+**MatGL vs matcalc decision:**
 
-**Never skip ahead.** Always try MP first, even if slow. DFT-quality properties worth the wait.
+| Use Case | Tool | Speed | When |
+|----------|------|-------|------|
+| Formation energy screening | MatGL | ~0.5s | Initial rapid filtering (100+ candidates) |
+| Band gap screening | MatGL | ~0.5s | Initial rapid filtering |
+| Mechanical properties | matcalc | ~20-60s | Top 10-20 after MatGL filtering |
+| Thermal/vibrational | matcalc | ~20-60s | Final detailed analysis |
+| Surface properties | matcalc | ~20-60s | Catalyst applications |
+
+**Strategy:** MatGL screens 100 → 40 (minutes), then matcalc analyzes top 20 (hours).  
+See [references/ml-calculations-guide.md](references/ml-calculations-guide.md) for complete usage guide.
 
 ---
 
-## MatGL vs matcalc: Quick Decision Guide
+## Large-Scale Screening
 
-**Use MatGL for:**
-- ✅ High-throughput formation energy screening (~0.5s per structure)
-- ✅ Band gap screening (~0.5s per structure)
-- ✅ Initial rapid filtering of 100+ candidates
+**For >20 candidates:**
+1. Create checkpoint-based tracking JSON (enables resume after interruptions)
+2. Present screening plan to user (candidates, criteria, runtime estimate)
+3. Execute with save-after-every-candidate pattern
+4. Support iterative refinement (adjust criteria, reuse cached properties)
 
-**Use matcalc for:**
-- ✅ Mechanical properties (elasticity, bulk modulus)
-- ✅ Vibrational properties (phonon stability)
-- ✅ Surface properties (catalyst screening)
-- ✅ Thermal properties (expansion, conductivity)
-- ✅ Reaction barriers (NEB)
-- ✅ Detailed calculations for top 10-20 candidates after MatGL screening
-
-**Hierarchical screening strategy (recommended):**
-```
-Phase 1: MatGL screening (minutes)
-  100 candidates → relax → eform+bandgap → filter → 42 passed
-
-Phase 2: matcalc calculations (hours)
-  42 passed → elasticity+phonons for top 20 → 8 high-priority
-
-Phase 3: DFT verification (days)
-  8 high-priority → full DFT calculations → 3 for synthesis
-```
-
-**For detailed usage guidelines, see [references/ml-calculations-guide.md](references/ml-calculations-guide.md)**
+**Batch scripts:** Use the shared MCP client pattern in [../_shared/tool-calling-pattern.md](../_shared/tool-calling-pattern.md) for both local stdio and remote HTTP/SSE tool access.  
+**Concrete batch example:** See [examples/batch_screening_example.py](examples/batch_screening_example.py) for a complete screening script built on that pattern.  
+Complete implementation is in [references/execution-guide.md](references/execution-guide.md).
 
 ---
 
-## Large-Scale Screening (>20 Candidates)
+## Critical Decisions
 
-**When screening >20 candidates, ALWAYS:**
+**Four key decision algorithms:**
 
-1. **Create screening tracking file FIRST** (before execution)
-   - JSON file with per-candidate status tracking
-   - Enables checkpointing after each candidate
-   - Allows resume after interruptions (ML relaxations take 5-10s × 100 = 8-15 min)
-
-2. **Present screening plan to user** (wait for approval)
-   - Total candidates + criteria
-   - Expected MP vs ML percentages
-   - Estimated runtime
-   - Option to adjust criteria
-
-3. **Execute with checkpointing** (save after EVERY candidate)
-   - Validation → save
-   - Property retrieval → save
-   - Screening → save
-   - Ranking → save
-
-4. **Support iterative refinement**
-   - Preserve all properties even if screening fails
-   - User can adjust criteria without rerunning expensive ML
-   - Example: Relax band gap 3.0-5.0 eV → 2.5-5.5 eV, rerun Phase 3 only (cached properties, instant)
-
-### Tool Calling Pattern for Batch Scripts
-
-**When writing batch screening scripts (for >20 candidates), use MCP client library for all tool calls.**
-
-**Context-appropriate usage:**
-- ✅ **USE for:** Standalone batch scripts, automated pipelines, production deployments
-- ❌ **NOT needed for:** Interactive screening (few candidates), exploratory analysis, agent-driven workflows
-
-**Why MCP for batch scripts:**
-- Scripts must work without direct access to tool source code (production deployments)
-- MCP provides platform abstraction, error handling, and remote execution support
-- Scripts work in both development (local stdio) and production (remote SSE/HTTP) environments
-
-**For complete MCP client pattern with correct connection handling, see:**
-- [../../_shared/tool-calling-pattern.md](../../_shared/tool-calling-pattern.md) - Standardized MCP client template (with critical context manager pattern, path calculation, cross-platform support)
-- [references/large-scale-screening.md](references/large-scale-screening.md) - Screening-specific implementation guide
-- [examples/batch_screening_example.py](examples/batch_screening_example.py) - Complete working reference with hierarchical property retrieval
+| Decision | Logic | Details |
+|----------|-------|---------|
+| Structure relaxation | Skip if DFT/MP/experimental source, else relax | references/execution-guide.md |
+| ML failure handling | Try M3GNet → MEGNet → MP similarity → flag for DFT | Track all failures for diagnosis |
+| Multiple MP matches | Keep all if exploring metastable, else most stable | Polymorph awareness |
+| Confidence weighting | MP: 1.0, ASE: 0.8-1.0, ML: 0.65-0.75 | Flag high-score ML for DFT |
 
 ---
 
-## Critical Decision Algorithms
+## Output Structure
 
-**For detailed logic, see [references/decision-trees-errors.md](references/decision-trees-errors.md)**
+**Screening report includes:**
+- Summary stats (input, validated, with_properties, passed, ranked, runtime)
+- Data source breakdown (MP/ASE/ML counts)
+- Top candidates (with original + relaxed structures, properties, scores, DFT recommendations)
+- Rejected candidates (with specific failure reasons)
+- Property distributions (min/max/mean for each property)
 
-### Decision 1: Structure Relaxation
+**Structure preservation:** Original CIF (provenance) + relaxed CIF (DFT input/synthesis) both saved.
 
-```
-IF source in ["DFT", "MP", "experimental"] → skip relaxation (already optimized)
-ELSE IF ionic solid with high symmetry → skip (already at minimum)
-ELSE → MUST relax before predictions
-```
-
-### Decision 2: ML Prediction Failure
-
-```
-TRY primary model (M3GNet)
-EXCEPT → TRY backup model (MEGNet)
-EXCEPT → TRY MP similarity search → estimate from similar
-EXCEPT → SET requires_dft=True, CONTINUE (never silently exclude!)
-```
-
-### Decision 3: Multiple MP Matches
-
-```
-IF 1 match → use it
-IF >1 match AND exploring metastable → keep all polymorphs
-ELSE → take most stable (lowest energy_per_atom)
-```
-
-### Decision 4: Confidence-Weighted Ranking
-
-```
-confidence_weights = {MP: 1.0, ASE_cached: 0.8-1.0, ML: 0.65-0.75}
-adjusted_score = base_score × confidence
-IF base_score > 0.8 AND confidence < 0.8 → recommend_dft=True (high priority)
-```
+**Performance:** 100 candidates = 2 min (80% MP) to 20 min (100% ML).
 
 ---
 
-## Example Workflows
+## Integration
 
-### Example 1: Battery Cathode Screening
-
-**Goal:** Stable materials with moderate band gap
-
-```python
-# Phase 1: MatGL screening (15 min for 100 candidates)
-FOR each candidate:
-    relax → matgl_predict_eform → matgl_predict_bandgap
-    FILTER: formation_energy < 0.0 AND band_gap 0.5-2.0 eV
-
-# Phase 2: matcalc (40 min for top 20)
-FOR top 20:
-    matcalc_calc_elasticity  # Mechanical stability
-    matcalc_calc_phonon      # Dynamic stability
-
-# Result: 100 → 42 (MatGL) → 20 (matcalc) → 8 for DFT
-```
-
-### Example 2: Catalyst Screening
-
-**Goal:** Stable surfaces with favorable adsorption
-
-```python
-# Phase 1: MatGL screening (15 min for 100 candidates)
-FOR each candidate:
-    relax → matgl_predict_eform → stability_analyzer
-    FILTER: formation_energy < 0.0 AND thermodynamically_stable
-
-# Phase 2: Surface screening (90 min for top 30)
-FOR top 30:
-    matcalc_calc_surface([1,0,0])
-    matcalc_calc_surface([1,1,0])
-    matcalc_calc_surface([1,1,1])
-    FILTER: surface_energy < threshold
-
-# Phase 3: Adsorption (40 min for top 10)
-FOR top 10:
-    matcalc_calc_adsorption("CO", "ontop")
-    matcalc_calc_adsorption("OH", "ontop")
-
-# Result: 100 → 68 (stable) → 30 (surfaces) → 10 (adsorption) → 5 for DFT
-```
-
-### Example 3: Thermoelectric Screening
-
-**Goal:** Narrow band gap, mechanically stable, low thermal conductivity
-
-```python
-# Phase 1: MatGL screening (15 min for 100 candidates)
-FOR each candidate:
-    relax → matgl_predict_bandgap
-    FILTER: band_gap < 0.5 eV
-
-# Phase 2: Mechanical (20 min for top 40)
-FOR top 40:
-    matcalc_calc_elasticity
-    FILTER: is_mechanically_stable
-
-# Phase 3: Thermal conductivity (20-30 hours for top 15!)
-FOR top 15:
-    matcalc_calc_phonon3  # VERY expensive
-    FILTER: thermal_conductivity_300K < threshold
-
-# Result: 100 → 52 (narrow gap) → 40 (stable) → 15 (κ) → 8 for DFT
-```
-
----
-
-## Output Report Structure
-
-```json
-{
-  "screening_summary": {
-    "total_input": 100,
-    "validated": 85,
-    "with_properties": 77,
-    "passed_filters": 42,
-    "ranked": 42,
-    "screening_time_seconds": 325
-  },
-  "data_source_breakdown": {
-    "materials_project": 38,
-    "ase_cached": 24,
-    "ml_calculated": 15
-  },
-  "top_candidates": [
-    {
-      "rank": 1,
-      "formula": "LiFePO4",
-      "cif_string": "# Original structure from candidate-generator",
-      "relaxed_structure_cif": "# Relaxed structure (if ML calculated)",
-      "properties": {
-        "formation_energy_per_atom": -2.341,
-        "band_gap": 0.8,
-        "source": "Materials_Project",
-        "confidence": "high",
-        "relaxed": true
-      },
-      "scores": {"total_score": 0.94},
-      "recommendation": "Top priority - DFT-verified",
-      "requires_dft": false
-    }
-  ],
-  "rejected_candidates": [
-    {"formula": "Li5FeO4", "reason": "Invalid structure - overlapping atoms"},
-    {"formula": "Li3P", "reason": "Formation energy > 0 eV/atom (unstable)"}
-  ],
-  "property_distributions": {
-    "formation_energy": {"min": -3.2, "max": -0.8, "mean": -2.1}
-  }
-}
-```
-
-**Structure Preservation:**
-- `cif_string`: Original structure from candidate-generator skill (always preserved)
-- `relaxed_structure_cif`: ML-relaxed structure (saved when ML calculations performed)
-- **Why save both:** Original for provenance tracking, relaxed for DFT validation/synthesis planning
-- **Optional:** Write relaxed structures to separate CIF files (`relaxed/{candidate_id}_relaxed.cif`) for direct DFT input
-
----
-
-## Performance Estimates
-
-**Screening 100 candidates:**
-
-| Scenario | Time | Description |
-|----------|------|-------------|
-| Best case (80% in MP) | ~2 min | Mostly DFT data lookups |
-| Typical (50% MP, 30% ASE, 20% ML) | ~5 min | Balanced sources |
-| Worst case (all ML) | ~20 min | All relaxation + predictions |
-
-**Operation breakdown:**
-- Validation: ~0.1s per candidate
-- MP lookup: ~0.3s per candidate
-- ASE query: ~0.01s per candidate (instant)
-- ML relaxation: ~5-10s per structure
-- MatGL prediction: ~0.5-1s per property
-- matcalc calculation: ~20-60s per property (depends on type)
-- Ranking: ~10s for 100 candidates
-
----
-
-## Integration with Other Skills
-
-### Input from candidate-generator
-
-```python
-# candidate-generator outputs structures
-candidates = load_json("lanthanide_niobate_candidates_100.json")
-
-# Feed directly to candidate-screener
-screening_report = candidate_screener_workflow(
-    candidates=candidates,
-    screening_criteria={...},
-    objectives=[...]
-)
-```
-
-### Output to synthesis-planner
-
-```python
-# Top candidates go to synthesis planning
-top_10 = screening_report["top_candidates"][:10]
-
-for candidate in top_10:
-    synthesis_route = synthesis_planner(
-        target_material=candidate["formula"]
-    )
-```
-
----
-
-## Common Pitfalls
-
-### ❌ WRONG: Skip relaxation before ML prediction
-
-```python
-eform = matgl_predict_eform(candidate.structure)  # Unrelaxed → inaccurate!
-```
-
-### ✅ CORRECT: Always relax first
-
-```python
-relaxed = matgl_relax_structure(candidate.structure, fmax=0.1)
-eform = matgl_predict_eform(relaxed["final_structure"])  # Accurate ✓
-```
-
----
-
-### ❌ WRONG: Discard relaxed structure after prediction
-
-```python
-relaxed = matgl_relax_structure(candidate.structure)
-eform = matgl_predict_eform(relaxed["final_structure"])
-# relaxed structure lost! Can't verify with DFT later
-```
-
-### ✅ CORRECT: Save relaxed structure
-
-```python
-relaxed = matgl_relax_structure(candidate.structure)
-candidate["relaxed_structure_cif"] = relaxed["final_structure"]  # Preserve ✓
-eform = matgl_predict_eform(relaxed["final_structure"])
-# Now available for DFT validation, synthesis planning, etc.
-```
-
----
-
-### ❌ WRONG: Use matcalc for formation energy screening
-
-```python
-FOR 100 candidates:
-    eform = matcalc_calc_energetics(candidate)  # 30s × 100 = 50 minutes!
-```
-
-### ✅ CORRECT: Use MatGL for screening
-
-```python
-FOR 100 candidates:
-    eform = matgl_predict_eform(candidate)  # 0.5s × 100 = 1 minute ✓
-```
-
----
-
-### ❌ WRONG: Skip hierarchy (jump to ML)
-
-```python
-# BAD: Skip MP/ASE, always use ML
-FOR candidate:
-    eform = matgl_predict_eform(candidate)  # Ignoring DFT data!
-```
-
-### ✅ CORRECT: Try hierarchy in order
-
-```python
-# GOOD: MP → ASE → ML
-FOR candidate:
-    TRY mp_search_materials → IF found, DONE
-    ELSE TRY ase_query → IF found, DONE
-    ELSE matgl_predict_eform  # Last resort ✓
-```
-
----
-
-### ❌ WRONG: Silently exclude failed predictions
-
-```python
-TRY:
-    eform = matgl_predict_eform(structure)
-EXCEPT:
-    CONTINUE  # Skip candidate silently - BAD!
-```
-
-### ✅ CORRECT: Flag for DFT verification
-
-```python
-TRY:
-    eform = matgl_predict_eform(structure)
-EXCEPT:
-    candidate.requires_dft = True
-    candidate.ml_errors = [...]
-    CONTINUE  # Include with flag ✓
-```
+**Input from candidate-generator:** Direct JSON file feed with structures.  
+**Output to synthesis-planner:** Top-ranked candidates with relaxed structures and properties.
 
 ---
 
 ## Reference Documentation
 
-**Detailed documentation in `references/` directory:**
+**Core references in `references/` directory:**
 
-1. **[workflow-algorithm.md](references/workflow-algorithm.md)** - Complete step-by-step execution pseudocode with all branching logic
-2. **[decision-trees-errors.md](references/decision-trees-errors.md)** - Critical decision algorithms and comprehensive error handling procedures
+1. **[preprocessing-guide.md](references/preprocessing-guide.md)** - Disorder handling, ordering strategies, physical basis
+2. **[execution-guide.md](references/execution-guide.md)** - Workflow order, decision branches, failure handling, and large-batch execution
 3. **[ml-calculations-guide.md](references/ml-calculations-guide.md)** - MatGL vs matcalc usage guide, model selection, parameter tuning
-4. **[large-scale-screening.md](references/large-scale-screening.md)** - Checkpoint-based tracking for >20 candidates, resume capability
-5. **[tool-catalog.md](references/tool-catalog.md)** - Complete specifications for all 25 tools
 
 **Read these references when:**
-- Implementing screening workflow (workflow-algorithm.md)
-- Debugging errors or handling edge cases (decision-trees-errors.md)
-- Choosing between MatGL and matcalc (ml-calculations-guide.md)
-- Screening >20 candidates (large-scale-screening.md)
-- Looking up tool parameters (tool-catalog.md)
+- Resolving disordered inputs before screening
+- Implementing or debugging the end-to-end screening workflow
+- Choosing between MatGL and matcalc for a property
 
 ---
 
