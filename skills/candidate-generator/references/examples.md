@@ -2,6 +2,8 @@
 
 Complete examples showing typical candidate generation workflows.
 
+Note: pymatgen tools in these examples return CIF/POSCAR/JSON. When a workflow stores results in an ASE database, include a separate ASE-conversion step before calling `ase_store_result`.
+
 ---
 
 ## Pattern 1: Isostructural Analogue Screen
@@ -16,7 +18,7 @@ seed_result = pymatgen_prototype_builder(
     spacegroup=225,  # Fm-3m (rock-salt)
     species=['Li', 'O'],
     lattice_parameters=[4.33],
-    output_format='ase'
+    output_format='cif'
 )
 
 # Step 2: Systematic element substitution
@@ -28,14 +30,15 @@ variants = pymatgen_substitution_generator(
     },
     n_structures=9,  # 3 cations × 3 anions = 9 combinations
     max_attempts=18,  # 2× for safety
-    output_format='ase'
+    output_format='cif'
 )
 
 # Step 3: Store in ASE database
-for i, struct in enumerate(variants['structures']):
+for i, struct_cif in enumerate(variants['structures']):
+    atoms_dict = converted_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='rocksalt_analogues.db',
-        atoms_dict=struct,
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'candidate_id': f'rocksalt_{i:03d}',
             'compound': variants['formulas'][i],
@@ -69,13 +72,14 @@ exchanged = pymatgen_ion_exchange_generator(
     replace_ion='Li+',
     with_ions=['Na+'],
     exchange_fraction=1.0,  # Complete replacement
-    output_format='ase'
+    output_format='cif'
 )
 
 # Step 3: Store result
+atoms_dict = converted_atoms_dict  # Produced by the dedicated ASE conversion step
 ase_store_result(
     db_path='na_cathodes.db',
-    atoms_dict=exchanged['structures'][0],
+    atoms_dict=atoms_dict,
     key_value_pairs={
         'compound': 'NaCoO2',
         'base_material': 'LiCoO2',
@@ -121,20 +125,21 @@ sqs = pymatgen_sqs_orderer(
     supercell_size=20,  # 80-atom supercell
     n_structures=5,  # Generate 5 different SQS variants
     n_mc_steps=500000,  # High for 5 components
-    output_format='ase'
+    output_format='cif'
 )
 
 # Step 4: Store best SQS (lowest sqs_error)
-for i, struct in enumerate(sqs['structures'][:3]):  # Top 3
+for i, struct_cif in enumerate(sqs['structures'][:3]):  # Top 3
+    atoms_dict = converted_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='high_entropy_oxides.db',
-        atoms_dict=struct,
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'candidate_id': f'heo_sqs_{i+1}',
             'compound': sqs['formulas'][i],
             'campaign': 'high_entropy_oxides',
             'sqs_error': sqs['metadata'][i]['sqs_error'],
-            'supercell_atoms': len(struct['numbers'])
+            'supercell_atoms': sqs['metadata'][i]['n_sites']
         }
     )
 
@@ -167,14 +172,15 @@ ordered = pymatgen_enumeration_orderer(
     supercell_size=2,  # 2×2×2 = 8× unit cell
     n_structures=100,  # Get many configurations
     sort_by='ewald',  # Rank by electrostatic energy
-    output_format='ase'
+    output_format='cif'
 )
 
 # Step 3: Store top 10 by Ewald energy
-for i, struct in enumerate(ordered['structures'][:10]):
+for i, struct_cif in enumerate(ordered['structures'][:10]):
+    atoms_dict = converted_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='ground_state_search.db',
-        atoms_dict=struct,
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'candidate_id': f'licoo2_config_{i+1:03d}',
             'compound': ordered['formulas'][i],
@@ -262,9 +268,10 @@ for host_formula, mp_id in host_mps.items():
 
 # Step 3: Store all candidates
 for i, candidate in enumerate(all_candidates):
+    atoms_dict = converted_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='lanthanide_phosphors.db',
-        atoms_dict=Structure.from_str(candidate['structure'], fmt='cif'),
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'candidate_id': f'phosphor_{i:03d}',
             'compound': candidate['formula'],
@@ -298,7 +305,7 @@ defects = pymatgen_defect_generator(
     input_structure=ceo2['properties'][0]['structure'],
     vacancy_species=['O'],
     supercell_min_atoms=96,
-    output_format='ase'
+    output_format='cif'
 )
 
 # Step 3: Perturb for DFT relaxation initialization
@@ -309,15 +316,16 @@ for defect_struct in defects['structures']:
         displacement_max=0.05,
         n_structures=3,  # 3 initial geometries per defect
         seed=42,
-        output_format='ase'
+        output_format='cif'
     )
     all_structures.extend(perturbed['structures'])
 
 # Step 4: Store all perturbed defect structures
-for i, struct in enumerate(all_structures):
+for i, struct_cif in enumerate(all_structures):
+    atoms_dict = converted_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='oxygen_vacancies.db',
-        atoms_dict=struct,
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'candidate_id': f'vacancy_{i:03d}',
             'defect_type': 'oxygen_vacancy',
@@ -350,7 +358,7 @@ substituted = pymatgen_substitution_generator(
     substitutions={'Ti': b_site_metals},
     n_structures=len(b_site_metals),
     max_attempts=len(b_site_metals) * 2,
-    output_format='ase'
+    output_format='cif'
 )
 
 # Step 3: Optional - Create mixed B-site (disorder)
@@ -371,10 +379,11 @@ for base_metal in ['Ti', 'Zr']:
         mixed_b_site.append(disordered['structures'][0])
 
 # Step 4: Store all structures
-for i, struct in enumerate(substituted['structures']):
+for i, struct_cif in enumerate(substituted['structures']):
+    atoms_dict = converted_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='perovskite_bsite_scan.db',
-        atoms_dict=struct,
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'candidate_id': f'perovskite_pure_{i:03d}',
             'compound': substituted['formulas'][i],
@@ -384,10 +393,10 @@ for i, struct in enumerate(substituted['structures']):
     )
 
 for i, struct_cif in enumerate(mixed_b_site):
-    struct = Structure.from_str(struct_cif, fmt='cif')
+    atoms_dict = converted_mixed_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='perovskite_bsite_scan.db',
-        atoms_dict=struct,
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'candidate_id': f'perovskite_mixed_{i:03d}',
             'substitution_type': 'mixed_bsite_10pct',
@@ -432,15 +441,16 @@ for base_struct in base_structures:
         strain_percent=[-3, 3],  # ±3% volumetric strain
         n_structures=20,
         seed=42,
-        output_format='ase'
+        output_format='cif'
     )
     training_set.extend(perturbed['structures'])
 
 # Step 3: Store training set
-for i, struct in enumerate(training_set):
+for i, struct_cif in enumerate(training_set):
+    atoms_dict = converted_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='ml_training_set.db',
-        atoms_dict=struct,
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'dataset_id': f'train_{i:04d}',
             'augmented': True,
@@ -524,10 +534,10 @@ for comp_data in compositions['compositions'][:5]:  # Top 5 by charge balance
 
 # Storage
 for i, candidate in enumerate(all_candidates):
-    struct = Structure.from_str(candidate['structure'], fmt='cif')
+    atoms_dict = converted_atoms_dicts[i]  # Produced by the dedicated ASE conversion step
     ase_store_result(
         db_path='complete_pipeline.db',
-        atoms_dict=struct,
+        atoms_dict=atoms_dict,
         key_value_pairs={
             'candidate_id': f'pipeline_{i:03d}',
             'compound': candidate['formula'],

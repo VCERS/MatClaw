@@ -140,8 +140,7 @@ def pymatgen_enumeration_orderer(
                 "Output format for the returned structures. "
                 "'cif': CIF string (default). "
                 "'poscar': VASP POSCAR string. "
-                "'json': JSON-serialised Structure dict string. "
-                "'ase': ASE-compatible atoms dictionary."
+                "'json': JSON-serialised Structure dict string."
             )
         )
     ] = "cif"
@@ -189,7 +188,7 @@ def pymatgen_enumeration_orderer(
         }
 
     # Validate parameters
-    valid_formats = {"poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -445,14 +444,6 @@ def _append_result(
             from pymatgen.io.cif import CifWriter
             import json
             formatted = json.dumps({"format": "cif", "data": str(CifWriter(ordered_struct))})
-        elif output_format == "ase":
-            # Convert to ASE-compatible format
-            formatted = {
-                "numbers": [site.specie.Z for site in ordered_struct.sites],
-                "positions": [site.coords.tolist() for site in ordered_struct.sites],
-                "cell": ordered_struct.lattice.matrix.tolist(),
-                "pbc": [True, True, True]
-            }
         else:
             warnings.append(f"Unknown output_format '{output_format}' — skipping structure.")
             return

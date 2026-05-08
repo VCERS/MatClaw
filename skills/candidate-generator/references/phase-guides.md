@@ -498,7 +498,7 @@ perturbation_generator(
     strain_percent=[-2, 2],  # ±2% volumetric strain
     n_structures=10,
     seed=42,
-    output_format='ase'
+    output_format='cif'
 )
 ```
 
@@ -534,16 +534,18 @@ perturbation_generator(
 ### ASE Database Storage
 
 ```python
-# Always use output_format='ase' for ASE storage
+# Pymatgen tools now return CIF/POSCAR/JSON.
+# Convert the returned structure with the dedicated ASE conversion step
+# before passing atoms_dict into ase_store_result.
 result = pymatgen_*_generator(
     ...,
-    output_format='ase'
+    output_format='cif'
 )
 
 for i, structure in enumerate(result['structures']):
     ase_store_result(
         db_path='candidates.db',
-        atoms_dict=structure,
+        atoms_dict=converted_atoms_dict,
         key_value_pairs={
             'candidate_id': f'candidate_{i:04d}',
             'compound': result['formulas'][i],  # NOT 'formula' (reserved)

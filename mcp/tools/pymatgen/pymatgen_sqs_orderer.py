@@ -175,8 +175,7 @@ def pymatgen_sqs_orderer(
                 "Output format for the returned structures. "
                 "'cif': CIF string (default). "
                 "'poscar': VASP POSCAR string. "
-                "'json': JSON-serialised Structure dict string. "
-                "'ase': ASE-compatible atoms dictionary."
+                "'json': JSON-serialised Structure dict string."
             )
         )
     ] = "cif"
@@ -231,7 +230,7 @@ def pymatgen_sqs_orderer(
         }
 
     # Validate parameters
-    valid_formats = {"poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -325,14 +324,6 @@ def pymatgen_sqs_orderer(
                 from pymatgen.io.cif import CifWriter
                 import json
                 return json.dumps({"format": "cif", "data": str(CifWriter(struct))})
-            elif output_format == "ase":
-                # Convert to ASE-compatible format
-                return {
-                    "numbers": [site.specie.Z for site in struct.sites],
-                    "positions": [site.coords.tolist() for site in struct.sites],
-                    "cell": struct.lattice.matrix.tolist(),
-                    "pbc": [True, True, True]
-                }
         except Exception as e:
             warnings.append(f"Output formatting failed: {e}")
             return None

@@ -46,7 +46,7 @@ Phase 6: All → ASE Database Storage (with metadata and provenance)
 
 **Working principles:**
 1. **MCP tools generate complete structures** — Every tool returns CIF/POSCAR with atom positions, unit cell, spacegroup. Custom formula generators without structures cannot be validated or screened.
-2. **ASE database is central storage** — Use `ase_store_result` with `output_format='ase'` to enable downstream retrieval, provenance tracking, and property enrichment.
+2. **ASE database is central storage** — Store generated structures in ASE for downstream retrieval, provenance tracking, and property enrichment, but convert CIF/POSCAR outputs with the dedicated ASE conversion step before calling `ase_store_result`.
 3. **Metadata enables screening** — Tag structures with `requires_ordering`, `doping_concentration`, `host_formula` so candidate-screener knows how to handle disorder.
 4. **Scale requires planning** — For N > 20 candidates, create a planning file first to avoid tool timeout/memory issues (see [references/phase-guides.md](references/phase-guides.md)).
 
@@ -269,7 +269,7 @@ ase_store_result(
 | 3 | `pymatgen_sqs_orderer` | Stat quasirandom structures | > 20% solid solutions |
 | 4 | `pymatgen_defect_generator` | Point defects | Vacancy, substitution, interstitial |
 | 5 | `pymatgen_perturbation_generator` | Rattle + strain | DFT init vs ML diversity |
-| 6 | `ase_store_result` | Database storage | Use `output_format='ase'` |
+| 6 | `ase_store_result` | Database storage | Convert CIF/POSCAR outputs before storage |
 
 **Key tool distinction:**
 

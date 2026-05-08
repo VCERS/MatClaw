@@ -9,7 +9,7 @@ and no statistical optimisation.
 Best for:
     - Dilute doping where minority species act as a small perturbation to the host
     - Fast screening workflows that require compact ordered cells
-    - Converting disorder_generator output into ASE/MatGL-compatible structures
+    - Converting disorder_generator output into compact ordered structures for downstream screening
 
 Not appropriate for:
     - Site-specific dopant studies where the arrangement of minority species matters
