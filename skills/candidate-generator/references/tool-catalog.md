@@ -173,11 +173,11 @@ This is the ONLY tool for creating partial substitution materials like Li[Ni₀.
 **Typical workflow:**
 1. Get ordered structure (MP or prototype)
 2. Add disorder with `disorder_generator`
-3. Generate SQS with `sqs_generator` for DFT
+3. Generate SQS with `pymatgen_sqs_orderer` for DFT
 
 ---
 
-### `pymatgen_enumeration_generator` — Exhaustive Ordering
+### `pymatgen_order_enumerator` — Exhaustive Ordering
 Takes structures with fractional site occupancies and returns all symmetry-inequivalent ordered supercell approximants.
 
 **Key parameters:**
@@ -192,7 +192,7 @@ Takes structures with fractional site occupancies and returns all symmetry-inequ
 
 ---
 
-### `pymatgen_sqs_generator` — Special Quasirandom Structures
+### `pymatgen_sqs_orderer` — Special Quasirandom Structures
 Finds ordered supercell whose pair correlations best mimic a perfectly random alloy.
 
 **Key parameters:**

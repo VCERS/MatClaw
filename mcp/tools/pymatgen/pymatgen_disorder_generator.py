@@ -9,7 +9,7 @@ or systematic enumeration.
 Typical workflow:
     1. Get ordered structure from Materials Project or prototype
     2. Add disorder with this tool → fractional occupancy on sites
-    3. Generate SQS with pymatgen_sqs_generator or enumerate with pymatgen_enumeration_generator
+    3. Generate SQS with pymatgen_sqs_orderer or enumerate with pymatgen_order_enumerator
 
 Examples:
     - Solid solutions: (Li,Na)CoO₂, Al_xGa_{1-x}N
@@ -145,7 +145,7 @@ def pymatgen_disorder_generator(
     This tool generates structures where sites have partial occupancy.
     Output structures have fractional composition like Li[Ni₀.₈Co₀.₁Mn₀.₁]O₂.
     
-    This tool is the inverse of pymatgen_enumeration_generator: it creates disordered
+    This tool is the inverse of pymatgen_order_enumerator: it creates disordered
     structures FROM ordered ones, enabling solid solution and high-entropy material modeling.
 
     Algorithm
@@ -160,8 +160,8 @@ def pymatgen_disorder_generator(
     Workflow Integration
     -------------------
     Disordered structures from this tool are suitable for:
-      - pymatgen_sqs_generator: Generate Special Quasirandom Structures
-      - pymatgen_enumeration_generator: Systematically enumerate all orderings
+      - pymatgen_sqs_orderer: Generate Special Quasirandom Structures
+      - pymatgen_order_enumerator: Systematically enumerate all orderings
       - External tools: Virtual Crystal Approximation (VCA), CPA
 
     Returns

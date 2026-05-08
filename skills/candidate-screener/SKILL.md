@@ -134,7 +134,7 @@ The `matgl_relax_structure` tool detects disordered structures and automatically
 - Dopant-dopant interactions dominate
 - Spatial arrangement affects properties (clustering, ordering, phase separation)
 - Removing dopants fundamentally changes the material
-- **Screening decision:** Generate with sqs_generator instead (ordered supercell, no approximation needed)
+- **Screening decision:** Generate with pymatgen_sqs_orderer instead (ordered supercell, no approximation needed)
 
 ### When Disordered Structures Appear
 
@@ -163,7 +163,7 @@ Disordered structures in screening workflows typically come from:
 
 **User action required:**
 - Check candidate doping concentration
-- If > 10%, consider regenerating top candidates with `pymatgen_sqs_generator`
+- If > 10%, consider regenerating top candidates with `pymatgen_sqs_orderer`
 - Re-screen with accurate SQS structures (no approximation)
 - Compare results to assess approximation impact
 

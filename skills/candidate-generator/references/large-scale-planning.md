@@ -153,7 +153,7 @@ async def generate_structure(self, session, candidate: dict, base_cif: str, batc
     result = await session.call_tool(tool_name, tool_params)
 ```
 
-**Supports:** `disorder_generator`, `substitution_generator`, `enumeration_generator`, `defect_generator`, etc.
+**Supports:** `disorder_generator`, `substitution_generator`, `order_enumerator`, `defect_generator`, etc.
 
 ### Flexible Base Structure Resolution
 

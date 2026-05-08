@@ -7,11 +7,11 @@ correlation functions best mimic those of a perfectly random alloy at the same c
 They are the standard approach for modelling disordered bulk systems — high-entropy oxides,
 solid-solution cathodes, mixed perovskites, etc. — with periodic DFT codes.
 
-Relationship to pymatgen_enumeration_generator
+Relationship to pymatgen_order_enumerator
 ----------------------------------------------
-  enumeration_generator: enumerates ALL symmetry-distinct ordered configurations
+  order_enumerator: enumerates ALL symmetry-distinct ordered configurations
       - best for small cells, low-symmetry mixing, finding ground-state orderings.
-  sqs_generator: finds the SINGLE best quasirandom approximant
+  pymatgen_sqs_orderer: finds the SINGLE best quasirandom approximant
       - best for solid-solution / high-entropy systems where disorder is the target.
 
 Backend
@@ -24,7 +24,7 @@ from typing import Dict, Any, Optional, List, Union, Annotated
 from pydantic import Field
 
 
-def pymatgen_sqs_generator(
+def pymatgen_sqs_orderer(
     input_structures: Annotated[
         Union[str, List[str]],
         Field(

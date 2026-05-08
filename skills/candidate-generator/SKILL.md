@@ -70,8 +70,8 @@ Elements → Compositions → Seed Structures → Chemical Variants → Order/Di
 | | `pymatgen_ion_exchange_generator` | Charge-neutral ion substitution | `replace_ion`, `with_ions`, `exchange_fraction` |
 | **Phase 3: Disorder** | | | |
 | | `pymatgen_disorder_generator` | **Fractional occupancy** (statistical disorder) | `site_substitutions` |
-| | `pymatgen_enumeration_generator` | Exhaustive ordered configurations | `supercell_size`, `sort_by='ewald'` |
-| | `pymatgen_sqs_generator` | Special quasirandom structures | `supercell_size`, `n_mc_steps` |
+| | `pymatgen_order_enumerator` | Exhaustive ordered configurations | `supercell_size`, `sort_by='ewald'` |
+| | `pymatgen_sqs_orderer` | Special quasirandom structures | `supercell_size`, `n_mc_steps` |
 | **Phase 4: Defects** | | | |
 | | `pymatgen_defect_generator` | Point defect supercells | `vacancy_species`, `substitution_species`, `interstitial_species` |
 | **Phase 5: Perturbation** | | | |
@@ -214,7 +214,7 @@ The choice between disorder approaches depends critically on **doping concentrat
 - **When valid:** Doping concentrations where dopant-dopant interactions are negligible (typically < 10%)
 
 **Branch B — High doping / solid solution modeling (> 20% dopant concentration):**
-- Tool: `pymatgen_sqs_generator` → ordered supercell (50-200 atoms)
+- Tool: `pymatgen_sqs_orderer` → ordered supercell (50-200 atoms)
 - Use for: Model random alloys, solid solutions, high-entropy materials where disorder is functionally important
 - Returns fully ordered quasirandom approximant
 - **Physical basis:** At high concentrations, dopant-dopant interactions and local ordering matter. The spatial arrangement of dopants affects properties (electronic structure, phonons, stability). SQS structures capture the statistical correlation functions of true random disorder while remaining computationally tractable.
@@ -223,17 +223,17 @@ The choice between disorder approaches depends critically on **doping concentrat
 - Increase `n_mc_steps` for multicomponent systems (50k → 100k-500k for ternary/quaternary)
 
 **Branch C — Intermediate concentration (10-20% dopant):**
-- Strategy: Initial screening with disorder_generator (fast), then validate top candidates with sqs_generator (accurate)
+- Strategy: Initial screening with disorder_generator (fast), then validate top candidates with pymatgen_sqs_orderer (accurate)
 - Rationale: Screen cheaply across many candidates, invest in accurate modeling only for promising materials
 
 **Decision tree for screening workflows:**
 ```
 Doping concentration known?
 ├─ < 10%: disorder_generator (unit cell, fast)
-├─ 10-20%: disorder_generator (screen) → sqs_generator (validate top 10)
-└─ > 20%: sqs_generator (supercell, accurate)
+├─ 10-20%: disorder_generator (screen) → pymatgen_sqs_orderer (validate top 10)
+└─ > 20%: pymatgen_sqs_orderer (supercell, accurate)
 
-High-entropy (≥4 mixing species)?: sqs_generator (enumeration intractable)
+High-entropy (≥4 mixing species)?: pymatgen_sqs_orderer (enumeration intractable)
 ```
 
 **Next:** Phase 4 (defects) or Phase 5 (perturbation) or storage
@@ -350,9 +350,9 @@ for structure in final_structures:
    
 3. Structures have partial occupancies?
    → NO: skip | YES: Need ALL orderings?
-      → YES: enumeration_generator (supercell_size ≤ 2)
+      → YES: order_enumerator (supercell_size ≤ 2)
       → NO: Modeling disorder? 
-         → YES: sqs_generator
+         → YES: pymatgen_sqs_orderer
          
 4. Need defects?
    → YES: defect_generator (single structure)
@@ -467,7 +467,7 @@ exchanged = pymatgen_ion_exchange_generator(
 ```python
 # Starting from disordered structure with 5-component cation mixing
 # Input has fractional occupancies: {Mg:0.2, Co:0.2, Ni:0.2, Cu:0.2, Zn:0.2}
-sqs = pymatgen_sqs_generator(
+sqs = pymatgen_sqs_orderer(
     input_structures=disordered_structure,
     supercell_size=20,
     n_structures=5,
@@ -481,7 +481,7 @@ sqs = pymatgen_sqs_generator(
 
 ```python
 # Li₀.₅CoO₂ with partial Li occupancy
-ordered = pymatgen_enumeration_generator(
+ordered = pymatgen_order_enumerator(
     input_structures=disordered_licoo2,
     supercell_size=2,
     n_structures=100,
@@ -502,7 +502,7 @@ ordered = pymatgen_enumeration_generator(
 1. **Using wrong output_format for ASE** → Always `output_format='ase'` for `ase_store_result`
 2. **Using ASE reserved keys** → Never use `formula`, `spacegroup`, `id`, `energy`, etc. in metadata
 3. **`substitution_generator` hangs** → Set `max_attempts = n_structures × num_combinations`
-4. **`enumeration_generator` hangs** → Keep `supercell_size ≤ 2` for ternary+ systems
+4. **`order_enumerator` hangs** → Keep `supercell_size ≤ 2` for ternary+ systems
 5. **Expecting fractional occupancy from `substitution_generator`** → Use `disorder_generator` instead
 6. **`ion_exchange_generator` returns 0** → Try different `exchange_fraction` values
 7. **Batch script output_format mismatch** → When generating planning file with `output_format='ase'` but batch script expects CIF strings, force `tool_params['output_format'] = 'cif'` in script (override plan parameter)

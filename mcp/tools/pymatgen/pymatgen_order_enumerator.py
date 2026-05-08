@@ -20,7 +20,7 @@ from typing import Dict, Any, Optional, List, Union, Annotated
 from pydantic import Field
 
 
-def pymatgen_enumeration_generator(
+def pymatgen_order_enumerator(
     input_structures: Annotated[
         Union[str, List[str]],
         Field(
@@ -149,9 +149,6 @@ def pymatgen_enumeration_generator(
 
     The returned structures are fully ordered (no partial occupancies) and ready for direct
     use in DFT calculations or further processing by pymatgen_perturbation_generator.
-
-    Requirements:
-        - pymatgen must be installed: pip install pymatgen
 
     Returns:
         dict:

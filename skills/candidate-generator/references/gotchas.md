@@ -15,7 +15,7 @@ Error handling, debugging, and common mistakes in candidate generation workflows
 - Lose error handling and platform abstraction that MCP tools provide
 - Custom formula generators produce scientifically invalid outputs with no structures
 
-**Solution:** Always use designated MCP tool (`composition_enumerator`, `pymatgen_enumeration_generator`, etc.)
+**Solution:** Always use designated MCP tool (`composition_enumerator`, `pymatgen_order_enumerator`, etc.)
 
 **Exception:** Only drop to direct pymatgen when MCP tool cannot accomplish task AND you document why.
 
@@ -108,7 +108,7 @@ pymatgen_substitution_generator(
 
 ---
 
-### `enumeration_generator` Issues
+### `order_enumerator` Issues
 
 #### Problem: Hangs or Never Returns
 
@@ -116,23 +116,23 @@ pymatgen_substitution_generator(
 
 **Cause:** `supercell_size` too large for number of mixing species. Combinatorial explosion.
 
-**Solution:** Keep `supercell_size ≤ 2` for ternary+ systems; switch to `sqs_generator` for high-entropy
+**Solution:** Keep `supercell_size ≤ 2` for ternary+ systems; switch to `pymatgen_sqs_orderer` for high-entropy
 
 ```python
 # ❌ WRONG: Will hang with ternary disorder
-pymatgen_enumeration_generator(
+pymatgen_order_enumerator(
     input_structures=disordered_structure,  # Has 3 mixing species
     supercell_size=4  # Combinatorial explosion!
 )
 
 # ✅ CORRECT
-pymatgen_enumeration_generator(
+pymatgen_order_enumerator(
     input_structures=disordered_structure,
     supercell_size=1  # Or 2 maximum for ternary
 )
 
 # OR switch to SQS for high-entropy systems
-pymatgen_sqs_generator(
+pymatgen_sqs_orderer(
     input_structures=disordered_structure,
     supercell_size=16
 )
@@ -252,7 +252,7 @@ pymatgen_prototype_builder(
 
 ---
 
-### `sqs_generator` Issues
+### `pymatgen_sqs_orderer` Issues
 
 #### Problem: Poor SQS Quality (High sqs_error)
 
@@ -264,14 +264,14 @@ pymatgen_prototype_builder(
 
 ```python
 # ❌ Poor quality SQS
-pymatgen_sqs_generator(
+pymatgen_sqs_orderer(
     input_structures=disordered_structure,
     supercell_size=8,
     n_mc_steps=10000  # Too few for convergence
 )
 
 # ✅ High quality SQS
-pymatgen_sqs_generator(
+pymatgen_sqs_orderer(
     input_structures=disordered_structure,
     supercell_size=16,  # Larger cell
     n_mc_steps=200000,  # More MC steps

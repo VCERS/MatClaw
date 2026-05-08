@@ -115,30 +115,30 @@ IF any structure has fractional site occupancies:
         SET num_mixing_species = count(species with partial occupancy)
         
         IF num_mixing_species == 1:
-            → pymatgen_enumeration_generator
+            → pymatgen_order_enumerator
             → supercell_size = 4
             
         ELSE IF num_mixing_species == 2:
-            → pymatgen_enumeration_generator
+            → pymatgen_order_enumerator
             → supercell_size = 2
             
         ELSE IF num_mixing_species >= 3:
-            → pymatgen_enumeration_generator
+            → pymatgen_order_enumerator
             → supercell_size = 1
-            → OR consider pymatgen_sqs_generator (if ≥4 species)
+            → OR consider pymatgen_sqs_orderer (if ≥4 species)
     
     ELSE IF modeling disorder itself (solid solution):
         ↓
         IF num_mixing_species <= 2:
-            → pymatgen_sqs_generator
+            → pymatgen_sqs_orderer
             → supercell_size = 12
             
         ELSE IF num_mixing_species == 3:
-            → pymatgen_sqs_generator
+            → pymatgen_sqs_orderer
             → supercell_size = 16
             
         ELSE (high-entropy, ≥4 species):
-            → pymatgen_sqs_generator
+            → pymatgen_sqs_orderer
             → supercell_size = 20
             → n_mc_steps = 50000 × num_mixing_species
 
@@ -159,7 +159,7 @@ Do you need partial substitution like Li[Ni₀.₈Mn₀.₂]O₂?
 │  ├─ YES → pymatgen_disorder_generator
 │  │        site_substitutions={'Ni': {'Ni': 0.8, 'Mn': 0.2}}
 │  │        Output: 1 structure with fractional occupancy
-│  │        Then: pymatgen_sqs_generator for quasirandom supercells
+│  │        Then: pymatgen_sqs_orderer for quasirandom supercells
 │  │
 │  └─ NO: Want ordered enumeration (1 specific Ni replaced per structure)?
 │     └─ YES → pymatgen_substitution_generator
@@ -221,8 +221,8 @@ Ionic + charge balance critical? → YES: pymatgen_ion_exchange_generator
 Structures have partial occupancies? → NO: skip to defects
                                      → YES: continue
     ↓
-Need ALL orderings? → YES: pymatgen_enumeration_generator (supercell_size ≤ 2)
-                   → NO: Modeling disorder? → YES: pymatgen_sqs_generator
+Need ALL orderings? → YES: pymatgen_order_enumerator (supercell_size ≤ 2)
+                   → NO: Modeling disorder? → YES: pymatgen_sqs_orderer
                                             → NO: skip
     ↓
 Need defects? → YES: pymatgen_defect_generator (single ordered structure)

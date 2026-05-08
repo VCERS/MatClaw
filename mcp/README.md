@@ -109,7 +109,7 @@ python -m pytest tests/ -v
 
 Run tests for a particular module:
 ```bash
-python -m pytest tests/pymatgen/test_enumeration_generator.py -v
+python -m pytest tests/pymatgen/test_order_enumerator.py -v
 ```
 
 ---
@@ -172,9 +172,9 @@ python -m pytest tests/pymatgen/test_enumeration_generator.py -v
 | `pymatgen_substitution_generator` | Generate structures by element substitution |
 | `pymatgen_ion_exchange_generator` | Generate ion-exchanged variants with charge balancing |
 | `pymatgen_perturbation_generator` | Randomly perturb atomic positions and lattice |
-| `pymatgen_enumeration_generator` | Enumerate ordered supercell decorations of disordered structures |
+| `pymatgen_order_enumerator` | Enumerate ordered supercell decorations of disordered structures |
 | `pymatgen_defect_generator` | Generate point defect supercells (vacancies, substitutions, interstitials) |
-| `pymatgen_sqs_generator` | Generate special quasirandom structures (SQS) for alloy modeling |
+| `pymatgen_sqs_orderer` | Generate special quasirandom structures (SQS) for alloy modeling |
 
 ### Analysis
 
