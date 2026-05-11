@@ -183,7 +183,6 @@ python -m pytest tests/pymatgen/test_enumeration_orderer.py -v
 | `structure_validator` | Validate crystal structures (distances, symmetry, charge, stability) |
 | `composition_analyzer` | Extract composition-based ML features (elemental properties, statistics) |
 | `structure_analyzer` | Extract structure-based ML features (coordination, packing, RDF) |
-| `stability_analyzer` | Analyze thermodynamic stability (formation energy, hull distance) |
 | `structure_fingerprinter` | Generate structural fingerprints (SOAP, MBTR, Sine/Coulomb matrices) |
 
 ### ML Prediction

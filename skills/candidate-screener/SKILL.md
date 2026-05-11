@@ -49,7 +49,7 @@ Validates and enriches candidate structures with properties using hierarchical d
 |------|---------|-------|
 | `structure_validator` | Check structure integrity | 0.1s |
 | `composition_analyzer` | Analyze composition, oxidation states | 0.05s |
-| `stability_analyzer` | Predict thermodynamic stability (MP hull) | 0.5s |
+| `mp_search_materials` + `mp_get_material_properties` | MP-backed stability lookup primitives; usually invoked through the `stability-analyzer` skill | 0.5-2s |
 | `structure_analyzer` | Compute symmetry, coordination | 0.1s |
 | `structure_fingerprinter` | Detect duplicates | 0.5s |
 
@@ -146,12 +146,16 @@ candidate['preprocessing_metadata'] = {
 ### 1. Validation (Phase 1)
 - ✅ **Structure valid**: No overlapping atoms, valid geometry
 - ✅ **Composition valid**: Charge-neutral, reasonable oxidation states
-- ⚠️ **Thermodynamic stability**: Energy above hull (optional pre-filter)
+- ⚠️ **Thermodynamic stability**: Use cheap known-data checks only at this stage
+   Use the `stability-analyzer` skill here only in its MP-backed lookup route for known Materials Project compositions or fast sanity checks, not for custom hull construction.
 
 ### 2. Basic Properties (Phase 2)
 - ✅ **Formation energy**: Thermodynamic stability indicator (negative = stable relative to elements)
   - **Source priority:** MP → ASE → `matgl_predict_eform` (fast)
   - **NOT** `matcalc_calc_energetics` (20× slower, use only for cohesive energy)
+
+- ⚠️ **Energy above hull** (optional, computationally intensive)
+   If the screening criteria include `energy_above_hull`, evaluate it in Phase 2 and refer to the `stability-analyzer` skill. That skill decides whether the request should stay a cheap MP-backed lookup or escalate to a custom self-consistent hull workflow. Reserve Phase 1 for cheaper validation and MP-backed checks.
 
 - ⚠️ **Band gap** (optional): Electronic properties
   - **Source priority:** MP → ASE → `matgl_predict_bandgap` (only tool)
@@ -262,11 +266,13 @@ Complete implementation is in [references/execution-guide.md](references/executi
 1. **[preprocessing-guide.md](references/preprocessing-guide.md)** - Disorder handling, ordering strategies, physical basis
 2. **[execution-guide.md](references/execution-guide.md)** - Workflow order, decision branches, failure handling, and large-batch execution
 3. **[ml-calculations-guide.md](references/ml-calculations-guide.md)** - MatGL vs matcalc usage guide, model selection, parameter tuning
+4. **Use the dedicated `stability-analyzer` skill** - When screening criteria include stability or `energy_above_hull`, especially if the workflow must choose between MP-backed lookup and custom self-consistent hull analysis
 
 **Read these references when:**
 - Resolving disordered inputs before screening
 - Implementing or debugging the end-to-end screening workflow
 - Choosing between MatGL and matcalc for a property
+- Adding `energy_above_hull` as a screening criterion for candidates without a direct known MP hull value
 
 ---
 

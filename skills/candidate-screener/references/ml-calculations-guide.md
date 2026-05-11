@@ -324,7 +324,7 @@ FOR each top_candidate:
 ```
 # Phase 1: MatGL screening (fast)
 FOR each candidate:
-    relax → matgl_predict_eform → stability_analyzer
+    relax → matgl_predict_eform → stability-analyzer skill (MP-backed route)
     FILTER: formation_energy < 0.0 AND thermodynamically_stable
 
 # Phase 2: Surface calculations (top 30)

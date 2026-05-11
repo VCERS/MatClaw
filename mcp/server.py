@@ -8,19 +8,17 @@ from mcp.server.fastmcp import FastMCP
 from tools.pubchem import (
     pubchem_search_compounds,
     pubchem_get_compound_properties,
-    pubchem_search_compounds, 
-    pubchem_get_compound_properties,
     pubchem_get_safety_data,
-)
-from tools.molport import (
-    molport_search_molecules,
-    molport_get_molecule_info,
 )
 from tools.materials_project import (
     mp_search_materials,
     mp_get_material_properties,
     mp_get_detailed_property_data,
     mp_search_recipe
+)
+from tools.molport import (
+    molport_search_molecules,
+    molport_get_molecule_info,
 )
 from tools.ase import (
     ase_connect_or_create_db,
@@ -38,17 +36,16 @@ from tools.pymatgen import (
     pymatgen_substitution_predictor,
     pymatgen_ion_exchange_generator,
     pymatgen_perturbation_generator,
+    pymatgen_defect_generator,
+    pymatgen_disorder_generator,
     pymatgen_majority_orderer,
     pymatgen_enumeration_orderer,
     pymatgen_sqs_orderer,
-    pymatgen_defect_generator,
-    pymatgen_disorder_generator,
 )
 from tools.analysis import (
     structure_validator,
     composition_analyzer,
     structure_analyzer,
-    stability_analyzer,
     structure_fingerprinter,
 )
 from tools.matgl import (
@@ -150,16 +147,16 @@ mcp.tool()(pymatgen_substitution_generator)
 mcp.tool()(pymatgen_substitution_predictor)
 mcp.tool()(pymatgen_ion_exchange_generator)
 mcp.tool()(pymatgen_perturbation_generator)
-mcp.tool()(pymatgen_enumeration_orderer)
 mcp.tool()(pymatgen_defect_generator)
-mcp.tool()(pymatgen_sqs_orderer)
 mcp.tool()(pymatgen_disorder_generator)
+mcp.tool()(pymatgen_majority_orderer)
+mcp.tool()(pymatgen_enumeration_orderer)
+mcp.tool()(pymatgen_sqs_orderer)
 
 # Analysis tools for materials screening
 mcp.tool()(structure_validator)
 mcp.tool()(composition_analyzer)
 mcp.tool()(structure_analyzer)
-mcp.tool()(stability_analyzer)
 mcp.tool()(structure_fingerprinter)
 
 # Machine learning prediction tools
