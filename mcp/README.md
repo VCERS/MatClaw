@@ -109,7 +109,7 @@ python -m pytest tests/ -v
 
 Run tests for a particular module:
 ```bash
-python -m pytest tests/pymatgen/test_enumeration_generator.py -v
+python -m pytest tests/pymatgen/test_enumeration_orderer.py -v
 ```
 
 ---
@@ -172,9 +172,9 @@ python -m pytest tests/pymatgen/test_enumeration_generator.py -v
 | `pymatgen_substitution_generator` | Generate structures by element substitution |
 | `pymatgen_ion_exchange_generator` | Generate ion-exchanged variants with charge balancing |
 | `pymatgen_perturbation_generator` | Randomly perturb atomic positions and lattice |
-| `pymatgen_enumeration_generator` | Enumerate ordered supercell decorations of disordered structures |
+| `pymatgen_enumeration_orderer` | Enumerate ordered supercell decorations of disordered structures |
 | `pymatgen_defect_generator` | Generate point defect supercells (vacancies, substitutions, interstitials) |
-| `pymatgen_sqs_generator` | Generate special quasirandom structures (SQS) for alloy modeling |
+| `pymatgen_sqs_orderer` | Generate special quasirandom structures (SQS) for alloy modeling |
 
 ### Analysis
 
@@ -183,7 +183,6 @@ python -m pytest tests/pymatgen/test_enumeration_generator.py -v
 | `structure_validator` | Validate crystal structures (distances, symmetry, charge, stability) |
 | `composition_analyzer` | Extract composition-based ML features (elemental properties, statistics) |
 | `structure_analyzer` | Extract structure-based ML features (coordination, packing, RDF) |
-| `stability_analyzer` | Analyze thermodynamic stability (formation energy, hull distance) |
 | `structure_fingerprinter` | Generate structural fingerprints (SOAP, MBTR, Sine/Coulomb matrices) |
 
 ### ML Prediction

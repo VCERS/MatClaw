@@ -101,7 +101,7 @@ def pymatgen_perturbation_generator(
         }
 
     # Validate output_format
-    valid_formats = {"poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -296,14 +296,6 @@ def pymatgen_perturbation_generator(
                         from pymatgen.io.cif import CifWriter
                         import json
                         formatted = json.dumps({"format": "cif", "data": str(CifWriter(new_struct))})
-                    elif output_format == "ase":
-                        # Convert to ASE-compatible format
-                        formatted = {
-                            "numbers": [site.specie.Z for site in new_struct.sites],
-                            "positions": [site.coords.tolist() for site in new_struct.sites],
-                            "cell": new_struct.lattice.matrix.tolist(),
-                            "pbc": [True, True, True]
-                        }
                 except Exception as e:
                     warnings.append(
                         f"Structure {struct_label} variant {variant_idx + 1}: "

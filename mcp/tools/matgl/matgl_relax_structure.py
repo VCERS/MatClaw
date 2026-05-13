@@ -163,74 +163,6 @@ def matgl_relax_structure(
                     f"Install with: pip install matgl pymatgen ase"
         }
     
-    # Check if PYG (PyTorch Geometric) is available (required for TensorNet models)
-    try:
-        import torch_geometric
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"PYG (PyTorch Geometric) backend not available: {e}. "
-                    f"Structure relaxation with TensorNet models requires PYG. "
-                    f"Install with: pip install torch-geometric"
-        }
-    
-    # Matgl doesn't support switching backends after loading a model, so subprocess is required to switch backends
-    # Check for backend conflict - if DGL backend already loaded, use subprocess
-    import os
-    import matgl.config
-    if matgl.config.BACKEND == "DGL" and not os.environ.get("MATGL_SUBPROCESS"):
-        # Backend conflict detected - DGL already loaded, need PYG
-        # Run this same function in subprocess with fresh PYG backend
-        import subprocess
-        import json
-        import sys
-        
-        # Prepare the Python code to execute in subprocess
-        code = f"""
-import os
-os.environ['MATGL_SUBPROCESS'] = '1'  # Flag to skip backend check
-from tools.matgl.matgl_relax_structure import matgl_relax_structure
-import json
-result = matgl_relax_structure(
-    input_structure={repr(input_structure)},
-    model={repr(model)},
-    relax_cell={repr(relax_cell)},
-    optimizer={repr(optimizer)},
-    fmax={repr(fmax)},
-    max_steps={repr(max_steps)},
-    verbose={repr(verbose)}
-)
-print(json.dumps(result))
-"""
-        
-        # Run relaxation in subprocess using same Python executable
-        try:
-            result = subprocess.run(
-                [sys.executable, "-c", code],
-                capture_output=True,
-                text=True,
-                timeout=600,  # 10 minute timeout
-                cwd=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            )
-            
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-            else:
-                return {
-                    "success": False,
-                    "error": f"Subprocess relaxation failed: {result.stderr}"
-                }
-        except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "error": "Relaxation timed out after 10 minutes"
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Subprocess execution failed: {e}"
-            }
-    
     try:
         # Parse input structure
         if "data_" in input_structure or "_cell_" in input_structure:
@@ -256,32 +188,18 @@ print(json.dumps(result))
         initial_lattice = structure.lattice
         initial_volume = initial_lattice.volume
         
-        # Handle disordered structures (partial occupancies) as ASE Atoms (used by MatGL) cannot handle disorder
-        # Note: Majority-species approximation valid for dilute doping (< 10%)
-        # For higher concentrations or when disorder is functionally important,
-        # use supercell methods or SQS approaches instead
+        # Check for disordered structures (partial occupancies)
+        # MatGL/ASE cannot handle disorder - use pymatgen_majority_orderer first
         if not structure.is_ordered:
-            # Create ordered approximation by taking majority species at each site
-            ordered_sites = []
-            for site in structure:
-                # Get species with highest occupancy
-                dominant_species = max(site.species.items(), key=lambda x: x[1])
-                element, occupancy = dominant_species
-                # Create new site with only dominant species
-                from pymatgen.core import PeriodicSite
-                ordered_site = PeriodicSite(
-                    element,
-                    site.frac_coords,
-                    site.lattice,
-                    properties=site.properties
+            return {
+                "success": False,
+                "error": (
+                    "Structure has partial site occupancies (disordered). "
+                    "MatGL and ASE require fully ordered structures. "
+                    "Use pymatgen_majority_orderer, pymatgen_enumeration_orderer, "
+                    "or pymatgen_sqs_orderer to convert to ordered structure first."
                 )
-                ordered_sites.append(ordered_site)
-            
-            # Create ordered structure
-            structure = Structure.from_sites(ordered_sites)
-            
-        # Set backend for MatGL (TensorNet models require PYG backend)
-        matgl.set_backend('PYG')
+            }
         
         # Load ML potential model
         try:

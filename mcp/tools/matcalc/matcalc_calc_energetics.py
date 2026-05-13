@@ -142,7 +142,7 @@ def matcalc_calc_energetics(
     Returns:
         Dictionary containing:
             success                         (bool)      Whether calculation completed successfully
-            formation_energy_per_atom_eV    (float)     Formation energy per atom (eV/atom)
+            formation_energy_per_atom       (float)     Formation energy per atom (eV/atom)
             cohesive_energy_per_atom_eV     (float)     Cohesive energy per atom (always positive)
             total_energy_eV                 (float)     Total energy of structure (eV)
             energy_per_atom_eV              (float)     Total energy per atom (eV/atom)
@@ -182,16 +182,6 @@ def matcalc_calc_energetics(
     
     from pymatgen.io.cif import CifWriter
     initial_structure_cif = str(CifWriter(structure))
-    
-    # Set appropriate backend based on calculator type
-    try:
-        import matgl
-        if any(model in calculator.upper() for model in ["M3GNET", "CHGNET"]):
-            matgl.set_backend('DGL')
-        else:
-            matgl.set_backend('PYG')
-    except Exception:
-        pass  # Backend setting is optional
     
     # Load calculator
     try:
@@ -270,7 +260,7 @@ def matcalc_calc_energetics(
         
         return {
             "success": True,
-            "formation_energy_per_atom_eV": formation_energy_per_atom,
+            "formation_energy_per_atom": formation_energy_per_atom,
             "cohesive_energy_per_atom_eV": cohesive_energy_per_atom,
             "total_energy_eV": total_energy,
             "energy_per_atom_eV": energy_per_atom,

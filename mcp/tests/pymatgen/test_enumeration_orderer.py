@@ -1,7 +1,7 @@
 """
-Tests for pymatgen_enumeration_generator tool.
+Tests for pymatgen_enumeration_orderer tool.
 
-Run with: pytest tests/pymatgen/test_enumeration_generator.py -v
+Run with: pytest tests/pymatgen/test_enumeration_orderer.py -v
 
 The tool uses pymatgen's OrderDisorderedStructureTransformation.
 The supercell_size parameter controls the supercell size used for ordering structures.
@@ -9,7 +9,7 @@ The supercell_size parameter controls the supercell size used for ordering struc
 
 import pytest
 
-from tools.pymatgen.pymatgen_enumeration_generator import pymatgen_enumeration_generator
+from tools.pymatgen.pymatgen_enumeration_orderer import pymatgen_enumeration_orderer
 
 
 # Helper
@@ -25,7 +25,7 @@ class TestBasicEnumeration:
 
     def test_enumeration_succeeds(self, disordered_li_na_cl):
         """Enumeration of a 50/50 Li/Na disordered rocksalt should succeed."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=20,
@@ -37,7 +37,7 @@ class TestBasicEnumeration:
 
     def test_all_returned_structures_are_ordered(self, disordered_li_na_cl):
         """Every returned structure must be fully ordered (no partial occupancies)."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=20,
@@ -49,7 +49,7 @@ class TestBasicEnumeration:
     def test_n_structures_cap_respected(self, disordered_li_na_cl):
         """count must not exceed the requested n_structures."""
         cap = 2
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=cap,
@@ -61,7 +61,7 @@ class TestBasicEnumeration:
         """All ordered structures should only contain Li, Na, and Cl."""
         from pymatgen.core import Structure
 
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=20,
@@ -75,7 +75,7 @@ class TestBasicEnumeration:
 
     def test_input_info_populated(self, disordered_li_na_cl):
         """input_info dict must record number of input structures and their formulas."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
@@ -92,7 +92,7 @@ class TestSortCriteria:
 
     def test_sort_by_ewald(self, disordered_li_na_cl):
         """sort_by='ewald' should produce a valid ranked list."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
@@ -104,7 +104,7 @@ class TestSortCriteria:
 
     def test_sort_by_num_sites(self, disordered_li_na_cl):
         """sort_by='num_sites' should succeed and return smaller structures first."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
@@ -118,7 +118,7 @@ class TestSortCriteria:
 
     def test_sort_by_random(self, disordered_li_na_cl):
         """sort_by='random' should succeed and return ordered structures."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
@@ -136,7 +136,7 @@ class TestSupercellSize:
 
     def test_supercell_size_one(self, disordered_li_na_cl):
         """Test that supercell_size=1 works correctly."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=1,
             n_structures=10,
@@ -147,7 +147,7 @@ class TestSupercellSize:
 
     def test_supercell_size_two(self, disordered_li_na_cl):
         """Test that supercell_size=2 works correctly."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=20,
@@ -162,7 +162,7 @@ class TestCheckOrderedInput:
 
     def test_ordered_structure_skipped_by_default(self, simple_nacl_structure):
         """A fully ordered structure should be skipped and return success=False."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=simple_nacl_structure,
             supercell_size=2,
             n_structures=5,
@@ -177,7 +177,7 @@ class TestCheckOrderedInput:
         skipped). OrderDisorderedStructureTransformation finds no new decorations for a fully
         ordered structure (all sites already singly occupied), so success=False is expected —
         but the tool must NOT emit the 'already ordered, skipped' warning."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=simple_nacl_structure,
             supercell_size=2,
             n_structures=5,
@@ -196,7 +196,7 @@ class TestCheckOrderedInput:
 
     def test_disordered_structure_not_skipped(self, disordered_li_na_cl):
         """A disordered structure must never be skipped regardless of check_ordered_input."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
@@ -211,7 +211,7 @@ class TestOutputFormats:
 
     def test_cif_default_output(self, disordered_li_na_cl):
         """CIF output should be the default format."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=2,
@@ -222,7 +222,7 @@ class TestOutputFormats:
         assert "data_" in s or "_cell_length_a" in s  # CIF markers
 
     def test_cif_output(self, disordered_li_na_cl):
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=2,
@@ -235,7 +235,7 @@ class TestOutputFormats:
         assert "_cell_length_a" in s
 
     def test_poscar_output(self, disordered_li_na_cl):
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=2,
@@ -250,7 +250,7 @@ class TestOutputFormats:
     def test_json_output(self, disordered_li_na_cl):
         import json
 
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=2,
@@ -272,7 +272,7 @@ class TestMultipleInputStructures:
         Providing two structures (one disordered, one ordered-skipped) should
         enumerate only the disordered one and report input_info correctly.
         """
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=[disordered_li_na_cl, disordered_li_na_cl],
             supercell_size=2,
             n_structures=5,
@@ -285,7 +285,7 @@ class TestMultipleInputStructures:
 
     def test_source_structure_label_in_metadata(self, disordered_li_na_cl):
         """metadata 'source_structure' must match the input formula."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=[disordered_li_na_cl],
             supercell_size=2,
             n_structures=5,
@@ -302,7 +302,7 @@ class TestMetadata:
     """Tests that all documented metadata fields are present and sensible."""
 
     def test_top_level_fields_present(self, disordered_li_na_cl):
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=5,
@@ -312,7 +312,7 @@ class TestMetadata:
             assert key in result, f"Missing top-level key: {key}"
 
     def test_per_structure_metadata_fields(self, disordered_li_na_cl):
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=5,
@@ -328,7 +328,7 @@ class TestMetadata:
 
     def test_is_ordered_always_true(self, disordered_li_na_cl):
         """metadata 'is_ordered' must be True for every returned structure."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
@@ -339,7 +339,7 @@ class TestMetadata:
 
     def test_index_is_sequential(self, disordered_li_na_cl):
         """metadata 'index' must be 1, 2, 3, … without gaps."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=10,
@@ -350,7 +350,7 @@ class TestMetadata:
 
     def test_enumeration_params_recorded(self, disordered_li_na_cl):
         """enumeration_params must record all input parameters accurately."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=7,
@@ -366,7 +366,7 @@ class TestMetadata:
 
     def test_volume_is_positive(self, disordered_li_na_cl):
         """Cell volume in metadata must be a positive float."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=5,
@@ -377,7 +377,7 @@ class TestMetadata:
 
     def test_n_sites_positive_and_integer(self, disordered_li_na_cl):
         """n_sites must be a positive integer."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=5,
@@ -393,7 +393,7 @@ class TestErrorHandling:
     """Parameter-validation and error-path tests."""
 
     def test_invalid_output_format(self, disordered_li_na_cl):
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=1,
@@ -403,7 +403,7 @@ class TestErrorHandling:
         assert "Invalid output_format" in result["error"]
 
     def test_invalid_sort_by(self, disordered_li_na_cl):
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=disordered_li_na_cl,
             supercell_size=2,
             n_structures=1,
@@ -413,7 +413,7 @@ class TestErrorHandling:
         assert "Invalid sort_by" in result["error"]
 
     def test_invalid_input_type(self):
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=42,
             supercell_size=2,
             n_structures=1,
@@ -422,7 +422,7 @@ class TestErrorHandling:
         assert "error" in result
 
     def test_empty_structure_list(self):
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=[],
             supercell_size=2,
             n_structures=1,
@@ -432,7 +432,7 @@ class TestErrorHandling:
 
     def test_ordered_input_all_skipped_returns_failure(self, simple_nacl_structure):
         """When every input is ordered and check_ordered_input=True, success must be False."""
-        result = pymatgen_enumeration_generator(
+        result = pymatgen_enumeration_orderer(
             input_structures=simple_nacl_structure,
             supercell_size=2,
             n_structures=5,

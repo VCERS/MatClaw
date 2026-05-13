@@ -9,7 +9,7 @@ or systematic enumeration.
 Typical workflow:
     1. Get ordered structure from Materials Project or prototype
     2. Add disorder with this tool → fractional occupancy on sites
-    3. Generate SQS with pymatgen_sqs_generator or enumerate with pymatgen_enumeration_generator
+    3. Generate orderered structure using one of the orderer tools
 
 Examples:
     - Solid solutions: (Li,Na)CoO₂, Al_xGa_{1-x}N
@@ -145,7 +145,7 @@ def pymatgen_disorder_generator(
     This tool generates structures where sites have partial occupancy.
     Output structures have fractional composition like Li[Ni₀.₈Co₀.₁Mn₀.₁]O₂.
     
-    This tool is the inverse of pymatgen_enumeration_generator: it creates disordered
+    This tool is the inverse of pymatgen_enumeration_orderer: it creates disordered
     structures FROM ordered ones, enabling solid solution and high-entropy material modeling.
 
     Algorithm
@@ -160,8 +160,8 @@ def pymatgen_disorder_generator(
     Workflow Integration
     -------------------
     Disordered structures from this tool are suitable for:
-      - pymatgen_sqs_generator: Generate Special Quasirandom Structures
-      - pymatgen_enumeration_generator: Systematically enumerate all orderings
+      - pymatgen_sqs_orderer: Generate Special Quasirandom Structures
+      - pymatgen_enumeration_orderer: Systematically enumerate all orderings
       - External tools: Virtual Crystal Approximation (VCA), CPA
 
     Returns
@@ -196,7 +196,7 @@ def pymatgen_disorder_generator(
         }
 
     # Validate output_format
-    valid_formats = {"poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -450,16 +450,6 @@ def pymatgen_disorder_generator(
             elif output_format == "json":
                 from pymatgen.io.cif import CifWriter
                 output_struct = json.dumps({"format": "cif", "data": str(CifWriter(disordered_struct))})
-            elif output_format == "ase":
-                # Convert to ASE-compatible format
-                # For disordered sites, use the majority species
-                output_struct = {
-                    "numbers": [max(site.species.items(), key=lambda x: x[1])[0].Z 
-                               for site in disordered_struct.sites],
-                    "positions": [site.coords.tolist() for site in disordered_struct.sites],
-                    "cell": disordered_struct.lattice.matrix.tolist(),
-                    "pbc": [True, True, True]
-                }
         except Exception as e:
             return {
                 "success": False,

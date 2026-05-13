@@ -29,14 +29,27 @@ def matgl_predict_bandgap(
     model: Annotated[
         str,
         Field(
-            default="MEGNet-MP-2019.4.1-BandGap-mfi",
+            default="MEGNet-BandGap-mfi-MP-2019.4.1",
             description=(
-                "ML model to use for band gap prediction. "
-                "Defaults to MEGNet-MP-2019.4.1-BandGap-mfi, a legacy DGL model saved in matgl github. "
+                "ML model to use for band gap prediction. Defaults to MEGNet-BandGap-mfi-MP-2019.4.1."
                 "For the full list of available models, run `matgl.get_available_pretrained_models()`"
             )
         )
-    ] = "MEGNet-MP-2019.4.1-BandGap-mfi",
+    ] = "MEGNet-BandGap-mfi-MP-2019.4.1",
+    functional: Annotated[
+        Literal["PBE", "GLLB-SC", "HSE", "SCAN"],
+        Field(
+            default="GLLB-SC",
+            description=(
+                "DFT functional used for training data. Options:\n"
+                "- PBE: Standard GGA functional (tends to underestimate band gaps)\n"
+                "- GLLB-SC: Gritsenko-van Leeuwen functional (best for band gaps, default)\n"
+                "- HSE: Hybrid functional (more accurate but mixed results)\n"
+                "- SCAN: Meta-GGA functional (good for various properties)\n"
+                "GLLB-SC recommended for most accurate band gap predictions."
+            )
+        )
+    ] = "GLLB-SC",
 ) -> Dict[str, Any]:
     """
     Predict electronic band gap of a crystal structure using ML models.
@@ -44,11 +57,6 @@ def matgl_predict_bandgap(
     Predicts the electronic band gap (eV) using a pre-trained graph neural network
     model (MEGNet) trained on Materials Project DFT data. Returns the predicted
     band gap which characterizes the electronic properties of the material.
-    
-    The band gap is the energy difference between the valence band maximum and
-    conduction band minimum, determining whether a material is metallic,
-    semiconducting, or insulating. This property is critical for electronic and
-    optoelectronic applications.
     
     Common Use Cases:
         1. Electronic screening: Identify metals vs. semiconductors vs. insulators
@@ -70,12 +78,13 @@ def matgl_predict_bandgap(
     
     Args:
         input_structure: Structure as CIF or POSCAR string
-        model: ML model to use for prediction (currently only MEGNet-MP-2019.4.1-BandGap-mfi)
+        model: ML model to use for prediction (currently only MEGNet-BandGap-mfi-MP-2019.4.1)
+        functional: DFT functional to use (PBE, GLLB-SC, HSE, SCAN). Default: GLLB-SC
     
     Returns:
         Dictionary containing:
             success                 (bool)      Whether prediction succeeded
-            band_gap_eV             (float)     Predicted electronic band gap (eV)
+            band_gap                (float)     Predicted electronic band gap (eV)
             model_used              (str)       Model name used for prediction
             formula                 (str)       Chemical formula of the structure
             num_sites               (int)       Number of atoms in the structure
@@ -96,87 +105,6 @@ def matgl_predict_bandgap(
             "error": f"Failed to import required libraries: {e}. "
                     f"Install with: pip install matgl pymatgen torch"
         }
-    
-    # Check if DGL is available (required for band gap models)
-    try:
-        import dgl
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"DGL backend not available: {e}. "
-                    f"Band gap prediction requires DGL. "
-                    f"Install with: pip install dgl -f https://data.dgl.ai/wheels/torch-2.0/repo.html"
-        }
-    
-    # Matgl doesn't support switching backends after loading a model, so subprocess is required to switch backends
-    # Check for backend conflict - if PYG backend already loaded, use subprocess
-    import os
-    import matgl.config
-    if matgl.config.BACKEND == "PYG" and not os.environ.get("MATGL_SUBPROCESS"):
-        # Backend conflict detected - PYG already loaded, need DGL
-        # Run this same function in subprocess with fresh DGL backend
-        import subprocess
-        import json
-        import sys
-        
-        # Prepare the Python code to execute in subprocess
-        mcp_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        code = f"""
-import os
-import sys
-
-# Add MCP directory to path for imports
-sys.path.insert(0, {repr(mcp_dir)})
-
-os.environ['MATGL_SUBPROCESS'] = '1'  # Flag to skip backend check
-from tools.matgl.matgl_predict_bandgap import matgl_predict_bandgap
-import json
-
-result = matgl_predict_bandgap(
-    input_structure={repr(input_structure)},
-    model={repr(model)}
-)
-
-# Print only JSON result to stdout
-print(json.dumps(result))
-"""
-        
-        # Run prediction in subprocess using same Python executable
-        try:
-            result = subprocess.run(
-                [sys.executable, "-c", code],
-                capture_output=True,
-                text=True,
-                timeout=300,  # 5 minute timeout
-                cwd=mcp_dir
-            )
-            
-            if result.returncode == 0:
-                try:
-                    return json.loads(result.stdout)
-                except json.JSONDecodeError as e:
-                    return {
-                        "success": False,
-                        "error": f"Failed to parse subprocess output: {e}",
-                        "stdout": result.stdout,
-                        "stderr": result.stderr
-                    }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Subprocess prediction failed: {result.stderr}",
-                    "stdout": result.stdout
-                }
-        except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "error": "Prediction timed out after 5 minutes"
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Subprocess execution failed: {e}"
-            }
     
     try:
         # Parse input structure
@@ -201,34 +129,32 @@ print(json.dumps(result))
         formula = structure.composition.reduced_formula
         num_sites = len(structure)
         
-        # Set backend for MatGL (required for property prediction models)
-        matgl.set_backend('DGL')
-        
         # Load the band gap prediction model
-        # Check if it's a legacy model that needs special loading
         try:
-            from utils.model_downloader import LEGACY_MATGL_MODELS, load_legacy_matgl_model
-            
-            # Check if we're in a subprocess (downloads should be quiet to avoid stdout pollution)
-            in_subprocess = os.environ.get("MATGL_SUBPROCESS") == "1"
-            
-            if model in LEGACY_MATGL_MODELS:
-                # Use legacy model loader
-                ml_model = load_legacy_matgl_model(model, verbose=not in_subprocess)
-            else:
-                # Use standard matgl loader
-                ml_model = matgl.load_model(model)
+            ml_model = matgl.load_model(model)
         except Exception as e:
             return {
                 "success": False,
                 "error": f"Failed to load model '{model}': {e}. "
-                        f"Check if model is available using `matgl.get_available_pretrained_models()"
+                        f"Check if model is available using `matgl.get_available_pretrained_models()`"
             }
         
         # Predict band gap
-        # Band gap models require state_attr parameter
+        # Band gap models require state_attr parameter, which determines which DFT functional's training data to use:
+        # [0]: PBE (standard GGA, tends to underestimate)
+        # [1]: GLLB-SC (best for band gaps, recommended default)
+        # [2]: HSE (hybrid functional)
+        # [3]: SCAN (meta-GGA functional)
         try:
-            state_attr = torch.tensor([0], dtype=torch.long)
+            # Map functional name to state_attr index
+            functional_map = {
+                "PBE": 0,
+                "GLLB-SC": 1,
+                "HSE": 2,
+                "SCAN": 3
+            }
+            state_attr_value = functional_map.get(functional, 1)  # Default to GLLB-SC
+            state_attr = torch.tensor([state_attr_value], dtype=torch.long)
             bandgap_tensor = ml_model.predict_structure(structure, state_attr=state_attr)
             bandgap = float(bandgap_tensor.flatten()[0])
         except Exception as e:
@@ -258,7 +184,8 @@ print(json.dumps(result))
         # Build response
         response = {
             "success": True,
-            "band_gap_eV": round(bandgap, 6),
+            "band_gap": round(bandgap, 6),
+            "functional": functional,
             "model_used": model,
             "formula": formula,
             "num_sites": num_sites,

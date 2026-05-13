@@ -7,17 +7,31 @@ from scipy.stats import mode
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree
 
-# torch_scatter is an optional dependency - check if available
+# torch_scatter is an optional dependency - only fail when actually used
+_TORCH_SCATTER_AVAILABLE = False
+_TORCH_SCATTER_ERROR = None
+scatter_add = None
+scatter_max = None
+scatter_mean = None
+
 try:
     from torch_scatter import scatter_add, scatter_max, scatter_mean
-except ImportError:
-    raise ImportError(
-        "torch_scatter is required for elemwise_retro tools but not installed.\n"
-        "Install it with one of these commands:\n"
-        "  For GLIBC >= 2.32: pip install torch-scatter -f https://data.pyg.org/whl/torch-2.10.0+cpu.html\n"
-        "  For GLIBC <  2.32: pip install torch-scatter --no-binary torch-scatter --no-build-isolation\n"
-        "See requirements.txt for more details."
-    )
+    _TORCH_SCATTER_AVAILABLE = True
+except (ImportError, OSError) as e:
+    _TORCH_SCATTER_ERROR = str(e)
+
+
+def _check_torch_scatter():
+    """Check if torch_scatter is available, raise helpful error if not."""
+    if not _TORCH_SCATTER_AVAILABLE:
+        raise ImportError(
+            f"torch_scatter is required for elemwise_retro tools but not available.\n"
+            f"Import error: {_TORCH_SCATTER_ERROR}\n\n"
+            f"Install it with one of these commands:\n"
+            f"  For GLIBC >= 2.32: pip install torch-scatter -f https://data.pyg.org/whl/torch-2.10.0+cu128.html\n"
+            f"  For GLIBC <  2.32: Build from source without binary wheels\n"
+            f"See requirements.txt for more details."
+        )
 
 class PrecursorClassifier(nn.Module):
     """
@@ -209,6 +223,7 @@ class AtomicDescriptorNetwork(nn.Module):
         cry_fea: nn.Variable shape (C,)
             Material representation after message passing
         """
+        _check_torch_scatter()  # Check torch_scatter availability
 
         # embed the original features into a trainable embedding space
         elem_fea = self.embedding(elem_fea)
@@ -723,6 +738,7 @@ class WeightedAttentionPooling(nn.Module):
 
     def forward(self, x, index, weights):
         """ forward pass """
+        _check_torch_scatter()  # Check torch_scatter availability
 
         gate = self.gate_nn(x)
 

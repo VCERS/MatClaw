@@ -1,26 +1,31 @@
 """
-Tool for generating ordered structures from disordered structures with partial site occupancies.
+Generate multiple ordered candidates from a disordered structure within a chosen supercell.
 
-Takes input structures with fractional site occupancies and generates ordered structures
-by systematically assigning species to partially occupied sites. Structures can be ranked
-by Ewald electrostatic energy or supercell size.
+This tool starts from a structure with partial occupancies, builds a supercell, and uses
+pymatgen's ordering transformation to produce one or more fully ordered candidates. The
+returned candidates can be ranked by electrostatic energy or by size.
 
-NOTE: This tool uses pymatgen's OrderDisorderedStructureTransformation, which does NOT
-perform systematic supercell enumeration. It creates a supercell based on supercell_size
-and then generates ordered structures from the disordered supercell.
+Important scope note:
+    This tool explores orderings inside the user-selected supercell. It is useful for
+    generating several plausible ordered configurations, but it should not be described as a
+    complete search over every possible supercell choice.
 
-Core use cases in inorganic materials discovery:
-  - Building DFT candidate pools for intermediate compositions (e.g., Li_x Na_{1-x} Cl)
-  - Identifying likely ground-state cation orderings in layered oxides, spinels, perovskites
-  - Generating ordered structures from disordered inputs
-  - Exploring different site orderings systematically
+Best for:
+    - Site-specific dopant studies
+    - Small to moderate ordering problems where several configurations should be tested
+    - Building DFT candidate pools for partially occupied inputs
+
+Relationship to the other orderers:
+    - pymatgen_majority_orderer: one compact approximation, no supercell
+    - pymatgen_enumeration_orderer: multiple ordered candidates within a chosen supercell
+    - pymatgen_sqs_orderer: quasirandom ordered supercells for random-alloy behaviour
 """
 
 from typing import Dict, Any, Optional, List, Union, Annotated
 from pydantic import Field
 
 
-def pymatgen_enumeration_generator(
+def pymatgen_enumeration_orderer(
     input_structures: Annotated[
         Union[str, List[str]],
         Field(
@@ -141,37 +146,36 @@ def pymatgen_enumeration_generator(
     ] = "cif"
 ) -> Dict[str, Any]:
     """
-    Generate ordered structures from disordered structures with partial site occupancies.
+    Generate ordered candidates from disordered structures with partial occupancies.
 
-    Uses pymatgen's OrderDisorderedStructureTransformation to create ordered structures
-    by assigning species to partially occupied sites. This does NOT perform systematic
-    supercell enumeration - it only orders the input structure at its current size.
+    The workflow is:
+    1. Parse one or more disordered input structures.
+    2. Expand each structure into the requested supercell.
+    3. Use pymatgen's ordering transformation to generate fully ordered candidates.
+    4. Rank the resulting candidates by Ewald energy, number of sites, or random order.
 
-    The returned structures are fully ordered (no partial occupancies) and ready for direct
-    use in DFT calculations or further processing by pymatgen_perturbation_generator.
-
-    Requirements:
-        - pymatgen must be installed: pip install pymatgen
+    The returned structures are fully ordered and suitable for downstream relaxation,
+    property prediction, or DFT setup.
 
     Returns:
         dict:
-            success             (bool)  Whether enumeration succeeded for at least one structure.
-            count               (int)   Total number of ordered structures generated.
-            structures          (list)  Ordered structures in requested output_format.
-            metadata            (list)  Per-structure information:
+            success             (bool)  Whether at least one ordered candidate was generated.
+            count               (int)   Total number of returned ordered structures.
+            structures          (list)  Ordered structures in the requested output_format.
+            metadata            (list)  Per-structure metadata:
                 index               (int)   Sequential index (1-based).
                 source_structure    (str)   Reduced formula of the input structure.
                 formula             (str)   Reduced formula of this ordered structure.
-                n_sites             (int)   Number of atoms in the supercell.
-                supercell_size      (int)   Supercell multiplier relative to parent cell.
+                n_sites             (int)   Number of sites in the returned structure.
+                supercell_size      (int)   Approximate size multiplier relative to the parent cell.
                 volume              (float) Cell volume in Å³.
                 space_group_number  (int)   Space group number (if determinable).
                 space_group_symbol  (str)   Hermann-Mauguin symbol (if determinable).
-                ewald_energy        (float) Ewald energy in eV (if sort_by='ewald').
-                is_ordered          (bool)  Should always be True for valid results.
+                ewald_energy        (float) Ewald energy in eV when available.
+                is_ordered          (bool)  True for valid returned candidates.
             input_info          (dict)  Summary of the input structures.
-            enumeration_params  (dict)  Parameters used for the enumeration run.
-            message             (str)   Human-readable status message.
+            enumeration_params  (dict)  Parameters used for the run.
+            message             (str)   Human-readable summary.
             warnings            (list)  Any non-fatal warnings generated.
             error               (str)   Error message if success=False.
     """
@@ -184,7 +188,7 @@ def pymatgen_enumeration_generator(
         }
 
     # Validate parameters
-    valid_formats = {"poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -440,14 +444,6 @@ def _append_result(
             from pymatgen.io.cif import CifWriter
             import json
             formatted = json.dumps({"format": "cif", "data": str(CifWriter(ordered_struct))})
-        elif output_format == "ase":
-            # Convert to ASE-compatible format
-            formatted = {
-                "numbers": [site.specie.Z for site in ordered_struct.sites],
-                "positions": [site.coords.tolist() for site in ordered_struct.sites],
-                "cell": ordered_struct.lattice.matrix.tolist(),
-                "pbc": [True, True, True]
-            }
         else:
             warnings.append(f"Unknown output_format '{output_format}' — skipping structure.")
             return

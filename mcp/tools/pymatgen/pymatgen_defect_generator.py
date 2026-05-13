@@ -232,7 +232,7 @@ def pymatgen_defect_generator(
         }
 
     # Validate output_format
-    valid_formats = {"poscar", "cif", "json", "ase"}
+    valid_formats = {"poscar", "cif", "json"}
     if output_format not in valid_formats:
         return {
             "success": False,
@@ -417,14 +417,6 @@ def pymatgen_defect_generator(
                 from pymatgen.io.cif import CifWriter
                 import json
                 return json.dumps({"format": "cif", "data": str(CifWriter(struct))})
-            elif output_format == "ase":
-                # Convert to ASE-compatible format
-                return {
-                    "numbers": [site.specie.Z for site in struct.sites],
-                    "positions": [site.coords.tolist() for site in struct.sites],
-                    "cell": struct.lattice.matrix.tolist(),
-                    "pbc": [True, True, True]
-                }
         except Exception as e:
             return None
 

@@ -98,7 +98,7 @@ def pymatgen_prototype_builder(
             default="cif",
             description="Output format: "
             "'cif' (CIF string, default), 'poscar' (VASP POSCAR string), "
-            "'ase' (ASE-compatible atoms_dict)."
+            "Default: 'cif'."
         )
     ] = "cif"
 ) -> Dict[str, Any]:
@@ -144,6 +144,13 @@ def pymatgen_prototype_builder(
         
         warnings = []
         structures_out = []
+
+        valid_formats = {"poscar", "cif"}
+        if output_format not in valid_formats:
+            return {
+                "success": False,
+                "error": f"Unknown output_format: {output_format}. Use 'poscar' or 'cif'."
+            }
         
         # Parse spacegroup
         try:
@@ -362,18 +369,10 @@ def pymatgen_prototype_builder(
                     from pymatgen.io.cif import CifWriter
                     cif_writer = CifWriter(structure)
                     structure_out = str(cif_writer)
-                elif output_format == "ase":
-                    # Convert to ASE-compatible format
-                    structure_out = {
-                        "numbers": [site.specie.Z for site in structure.sites],
-                        "positions": [site.coords.tolist() for site in structure.sites],
-                        "cell": structure.lattice.matrix.tolist(),
-                        "pbc": [True, True, True]
-                    }
                 else:
                     return {
                         "success": False,
-                        "error": f"Unknown output_format: {output_format}. Use 'dict', 'poscar', 'cif', or 'ase'."
+                        "error": f"Unknown output_format: {output_format}. Use 'poscar' or 'cif'."
                     }
                 
                 structures_out.append({

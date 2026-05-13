@@ -1,5 +1,5 @@
 """
-Tests for pymatgen_sqs_generator tool.
+Tests for pymatgen_sqs_orderer tool.
 
 All tests use small supercell_size and n_mc_steps values for speed.
 Primary fixture: disordered_li_na_cl — a 2-atom Li₀.₅/Na₀.₅ rocksalt.
@@ -7,7 +7,7 @@ Primary fixture: disordered_li_na_cl — a 2-atom Li₀.₅/Na₀.₅ rocksalt.
 
 import json
 import pytest
-from tools.pymatgen.pymatgen_sqs_generator import pymatgen_sqs_generator
+from tools.pymatgen.pymatgen_sqs_orderer import pymatgen_sqs_orderer
 
 
 # Helpers
@@ -27,47 +27,47 @@ class TestBasicSQS:
     """Smoke tests: tool runs without error and returns well-formed output."""
 
     def test_returns_success(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert result["success"] is True
 
     def test_count_matches_n_structures(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=2, seed=0, **FAST
         )
         assert result["count"] == 2
         assert len(result["structures"]) == 2
 
     def test_metadata_length_matches_structures(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=2, seed=0, **FAST
         )
         assert len(result["metadata"]) == len(result["structures"])
 
     def test_structures_are_fully_ordered(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=2, seed=0, **FAST
         )
         for s in result["structures"]:
             assert _is_ordered(s), "SQS output should be a fully ordered structure"
 
     def test_result_has_message(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert "message" in result
         assert isinstance(result["message"], str)
 
     def test_result_has_sqs_params(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert "sqs_params" in result
         assert isinstance(result["sqs_params"], dict)
 
     def test_result_has_input_info(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert "input_info" in result
@@ -92,7 +92,7 @@ class TestMetadataFields:
     }
 
     def test_all_required_keys_present(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         meta = result["metadata"][0]
@@ -100,52 +100,52 @@ class TestMetadataFields:
             assert key in meta, f"Missing metadata key: {key}"
 
     def test_index_is_one_based(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=3, seed=0, **FAST
         )
         indices = [m["index"] for m in result["metadata"]]
         assert 1 in indices
 
     def test_sqs_error_is_nonnegative(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=2, seed=0, **FAST
         )
         for meta in result["metadata"]:
             assert meta["sqs_error"] >= 0.0
 
     def test_n_sites_positive(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert result["metadata"][0]["n_sites"] > 0
 
     def test_backend_is_string(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert isinstance(result["metadata"][0]["backend"], str)
 
     def test_mcsqs_used_is_bool(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert isinstance(result["metadata"][0]["mcsqs_used"], bool)
 
     def test_composition_is_dict(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert isinstance(result["metadata"][0]["composition"], dict)
 
     def test_warren_cowley_is_dict(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         wc = result["metadata"][0]["warren_cowley"]
         assert isinstance(wc, dict)
 
     def test_source_formula_is_string(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert isinstance(result["metadata"][0]["source_formula"], str)
@@ -158,7 +158,7 @@ class TestStoichiometry:
     def test_equal_li_na_count_in_sqs(self, disordered_li_na_cl):
         """50/50 Li/Na input should give equal Li and Na in the SQS cell."""
         from pymatgen.core import Structure
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         s = Structure.from_str(result["structures"][0], fmt="cif")
@@ -172,14 +172,14 @@ class TestStoichiometry:
     def test_n_sites_consistent_with_structure(self, disordered_li_na_cl):
         """metadata n_sites should match the actual atom count."""
         from pymatgen.core import Structure
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         s = Structure.from_str(result["structures"][0], fmt="cif")
         assert result["metadata"][0]["n_sites"] == len(s)
 
     def test_composition_contains_expected_elements(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         comp = result["metadata"][0]["composition"]
@@ -195,7 +195,7 @@ class TestWarrenCowley:
     """Warren-Cowley parameter structure and value sanity."""
 
     def test_wc_has_shell_keys(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         wc = result["metadata"][0]["warren_cowley"]
@@ -203,7 +203,7 @@ class TestWarrenCowley:
 
     def test_wc_values_in_range(self, disordered_li_na_cl):
         """WC parameters α ∈ [-1, 1] by definition."""
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         wc = result["metadata"][0]["warren_cowley"]
@@ -216,12 +216,12 @@ class TestWarrenCowley:
     def test_more_mc_steps_lowers_sqs_error(self, disordered_li_na_cl):
         """Higher n_mc_steps should produce lower or equal SQS error on average
         (not guaranteed per-run, so we use a fixed seed and generous comparison)."""
-        result_few = pymatgen_sqs_generator(
+        result_few = pymatgen_sqs_orderer(
             disordered_li_na_cl,
             n_structures=1, seed=99,
             n_mc_steps=200, n_shells=2, supercell_size=4,
         )
-        result_many = pymatgen_sqs_generator(
+        result_many = pymatgen_sqs_orderer(
             disordered_li_na_cl,
             n_structures=1, seed=99,
             n_mc_steps=10000, n_shells=2, supercell_size=4,
@@ -239,7 +239,7 @@ class TestSortBy:
     """sort_by parameter controls ordering of returned candidates."""
 
     def test_sort_by_sqs_error_ascending(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=3, seed=7, sort_by="sqs_error", **FAST
         )
         errors = [m["sqs_error"] for m in result["metadata"]]
@@ -248,14 +248,14 @@ class TestSortBy:
         )
 
     def test_sort_by_random_returns_results(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=2, seed=7, sort_by="random", **FAST
         )
         assert result["success"] is True
         assert result["count"] == 2
 
     def test_invalid_sort_by_returns_error(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, sort_by="energy", **FAST
         )
         assert result["success"] is False
@@ -268,8 +268,8 @@ class TestReproducibility:
 
     def test_same_seed_same_sqs_error(self, disordered_li_na_cl):
         kw = dict(n_structures=1, seed=42, **FAST)
-        r1 = pymatgen_sqs_generator(disordered_li_na_cl, **kw)
-        r2 = pymatgen_sqs_generator(disordered_li_na_cl, **kw)
+        r1 = pymatgen_sqs_orderer(disordered_li_na_cl, **kw)
+        r2 = pymatgen_sqs_orderer(disordered_li_na_cl, **kw)
         assert r1["metadata"][0]["sqs_error"] == pytest.approx(
             r2["metadata"][0]["sqs_error"], rel=1e-9
         )
@@ -277,8 +277,8 @@ class TestReproducibility:
     def test_same_seed_same_structure(self, disordered_li_na_cl):
         from pymatgen.core import Structure
         kw = dict(n_structures=1, seed=42, **FAST)
-        r1 = pymatgen_sqs_generator(disordered_li_na_cl, **kw)
-        r2 = pymatgen_sqs_generator(disordered_li_na_cl, **kw)
+        r1 = pymatgen_sqs_orderer(disordered_li_na_cl, **kw)
+        r2 = pymatgen_sqs_orderer(disordered_li_na_cl, **kw)
         s1 = Structure.from_str(r1["structures"][0], fmt="cif")
         s2 = Structure.from_str(r2["structures"][0], fmt="cif")
         # Same number of sites and same species at each site
@@ -289,10 +289,10 @@ class TestReproducibility:
 
     def test_different_seeds_may_differ(self, disordered_li_na_cl):
         """Two different seeds should not be guaranteed equal (probabilistic check)."""
-        r1 = pymatgen_sqs_generator(
+        r1 = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=1, **FAST
         )
-        r2 = pymatgen_sqs_generator(
+        r2 = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=9999, **FAST
         )
         # Both should succeed
@@ -305,12 +305,12 @@ class TestSupercellControl:
     """supercell_size and supercell_matrix control the SQS cell size."""
 
     def test_larger_supercell_size_gives_more_atoms(self, disordered_li_na_cl):
-        r_small = pymatgen_sqs_generator(
+        r_small = pymatgen_sqs_orderer(
             disordered_li_na_cl,
             n_structures=1, seed=0,
             supercell_size=2, n_mc_steps=200, n_shells=2,
         )
-        r_large = pymatgen_sqs_generator(
+        r_large = pymatgen_sqs_orderer(
             disordered_li_na_cl,
             n_structures=1, seed=0,
             supercell_size=8, n_mc_steps=200, n_shells=2,
@@ -318,7 +318,7 @@ class TestSupercellControl:
         assert r_small["metadata"][0]["n_sites"] <= r_large["metadata"][0]["n_sites"]
 
     def test_explicit_supercell_matrix_diagonal(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl,
             n_structures=1, seed=0,
             supercell_matrix=[2, 2, 2],
@@ -329,7 +329,7 @@ class TestSupercellControl:
         assert result["metadata"][0]["n_sites"] == 16
 
     def test_explicit_supercell_matrix_3x3(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl,
             n_structures=1, seed=0,
             supercell_matrix=[[2, 0, 0], [0, 2, 0], [0, 0, 2]],
@@ -339,7 +339,7 @@ class TestSupercellControl:
         assert result["metadata"][0]["n_sites"] == 16
 
     def test_invalid_supercell_matrix_returns_error(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl,
             n_structures=1,
             supercell_matrix=[0, 2, 2],
@@ -353,13 +353,13 @@ class TestOutputFormats:
     """Each output_format produces the expected data type."""
 
     def test_cif_is_default_format(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0,
         )
         assert isinstance(result["structures"][0], str)
 
     def test_poscar_format_is_string(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0,
             output_format="poscar", **FAST
         )
@@ -367,7 +367,7 @@ class TestOutputFormats:
         assert "POSCAR" in result["structures"][0] or result["structures"][0].strip() != ""
 
     def test_cif_format_is_string(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0,
             output_format="cif", **FAST
         )
@@ -376,7 +376,7 @@ class TestOutputFormats:
         assert "_cell_length_a" in s or "loop_" in s
 
     def test_json_format_is_json_string(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0,
             output_format="json", **FAST
         )
@@ -387,14 +387,14 @@ class TestOutputFormats:
 
     def test_dict_format_is_round_trippable(self, disordered_li_na_cl):
         from pymatgen.core import Structure
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         s = Structure.from_str(result["structures"][0], fmt="cif")
         assert len(s) > 0
 
     def test_invalid_output_format_returns_error(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1,
             output_format="xyz", **FAST
         )
@@ -407,7 +407,7 @@ class TestMultipleInputs:
     """Tool accepts a list of input structures and processes each."""
 
     def test_list_of_two_inputs_produces_more_structures(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             [disordered_li_na_cl, disordered_li_na_cl],
             n_structures=1, seed=0, **FAST
         )
@@ -416,16 +416,16 @@ class TestMultipleInputs:
         assert result["count"] == 2
 
     def test_single_dict_input_accepted(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert result["success"] is True
 
     def test_list_of_one_same_as_single(self, disordered_li_na_cl):
-        r_single = pymatgen_sqs_generator(
+        r_single = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=42, **FAST
         )
-        r_list = pymatgen_sqs_generator(
+        r_list = pymatgen_sqs_orderer(
             [disordered_li_na_cl], n_structures=1, seed=42, **FAST
         )
         assert r_single["count"] == r_list["count"]
@@ -439,7 +439,7 @@ class TestShellWeights:
     """Custom shell_weights parameter validation."""
 
     def test_custom_shell_weights_accepted(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0,
             n_shells=2, shell_weights=[2.0, 1.0],
             n_mc_steps=200, supercell_size=4,
@@ -447,7 +447,7 @@ class TestShellWeights:
         assert result["success"] is True
 
     def test_wrong_length_shell_weights_returns_error(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1,
             n_shells=3, shell_weights=[1.0, 0.5],  # length 2 ≠ 3
             n_mc_steps=200, supercell_size=4,
@@ -456,7 +456,7 @@ class TestShellWeights:
         assert "shell_weights" in result["error"].lower()
 
     def test_negative_shell_weight_returns_error(self, disordered_li_na_cl):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1,
             n_shells=2, shell_weights=[1.0, -0.5],
             n_mc_steps=200, supercell_size=4,
@@ -470,20 +470,20 @@ class TestErrorHandling:
 
     def test_ordered_structure_returns_error(self, simple_nacl_structure):
         """Fully ordered structure has no mixing sites — should fail gracefully."""
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             simple_nacl_structure, n_structures=1, **FAST
         )
         assert result["success"] is False
 
     def test_invalid_input_type_returns_error(self):
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             12345, n_structures=1, **FAST  # type: ignore
         )
         assert result["success"] is False
 
     def test_invalid_n_shells_boundary(self, disordered_li_na_cl):
         """n_shells must be >= 1; 0 should be rejected by Pydantic or the tool."""
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1,
             n_shells=0, n_mc_steps=200, supercell_size=4,
         )
@@ -501,7 +501,7 @@ class TestPipelineIntegration:
         """SQS structure (dict) can be passed directly to perturbation_generator."""
         from tools.pymatgen.pymatgen_perturbation_generator import pymatgen_perturbation_generator
 
-        sqs_result = pymatgen_sqs_generator(
+        sqs_result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         assert sqs_result["success"] is True
@@ -518,7 +518,7 @@ class TestPipelineIntegration:
     def test_sqs_output_is_pymatgen_compatible(self, disordered_li_na_cl):
         """SQS CIF output round-trips cleanly through pymatgen Structure."""
         from pymatgen.core import Structure
-        result = pymatgen_sqs_generator(
+        result = pymatgen_sqs_orderer(
             disordered_li_na_cl, n_structures=1, seed=0, **FAST
         )
         s = Structure.from_str(result["structures"][0], fmt="cif")

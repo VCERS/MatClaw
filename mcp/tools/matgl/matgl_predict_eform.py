@@ -29,14 +29,13 @@ def matgl_predict_eform(
     model: Annotated[
         str,
         Field(
-            default="MEGNet-MP-2018.6.1-Eform",
+            default="MEGNet-Eform-MP-2018.6.1",
             description=(
-                "ML model to use for formation energy prediction. "
-                "Defaults to MEGNet-MP-2018.6.1-Eform, a legacy DGL model saved in matgl github. "
+                "ML model to use for formation energy prediction. Defaults to MEGNet-Eform-MP-2018.6.1. "
                 "For the full list of available models, run `matgl.get_available_pretrained_models()`"
             )
         )
-    ] = "MEGNet-MP-2018.6.1-Eform",
+    ] = "MEGNet-Eform-MP-2018.6.1",
 ) -> Dict[str, Any]:
     """
     Predict formation energy of a crystal structure using ML models.
@@ -56,8 +55,8 @@ def matgl_predict_eform(
         4. Pre-DFT screening: Identify promising candidates before expensive calculations
     
     Model Selection:
-        - MEGNet-MP-2018.6.1-Eform: More accurate, recommended for most cases
-        - MEGNet-MP-2018.6.1-Eform: Faster predictions, good for very large screenings
+        - MEGNet-Eform-MP-2018.6.1: More accurate, recommended for most cases
+        - MEGNet-Eform-MP-2018.6.1: Faster predictions, good for very large screenings
     
     Typical Formation Energy Ranges:
         - Highly stable compounds: -3 to -1 eV/atom (e.g., oxides, nitrides)
@@ -72,11 +71,11 @@ def matgl_predict_eform(
     Returns:
         Dictionary containing:
             success                     (bool)      Whether prediction succeeded
-            formation_energy_eV_per_atom (float)   Predicted formation energy (eV/atom)
+            formation_energy_per_atom (float)   Predicted formation energy (eV/atom)
             model_used                  (str)       Model name used for prediction
             formula                     (str)       Chemical formula of the structure
             num_sites                   (int)       Number of atoms in the structure
-            total_formation_energy_eV   (float)     Total formation energy for the cell (eV)
+            total_formation_energy   (float)     Total formation energy for the cell (eV)
             structure_info              (dict)      Basic info about the structure
             interpretation              (str)       Human-readable stability assessment
             error                       (str)       Error message if prediction failed
@@ -92,86 +91,6 @@ def matgl_predict_eform(
             "error": f"Failed to import required libraries: {e}. "
                     f"Install with: pip install matgl pymatgen"
         }
-    
-    # Check if DGL is available (required for formation energy models)
-    try:
-        import dgl
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"DGL backend not available: {e}. "
-                    f"Formation energy prediction requires DGL. "
-                    f"Install with: pip install dgl -f https://data.dgl.ai/wheels/torch-2.0/repo.html"
-        }
-    
-    # Matgl doesn't support switching backends after loading a model, so subprocess is required to switch backends
-    # Check for backend conflict - if PYG backend already loaded, use subprocess
-    import os
-    import matgl.config
-    if matgl.config.BACKEND == "PYG" and not os.environ.get("MATGL_SUBPROCESS"):
-        # Backend conflict detected - PYG already loaded, need DGL
-        # Run this same function in subprocess with fresh DGL backend
-        import subprocess
-        import json
-        import sys
-        
-        # Prepare the Python code to execute in subprocess
-        mcp_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        code = f"""
-import os
-import sys
-
-# Add MCP directory to path for imports
-sys.path.insert(0, {repr(mcp_dir)})
-
-os.environ['MATGL_SUBPROCESS'] = '1'  # Flag to skip backend check
-from tools.matgl.matgl_predict_eform import matgl_predict_eform
-import json
-
-result = matgl_predict_eform(
-    input_structure={repr(input_structure)},
-    model={repr(model)}
-)
-
-print(json.dumps(result))
-"""
-        
-        # Run prediction in subprocess using same Python executable
-        try:
-            result = subprocess.run(
-                [sys.executable, "-c", code],
-                capture_output=True,
-                text=True,
-                timeout=300,  # 5 minute timeout
-                cwd=mcp_dir
-            )
-            
-            if result.returncode == 0:
-                try:
-                    return json.loads(result.stdout)
-                except json.JSONDecodeError as e:
-                    return {
-                        "success": False,
-                        "error": f"Failed to parse subprocess output: {e}",
-                        "stdout": result.stdout,
-                        "stderr": result.stderr
-                    }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Subprocess prediction failed: {result.stderr}",
-                    "stdout": result.stdout
-                }
-        except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "error": "Prediction timed out after 5 minutes"
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Subprocess execution failed: {e}"
-            }
     
     try:
         # Parse input structure
@@ -196,28 +115,15 @@ print(json.dumps(result))
         formula = structure.composition.reduced_formula
         num_sites = len(structure)
         
-        # Set backend for MatGL (required for property prediction models)
-        matgl.set_backend('DGL')
-        
         # Load the formation energy prediction model
-        # Check if it's a legacy model that needs special loading
         try:
-            from utils.model_downloader import LEGACY_MATGL_MODELS, load_legacy_matgl_model
-            
-            # Check if we're in a subprocess (downloads should be quiet to avoid stdout pollution)
-            in_subprocess = os.environ.get("MATGL_SUBPROCESS") == "1"
-            
-            if model in LEGACY_MATGL_MODELS:
-                # Use legacy model loader
-                ml_model = load_legacy_matgl_model(model, verbose=not in_subprocess)
-            else:
-                # Use standard matgl loader
-                ml_model = matgl.load_model(model)
+            ml_model = matgl.load_model(model)
         except Exception as e:
             return {
                 "success": False,
                 "error": f"Failed to load model '{model}': {e}. "
-                        f"Check if model is available using `matgl.get_available_pretrained_models()"
+                        f"Check if model is available using `matgl.get_available_pretrained_models()`"
+
             }
         
         # Predict formation energy
@@ -251,8 +157,8 @@ print(json.dumps(result))
         # Build response
         response = {
             "success": True,
-            "formation_energy_eV_per_atom": round(eform_per_atom, 6),
-            "total_formation_energy_eV": round(total_eform, 6),
+            "formation_energy_per_atom": round(eform_per_atom, 6),
+            "total_formation_energy": round(total_eform, 6),
             "model_used": model,
             "formula": formula,
             "num_sites": num_sites,

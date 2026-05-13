@@ -208,16 +208,6 @@ def matcalc_calc_neb(
             "error": f"Failed to parse images: {e}",
         }
     
-    # Set appropriate backend based on calculator type
-    try:
-        import matgl
-        if any(model in calculator.upper() for model in ["M3GNET", "CHGNET"]):
-            matgl.set_backend('DGL')
-        else:
-            matgl.set_backend('PYG')
-    except Exception:
-        pass  # Backend setting is optional
-    
     # Load calculator
     try:
         calc = mtc.load_fp(calculator)

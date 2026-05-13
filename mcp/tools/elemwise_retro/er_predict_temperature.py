@@ -16,18 +16,6 @@ import numpy as np
 import torch
 from pymatgen.core import Composition
 
-# torch_scatter is an optional dependency - check if available
-try:
-    from torch_scatter import scatter_mean
-except ImportError:
-    raise ImportError(
-        "torch_scatter is required for elemwise_retro tools but not installed.\n"
-        "Install it with one of these commands:\n"
-        "  For GLIBC >= 2.32: pip install torch-scatter -f https://data.pyg.org/whl/torch-2.10.0+cpu.html\n"
-        "  For GLIBC <  2.32: conda install pytorch-scatter -c pyg\n"
-        "See requirements.txt for more details."
-    )
-
 # Import model downloader for automatic model downloads
 from utils import model_downloader
 
