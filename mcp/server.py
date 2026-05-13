@@ -27,9 +27,6 @@ from tools.ase import (
     ase_get_atoms,
     ase_list_databases
 )
-from tools.composition_generation import (
-    composition_enumerator,
-)
 from tools.pymatgen import (
     pymatgen_prototype_builder,
     pymatgen_substitution_generator,
@@ -137,9 +134,6 @@ mcp.tool()(ase_store_result)
 mcp.tool()(ase_query)
 mcp.tool()(ase_get_atoms)
 mcp.tool()(ase_list_databases)
-
-# Composition generation tools
-mcp.tool()(composition_enumerator)
 
 # Pymatgen structure generation tools
 mcp.tool()(pymatgen_prototype_builder)

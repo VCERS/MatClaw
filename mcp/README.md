@@ -157,12 +157,6 @@ python -m pytest tests/pymatgen/test_enumeration_orderer.py -v
 | `ase_get_atoms` | Retrieve full Atoms objects from the database |
 | `ase_list_databases` | List and summarize ASE .db files in a directory |
 
-### Composition Generation
-
-| Tool | Description |
-|---|---|
-| `composition_enumerator` | Enumerate charge-balanced compositions from element lists for composition-space exploration |
-
 ### Pymatgen Candidate Generation
 
 | Tool | Description |

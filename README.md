@@ -56,7 +56,6 @@ MatClaw follows a layered architecture:
 | **ASE** | Database management (`connect_or_create_db`, `store_result`, `query`, `get_atoms`, `list_databases`) |
 | **Materials Project** | Material search, property data, synthesis recipes, detailed property data (`search_materials`, `get_material_properties`, `get_detailed_property_data`, `search_recipe`) |
 | **PubChem** | Chemical compound search, properties, and safety data (`search_compounds`, `get_compound_properties`, `get_safety_data`) |
-| **Composition Generation** | Enumerate charge-balanced chemical compositions from element lists with oxidation states (`composition_enumerator`) |
 | **Pymatgen** | Structure generation: substitution, enumeration, defects, SQS, ion exchange, perturbation, prototypes (7 tools) |
 | **Analysis** | Structure validation, composition analysis, structure analysis, stability analysis, structure fingerprinting (5 tools) |
 | **MatGL** | MatGL predictions for structure relaxation, band gap, and formation energy (`matgl_relax_structure`, `matgl_predict_bandgap`, `matgl_predict_eform`) |
