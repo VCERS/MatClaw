@@ -35,6 +35,7 @@ from tools.pymatgen import (
     pymatgen_perturbation_generator,
     pymatgen_defect_generator,
     pymatgen_disorder_generator,
+    pymatgen_structure_editor,
     pymatgen_majority_orderer,
     pymatgen_enumeration_orderer,
     pymatgen_sqs_orderer,
@@ -143,6 +144,7 @@ mcp.tool()(pymatgen_ion_exchange_generator)
 mcp.tool()(pymatgen_perturbation_generator)
 mcp.tool()(pymatgen_defect_generator)
 mcp.tool()(pymatgen_disorder_generator)
+mcp.tool()(pymatgen_structure_editor)
 mcp.tool()(pymatgen_majority_orderer)
 mcp.tool()(pymatgen_enumeration_orderer)
 mcp.tool()(pymatgen_sqs_orderer)
