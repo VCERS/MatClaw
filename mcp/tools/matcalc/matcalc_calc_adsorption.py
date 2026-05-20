@@ -21,14 +21,14 @@ from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
 
 def matcalc_calc_adsorption(
-    slab_structure: Annotated[
+    clean_slab_structure: Annotated[
         str,
         Field(
             description=(
-                "Slab structure as a CIF or POSCAR string. "
+                "Clean slab structure as a CIF or POSCAR string. "
                 "Should already be a slab with vacuum, or use "
                 "matcalc_calc_surface to generate one from bulk. The adsorbate will be "
-                "placed on this slab surface."
+                "placed on this slab surface in generated-site mode."
             )
         )
     ],
@@ -36,12 +36,38 @@ def matcalc_calc_adsorption(
         Union[str, List[float]],
         Field(
             description=(
-                "Adsorbate to place on the slab. Can be:\n"
+                "Adsorbate identity or structure. In generated-site mode this is placed on "
+                "the clean slab. In custom mode this is used to validate the extracted "
+                "adsorbate and define the isolated adsorbate reference. Can be:\n"
                 "- String: Molecular formula like 'CO', 'H2O', 'CH4', 'O', 'H' (will use pymatgen to build)\n"
                 "- List of floats [x, y, z]: Single atom position (will place at this height above surface)"
             )
         )
     ],
+    adslab_structure: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description=(
+                "Optional adsorbate-added slab structure as a CIF or POSCAR string. "
+                "Provide this together with adsorbate_indices to use a custom adsorption "
+                "geometry instead of generating one from adsorption_site. When using "
+                "adsorbate_indices, POSCAR is preferred because it preserves atom ordering "
+                "more reliably than CIF round-trips."
+            )
+        )
+    ] = None,
+    adsorbate_indices: Annotated[
+        Optional[List[int]],
+        Field(
+            default=None,
+            description=(
+                "Optional zero-based atom indices in adslab_structure that belong to the adsorbate. "
+                "Required when adslab_structure is provided. Indices are interpreted after "
+                "parsing the supplied structure, so use POSCAR if you need stable ordering."
+            )
+        )
+    ] = None,
     adsorption_site: Annotated[
         str,
         Field(
@@ -152,8 +178,10 @@ def matcalc_calc_adsorption(
     E_ads = E_adslab - E_slab - E_adsorbate
     
     Args:
-        slab_structure: Slab surface structure (dict or CIF/POSCAR string)
+        clean_slab_structure: Clean slab surface structure (CIF/POSCAR string)
+        adslab_structure: Optional user-supplied adsorbate+slab structure
         adsorbate: Molecule/atom to adsorb (formula, coords, or Molecule dict)
+        adsorbate_indices: Optional zero-based atom indices identifying the adsorbate in adslab_structure
         adsorption_site: Type of site ('ontop', 'bridge', 'hollow', 'all')
         distance: Initial adsorbate-surface distance in Angstroms
         calculator: Force field or ML potential to use
@@ -174,7 +202,9 @@ def matcalc_calc_adsorption(
         - adslab_structure: Final adslab structure as CIF string
         - slab_structure: Final slab structure as CIF string
         - adsorbate_structure: Final adsorbate structure as XYZ string
-        - adsorption_site: Site type used
+        - adsorption_site: Site type used, or 'custom' when adslab_structure is supplied
+        - adsorption_mode: 'generated' or 'custom'
+        - adsorbate_indices: Adsorbate indices used in custom mode
         - num_slab_atoms: Number of atoms in slab
         - num_adsorbate_atoms: Number of atoms in adsorbate
         
@@ -183,69 +213,107 @@ def matcalc_calc_adsorption(
         RuntimeError: If adsorption calculation fails
     """
     
-    # Parse slab structure
+    # Parse clean slab structure
     try:
-        slab = _parse_structure(slab_structure)
+        slab = _parse_structure(clean_slab_structure)
     except Exception as e:
         return {
-            "error": f"Failed to parse slab structure: {str(e)}",
-            "details": "Ensure slab_structure is a valid Structure dict or CIF/POSCAR string."
+            "error": f"Failed to parse clean slab structure: {str(e)}",
+            "details": "Ensure clean_slab_structure is a valid CIF or POSCAR string."
         }
-    
-    # Parse adsorbate
+
+    custom_mode = adslab_structure is not None or adsorbate_indices is not None
+    if custom_mode and (adslab_structure is None or adsorbate_indices is None):
+        return {
+            "error": "Custom adsorption mode requires both adslab_structure and adsorbate_indices",
+            "details": "Provide adslab_structure together with zero-based adsorbate_indices, or omit both to use adsorption_site generation."
+        }
+
+    # Parse adsorbate reference
     try:
-        adsorbate_mol = _parse_adsorbate(adsorbate)
+        adsorbate_ref = _parse_adsorbate(adsorbate)
     except Exception as e:
         return {
             "error": f"Failed to parse adsorbate: {str(e)}",
             "details": "Ensure adsorbate is a molecular formula, coords, or Molecule dict."
         }
-    
-    # Find adsorption sites and place adsorbate
-    try:
-        asf = AdsorbateSiteFinder(slab)
-        
-        # Map site type to find_args
-        if adsorption_site == "all":
-            # Try all sites and pick best later
-            ads_structs = asf.generate_adsorption_structures(
-                adsorbate_mol,
-                repeat=[1, 1, 1],
-                find_args={'distance': distance}
-            )
-        else:
-            # Generate structures for specific site type
-            ads_structs = asf.generate_adsorption_structures(
-                adsorbate_mol,
-                repeat=[1, 1, 1],
-                find_args={'distance': distance}
-            )
-            # Filter by site type if possible
-            # Note: pymatgen's AdsorbateSiteFinder includes site info in structure properties
-            filtered = []
-            for ads_struct in ads_structs:
-                site_props = getattr(ads_struct, 'properties', {})
-                site_name = site_props.get('adsorption_site', '').lower()
-                if adsorption_site.lower() in site_name or not site_name:
-                    filtered.append(ads_struct)
-            ads_structs = filtered if filtered else ads_structs
-        
-        if not ads_structs:
+
+    adsorption_mode = "custom" if custom_mode else "generated"
+    adsorption_site_used = "custom" if custom_mode else adsorption_site
+
+    if custom_mode:
+        try:
+            adslab = _parse_structure(adslab_structure)
+        except Exception as e:
             return {
-                "error": "No valid adsorption structures generated",
-                "details": f"Could not place adsorbate at '{adsorption_site}' sites with distance={distance} Å",
-                "adsorption_site": adsorption_site
+                "error": f"Failed to parse adslab structure: {str(e)}",
+                "details": "Ensure adslab_structure is a valid CIF or POSCAR string.",
+                "adsorption_mode": adsorption_mode,
             }
-        
-        # Use the first structure (or we can try all and pick best)
-        adslab = ads_structs[0]
-        
-    except Exception as e:
-        return {
-            "error": f"Failed to generate adsorption structure: {str(e)}",
-            "details": "Could not place adsorbate on slab surface.",
-            "adsorption_site": adsorption_site
-        }
+
+        try:
+            adsorbate_mol = _extract_adsorbate_from_structure(adslab, adsorbate_indices)
+        except Exception as e:
+            return {
+                "error": f"Failed to extract adsorbate from adslab structure: {str(e)}",
+                "details": "Ensure adsorbate_indices are valid zero-based atom indices in adslab_structure.",
+                "adsorption_mode": adsorption_mode,
+            }
+
+        if adsorbate_mol.composition.alphabetical_formula != adsorbate_ref.composition.alphabetical_formula:
+            return {
+                "error": "Adsorbate identity does not match extracted adsorbate indices",
+                "details": (
+                    f"Extracted adsorbate formula is {adsorbate_mol.composition.alphabetical_formula}, "
+                    f"but parsed adsorbate formula is {adsorbate_ref.composition.alphabetical_formula}."
+                ),
+                "adsorption_mode": adsorption_mode,
+                "adsorbate_indices": adsorbate_indices,
+            }
+    else:
+        adsorbate_mol = adsorbate_ref
+
+        # Find adsorption sites and place adsorbate
+        try:
+            asf = AdsorbateSiteFinder(slab)
+
+            if adsorption_site == "all":
+                ads_structs = asf.generate_adsorption_structures(
+                    adsorbate_mol,
+                    repeat=[1, 1, 1],
+                    find_args={'distance': distance}
+                )
+            else:
+                ads_structs = asf.generate_adsorption_structures(
+                    adsorbate_mol,
+                    repeat=[1, 1, 1],
+                    find_args={'distance': distance}
+                )
+                filtered = []
+                for ads_struct in ads_structs:
+                    site_props = getattr(ads_struct, 'properties', {})
+                    site_name = site_props.get('adsorption_site', '').lower()
+                    if adsorption_site.lower() in site_name or not site_name:
+                        filtered.append(ads_struct)
+                ads_structs = filtered if filtered else ads_structs
+
+            if not ads_structs:
+                return {
+                    "error": "No valid adsorption structures generated",
+                    "details": f"Could not place adsorbate at '{adsorption_site}' sites with distance={distance} Å",
+                    "adsorption_site": adsorption_site,
+                    "adsorption_mode": adsorption_mode,
+                }
+
+            adslab = ads_structs[0]
+
+        except Exception as e:
+            return {
+                "error": f"Failed to generate adsorption structure: {str(e)}",
+                "details": "Could not place adsorbate on slab surface.",
+                "adsorption_site": adsorption_site,
+                "adsorption_mode": adsorption_mode,
+            }
     
     # Load calculator
     try:
@@ -303,9 +371,11 @@ def matcalc_calc_adsorption(
             "slab_energy_per_atom": float(results["slab_energy_per_atom"]),
             "energy_units": "eV",
             "adslab_structure": str(CifWriter(results["final_adslab"])),
-            "slab_structure": str(CifWriter(results["final_slab"])),
+            "clean_slab_structure": str(CifWriter(results["final_slab"])),
             "adsorbate_structure": str(XYZ(results["final_adsorbate"])),
-            "adsorption_site": adsorption_site,
+            "adsorption_site": adsorption_site_used,
+            "adsorption_mode": adsorption_mode,
+            "adsorbate_indices": adsorbate_indices,
             "distance": distance,
             "num_slab_atoms": len(slab),
             "num_adsorbate_atoms": len(adsorbate_mol),
@@ -413,4 +483,35 @@ def _parse_adsorbate(adsorbate: Union[str, List[float], Dict[str, Any]]) -> Mole
             
     else:
         raise ValueError(f"adsorbate must be str or list, got {type(adsorbate)}")
+
+
+def _extract_adsorbate_from_structure(adslab: Structure, adsorbate_indices: List[int]) -> Molecule:
+    """
+    Build an adsorbate molecule from explicit indices in an adsorbate+slab structure.
+
+    Args:
+        adslab: Adsorbate+slab structure
+        adsorbate_indices: Zero-based indices belonging to the adsorbate
+
+    Returns:
+        pymatgen Molecule object using the extracted cartesian coordinates
+
+    Raises:
+        ValueError: If indices are invalid or empty
+    """
+    if not adsorbate_indices:
+        raise ValueError("adsorbate_indices cannot be empty")
+
+    if len(set(adsorbate_indices)) != len(adsorbate_indices):
+        raise ValueError("adsorbate_indices must be unique")
+
+    num_sites = len(adslab)
+    invalid_indices = [index for index in adsorbate_indices if index < 0 or index >= num_sites]
+    if invalid_indices:
+        raise ValueError(f"indices out of range for structure with {num_sites} sites: {invalid_indices}")
+
+    sorted_indices = sorted(adsorbate_indices)
+    species = [str(adslab[index].specie) for index in sorted_indices]
+    coords = [adslab[index].coords for index in sorted_indices]
+    return Molecule(species, coords)
 
