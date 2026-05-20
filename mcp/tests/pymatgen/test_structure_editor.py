@@ -19,7 +19,7 @@ class TestRemoveSites:
             input_structures=simple_lifep04_structure,
             operations=[
                 {
-                    "op": "remove_sites",
+                    "type": "remove_sites",
                     "selection": {
                         "mode": "index",
                         "indices": [6, 7],
@@ -37,7 +37,7 @@ class TestRemoveSites:
         assert len(edited) == 8
 
         op_meta = result["metadata"][0]["operations_applied"][0]
-        assert op_meta["op"] == "remove_sites"
+        assert op_meta["type"] == "remove_sites"
         assert op_meta["n_sites_removed"] == 2
         assert [s["site_index_original"] for s in op_meta["sites_removed"]] == [6, 7]
 
@@ -48,7 +48,7 @@ class TestRemoveSites:
             input_structures=simple_nacl_structure,
             operations=[
                 {
-                    "op": "remove_sites",
+                    "type": "remove_sites",
                     "selection": {
                         "mode": "nearest_to_coords",
                         "coords": [[0.02, 0.01, 0.0]],
@@ -68,7 +68,7 @@ class TestRemoveSites:
 
 
 class TestReplaceAndInsert:
-    """Tests for replace_sites and insert_site operations."""
+    """Tests for replace_sites and insert_sites operations."""
 
     def test_replace_sites_by_index(self, simple_nacl_structure):
         from pymatgen.core import Structure
@@ -77,7 +77,7 @@ class TestReplaceAndInsert:
             input_structures=simple_nacl_structure,
             operations=[
                 {
-                    "op": "replace_sites",
+                    "type": "replace_sites",
                     "selection": {
                         "mode": "index",
                         "indices": [0],
@@ -100,16 +100,20 @@ class TestReplaceAndInsert:
         assert op_meta["sites_replaced"][0]["old_species"] == "Na"
         assert op_meta["sites_replaced"][0]["new_species"] == "K"
 
-    def test_insert_site(self, simple_nacl_structure):
+    def test_insert_sites(self, simple_nacl_structure):
         parsed = json.loads(
             pymatgen_structure_editor(
                 input_structures=simple_nacl_structure,
                 operations=[
                     {
-                        "op": "insert_site",
-                        "species": "Li",
-                        "coords": [0.25, 0.25, 0.25],
-                        "coords_are_fractional": True,
+                        "type": "insert_sites",
+                        "sites": [
+                            {
+                                "species": "Li",
+                                "coords": [0.25, 0.25, 0.25],
+                                "coords_are_fractional": True,
+                            }
+                        ],
                         "label": "Li_interstitial",
                     }
                 ],
@@ -120,6 +124,39 @@ class TestReplaceAndInsert:
         assert parsed["@class"] == "Structure"
         assert len(parsed["sites"]) == 3
 
+    def test_insert_sites_multiple(self, simple_nacl_structure):
+        result = pymatgen_structure_editor(
+            input_structures=simple_nacl_structure,
+            operations=[
+                {
+                    "type": "insert_sites",
+                    "sites": [
+                        {
+                            "species": "Li",
+                            "coords": [0.25, 0.25, 0.25],
+                            "coords_are_fractional": True,
+                        },
+                        {
+                            "species": "Li",
+                            "coords": [0.75, 0.75, 0.75],
+                            "coords_are_fractional": True,
+                        },
+                    ],
+                    "label": "two_Li_interstitials",
+                }
+            ],
+            output_format="json",
+        )
+
+        assert result["success"] is True
+        parsed = json.loads(result["structures"][0])
+        assert len(parsed["sites"]) == 4
+
+        op_meta = result["metadata"][0]["operations_applied"][0]
+        assert op_meta["type"] == "insert_sites"
+        assert op_meta["n_sites_inserted"] == 2
+        assert [site["species"] for site in op_meta["sites_inserted"]] == ["Li", "Li"]
+
 
 class TestValidation:
     """Tests for error handling and validation."""
@@ -129,7 +166,7 @@ class TestValidation:
             input_structures=simple_nacl_structure,
             operations=[
                 {
-                    "op": "remove_sites",
+                    "type": "remove_sites",
                     "selection": {
                         "mode": "nearest_to_coords",
                         "coords": [[0.2, 0.2, 0.2]],

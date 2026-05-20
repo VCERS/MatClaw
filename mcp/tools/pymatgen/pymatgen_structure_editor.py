@@ -26,7 +26,7 @@ def pymatgen_structure_editor(
         Field(
             description=(
                 "Ordered list of edit operations to apply. Supported operations: "
-                "remove_sites, replace_sites, insert_site. "
+                "remove_sites, replace_sites, insert_sites. "
                 "Selection modes for remove/replace: index, nearest_to_coords."
             )
         )
@@ -97,24 +97,28 @@ def pymatgen_structure_editor(
     --------------------
     remove_sites:
         {
-            "op": "remove_sites",
+            "type": "remove_sites",
             "selection": {"mode": "index", "indices": [1, 2]},
             "label": "divacancy"
         }
 
     replace_sites:
         {
-            "op": "replace_sites",
+            "type": "replace_sites",
             "selection": {"mode": "nearest_to_coords", "coords": [[0, 0, 0]]},
             "new_species": "Na"
         }
 
-    insert_site:
+    insert_sites:
         {
-            "op": "insert_site",
-            "species": "Li",
-            "coords": [0.25, 0.25, 0.25],
-            "coords_are_fractional": True
+            "type": "insert_sites",
+            "sites": [
+                {
+                    "species": "Li",
+                    "coords": [0.25, 0.25, 0.25],
+                    "coords_are_fractional": True
+                }
+            ]
         }
 
     Returns
@@ -283,7 +287,7 @@ def pymatgen_structure_editor(
         "operations": [
             {
                 "index": i + 1,
-                "op": op.get("op"),
+                "type": op.get("type"),
                 "label": op.get("label")
             }
             for i, op in enumerate(operations)
@@ -307,7 +311,7 @@ def pymatgen_structure_editor(
             for op_idx, operation in enumerate(operations):
                 if not isinstance(operation, dict):
                     raise ValueError(f"Operation {op_idx + 1} must be a dictionary.")
-                op_name = operation.get("op")
+                op_name = operation.get("type")
                 label = operation.get("label")
 
                 if op_name == "remove_sites":
@@ -327,7 +331,7 @@ def pymatgen_structure_editor(
                         site_records.pop(idx)
                     removed_sites.reverse()
                     operation_log.append({
-                        "op": op_name,
+                        "type": op_name,
                         "label": label,
                         "n_sites_removed": len(removed_sites),
                         "sites_removed": removed_sites,
@@ -354,45 +358,62 @@ def pymatgen_structure_editor(
                             "cart_coords": list(working[idx].coords),
                         })
                     operation_log.append({
-                        "op": op_name,
+                        "type": op_name,
                         "label": label,
                         "n_sites_replaced": len(replaced_sites),
                         "sites_replaced": replaced_sites,
                     })
 
-                elif op_name == "insert_site":
-                    species = operation.get("species")
-                    coords = operation.get("coords")
-                    coords_are_fractional = bool(operation.get("coords_are_fractional", False))
-                    properties = operation.get("properties")
-                    if not isinstance(species, str) or not species:
-                        raise ValueError("insert_site requires a non-empty 'species' string.")
-                    if not (isinstance(coords, list) and len(coords) == 3):
-                        raise ValueError("insert_site requires 'coords' as a 3-element list.")
+                elif op_name == "insert_sites":
+                    sites = operation.get("sites")
+                    if not isinstance(sites, list) or not sites:
+                        raise ValueError("insert_sites requires 'sites' as a non-empty list.")
 
-                    working.append(species, coords, coords_are_cartesian=not coords_are_fractional, properties=properties)
-                    inserted_idx = len(working) - 1
-                    inserted_site = working[inserted_idx]
-                    site_records.append({
-                        "original_index": None,
-                        "original_species": None,
-                        "original_frac_coords": None,
-                        "original_cart_coords": None,
-                    })
-                    operation_log.append({
-                        "op": op_name,
-                        "label": label,
-                        "inserted_site": {
+                    inserted_sites = []
+                    for site_spec in sites:
+                        if not isinstance(site_spec, dict):
+                            raise ValueError("Each insert_sites entry must be a dictionary.")
+
+                        species = site_spec.get("species")
+                        coords = site_spec.get("coords")
+                        coords_are_fractional = bool(site_spec.get("coords_are_fractional", False))
+                        properties = site_spec.get("properties")
+                        if not isinstance(species, str) or not species:
+                            raise ValueError("Each insert_sites entry requires a non-empty 'species' string.")
+                        if not (isinstance(coords, list) and len(coords) == 3):
+                            raise ValueError("Each insert_sites entry requires 'coords' as a 3-element list.")
+
+                        working.append(
+                            species,
+                            coords,
+                            coords_are_cartesian=not coords_are_fractional,
+                            properties=properties,
+                        )
+                        inserted_idx = len(working) - 1
+                        inserted_site = working[inserted_idx]
+                        site_records.append({
+                            "original_index": None,
+                            "original_species": None,
+                            "original_frac_coords": None,
+                            "original_cart_coords": None,
+                        })
+                        inserted_sites.append({
                             "site_index_current": inserted_idx,
                             "site_index_original": None,
                             "species": species,
                             "frac_coords": list(inserted_site.frac_coords),
                             "cart_coords": list(inserted_site.coords),
-                        },
+                        })
+
+                    operation_log.append({
+                        "type": op_name,
+                        "label": label,
+                        "n_sites_inserted": len(inserted_sites),
+                        "sites_inserted": inserted_sites,
                     })
                 else:
                     raise ValueError(
-                        f"Unsupported operation '{op_name}'. Supported operations: remove_sites, replace_sites, insert_site."
+                        f"Unsupported operation '{op_name}'. Supported operations: remove_sites, replace_sites, insert_sites."
                     )
 
             if validate_structure:
