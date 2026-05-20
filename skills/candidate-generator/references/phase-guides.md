@@ -4,117 +4,125 @@ Complete detailed instructions for each workflow phase in the candidate generati
 
 ---
 
-## Phase 0: Composition Discovery
+## Phase 0: Seed Material Selection
 
-**When to use:** You only know elements (e.g., "Li-Mn-P-O"), not specific compositions
+**When to use:** You have a seed material formula and want to start candidate generation from a known compound
 
-**Skip if:** You already have target composition or structure
+**Skip if:** You already have the seed structure from a CIF, POSCAR, or ASE database
 
 ### Three Strategies
 
-#### 1. Exhaustive Enumeration
+#### 1. Exact Seed Retrieval from Materials Project
 
-**Tool:** `composition_enumerator`
+**Tools:** `mp_search_materials`, `mp_get_material_properties`
 
 **Best for:**
-- Exploratory discovery in well-defined chemical space
-- Systematic coverage of all possible stoichiometries
-- Small element sets (≤4 elements)
+- Starting from a known seed formula
+- Reusing an experimentally or computationally validated structure
+- Fastest path into substitution or disorder workflows
 
 **Algorithm:**
 ```python
-composition_enumerator(
-    elements=['Li', 'Mn', 'P', 'O'],
-    oxidation_states={
-        'Li': [1],
-        'Mn': [2, 3, 4],
-        'P': [5],
-        'O': [-2]
-    },
-    max_formula_units=8,  # Balance between coverage and size
-    output_format='json'
+seed_formula = 'LiFePO4'
+
+seed_search = mp_search_materials(
+    formula=seed_formula,
+    limit=1
 )
+
+if seed_search['count'] == 0:
+    raise ValueError(f"No Materials Project structure found for {seed_formula}")
+
+seed_props = mp_get_material_properties(
+    material_ids=[seed_search['material_ids'][0]],
+    properties=['structure']
+)
+
+seed_structure = seed_props['properties'][0]['structure']
 ```
 
-**Output:** 50-500 charge-balanced compositions
+**Output:** One seed structure ready for Phase 2
 
-#### 2. Template-Based Discovery
+#### 2. Template Search Around a Seed Family
 
 **Tool:** `mp_search_materials`
 
 **Best for:**
-- Known analogues exist
-- Targeting specific structure types
-- Quickly identifying stable compositions
+- Known analogue families exist
+- Multiple plausible seeds are acceptable
+- You want to choose among stable materials before generating variants
 
 **Algorithm:**
 ```python
-# Find all stable Li-Mn-P-O materials in MP
+# Find stable phosphate cathode seeds in MP
 templates = mp_search_materials(
-    elements=['Li', 'Mn', 'P', 'O'],
-    is_stable=True
+    elements=['Li', 'Fe', 'P', 'O'],
+    is_stable=True,
+    max_results=10
 )
 
-# Extract composition patterns
-patterns = [extract_composition_pattern(mp_struct) for mp_struct in templates]
+# Pick one seed formula or material ID for downstream generation
+seed_mp_id = templates['materials'][0]['material_id']
 ```
 
-**Output:** 5-20 known stable compositions as templates
+**Output:** 5-10 candidate seed materials to choose from
 
-#### 3. ICSD Substitution Prediction
+#### 3. ICSD Substitution Prediction from a Seed
 
 **Tool:** `pymatgen_substitution_predictor`
 
 **Best for:**
-- Starting from known material
-- Element substitution screening
-- Probabilistic exploration
+- Starting from a known material
+- Prioritizing likely chemical substitutions
+- Building a targeted variant list before structure generation
 
 **Algorithm:**
 ```python
-# Starting from LiFePO4, find likely substitutions
+# Starting from LiFePO4, find likely substitution directions
 predictions = pymatgen_substitution_predictor(
     composition='LiFePO4',
-    threshold=0.01,  # 1% probability cutoff
-    output_count=50
+    threshold=0.01,
+    max_suggestions=50
 )
 ```
 
-**Output:** 20-100 predicted compositions with likelihood scores
+**Output:** 20-100 likely substitution suggestions around the seed composition
 
 ### Decision Logic
 
 ```
-Known analogue exists?
-└─ YES: Template-based + ICSD (fast, targeted)
+Do you already know the seed formula?
+└─ YES: Query MP directly and use that structure
 └─ NO:
-    └─ Well-studied system (Li batteries, oxide perovskites)?
-        └─ YES: Template-based first, enumeration to fill gaps
-        └─ NO: Exhaustive enumeration + stability filtering
+    └─ Is there a known material family or analogue set?
+        └─ YES: Search MP templates, then choose a seed
+        └─ NO: Use substitution prediction or external literature to identify a seed first
 ```
 
 ### Output Processing
 
-After generating compositions:
+After selecting a seed material:
 
-1. **Filter by thermodynamic plausibility:**
+1. **Check whether a structure exists in MP:**
 ```python
-for comp in compositions:
-    mp_result = mp_search_materials(formula=comp)
-    if mp_result['count'] > 0:
-        comp['mp_exists'] = True
-        comp['priority'] = 'high'  # Known stable
+seed_search = mp_search_materials(formula=seed_formula, limit=1)
+if seed_search['count'] > 0:
+    seed_mp_id = seed_search['material_ids'][0]
+    priority = 'high'  # Known MP structure
 ```
 
-2. **Check for structures in MP:**
+2. **Retrieve the structure or fall back to Phase 1:**
 ```python
-for comp in compositions:
-    if comp['mp_exists']:
-        # Get structure → skip Phase 1, go to Phase 2
-        structures = mp_get_material_properties(...)
-    else:
-        # Need to build structure → Phase 1
-        comp['needs_prototype'] = True
+if seed_search['count'] > 0:
+    # Get structure -> skip Phase 1, go to Phase 2
+    seed_props = mp_get_material_properties(
+        material_ids=[seed_search['material_ids'][0]],
+        properties=['structure']
+    )
+    seed_structure = seed_props['properties'][0]['structure']
+else:
+    # Need to build structure -> Phase 1
+    seed_formula_needs_prototype = True
 ```
 
 ---
@@ -601,15 +609,25 @@ for i, poscar_string in enumerate(result['structures']):
 ### Sequential Workflow Example
 
 ```python
-# Phase 0: Composition discovery
-compositions = composition_enumerator(elements=['Li', 'V', 'O'], ...)
+# Phase 0: Choose a seed material
+seed_formula = 'LiVO2'
+seed_search = mp_search_materials(formula=seed_formula, limit=1)
 
-# Phase 1: Build seed structures
-seeds = []
-for comp in compositions:
-    if comp not in mp_database:
-        seed = pymatgen_prototype_builder(spacegroup=225, species=comp['elements'], ...)
-        seeds.append(seed)
+# Phase 1: Retrieve seed structure from MP or build a prototype fallback
+if seed_search['count'] > 0:
+    seed_props = mp_get_material_properties(
+        material_ids=[seed_search['material_ids'][0]],
+        properties=['structure']
+    )
+    seeds = [seed_props['properties'][0]['structure']]
+else:
+    seed = pymatgen_prototype_builder(
+        spacegroup=225,
+        species=['Li', 'V', 'O', 'O'],
+        lattice_parameters=[4.1],
+        output_format='cif'
+    )
+    seeds = [seed['structures'][0]]
 
 # Phase 2: Chemical exploration
 variants = []

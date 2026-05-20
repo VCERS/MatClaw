@@ -468,69 +468,53 @@ print(f"From {len(base_structures)} base materials")
 
 ## Pattern 9: Complete Pipeline (All Phases)
 
-**Goal:** Full workflow from elements to stored candidates
+**Goal:** Full workflow from a seed material to stored candidates
 
-**Workflow:** Composition → Seed → Substitution → Disorder → Storage
+**Workflow:** Seed formula → MP seed structure → Substitution → Disorder → Storage
 
 ```python
-# Phase 0: Composition discovery
-compositions = composition_enumerator(
-    elements=['Li', 'Ni', 'O'],
-    oxidation_states={'Li': [1], 'Ni': [2, 3], 'O': [-2]},
-    max_formula_units=6,
-    output_format='json'
+# Phase 0: Provide a seed material formula
+seed_formula = 'LiNiO2'
+
+# Phase 1: Retrieve the seed structure from Materials Project
+seed_search = mp_search_materials(formula=seed_formula, limit=1)
+if seed_search['count'] == 0:
+    raise ValueError(f"No Materials Project structure found for {seed_formula}")
+
+seed_props = mp_get_material_properties(
+    material_ids=[seed_search['material_ids'][0]]
 )
+seed_structure = seed_props['properties'][0]['structure']
 
 all_candidates = []
 
-for comp_data in compositions['compositions'][:5]:  # Top 5 by charge balance
-    composition = comp_data['composition']
-    
-    # Phase 1: Check if in MP, otherwise build
-    mp_result = mp_search_materials(formula=composition, limit=1)
-    
-    if mp_result['count'] > 0:
-        # Structure exists in MP
-        props = mp_get_material_properties(
-            material_ids=[mp_result['material_ids'][0]]
-        )
-        base_structure = props['properties'][0]['structure']
-    else:
-        # Build from prototype (assume rocksalt)
-        seed = pymatgen_prototype_builder(
-            spacegroup=225,
-            species=comp_data['elements'],
-            lattice_parameters=[4.2],
-            output_format='cif'
-        )
-        base_structure = seed['structures'][0]
-    
-    # Phase 2: Chemical exploration (Li → Na variant)
-    variants = pymatgen_substitution_generator(
-        input_structures=base_structure,
-        substitutions={'Li': ['Li', 'Na']},  # Keep original + Na variant
-        n_structures=2,
-        max_attempts=4,
+# Phase 2: Chemical exploration (keep Li seed + make Na analogue)
+variants = pymatgen_substitution_generator(
+    input_structures=seed_structure,
+    substitutions={'Li': ['Li', 'Na']},  # Keep original + Na variant
+    n_structures=2,
+    max_attempts=4,
+    output_format='cif'
+)
+
+# Phase 3: Add disorder (5% Co doping)
+for variant_cif in variants['structures']:
+    disordered = pymatgen_disorder_generator(
+        input_structures=variant_cif,
+        site_substitutions={'Ni': {'Ni': 0.95, 'Co': 0.05}},
         output_format='cif'
     )
     
-    # Phase 3: Add disorder (5% Co doping)
-    for variant_cif in variants['structures']:
-        disordered = pymatgen_disorder_generator(
-            input_structures=variant_cif,
-            site_substitutions={'Ni': {'Ni': 0.95, 'Co': 0.05}},
-            output_format='cif'
-        )
-        
-        all_candidates.append({
-            'structure': disordered['structures'][0],
-            'formula': disordered['formulas'][0],
-            'metadata': {
-                'base_composition': composition,
-                'is_disordered': True,
-                'requires_ordering': 'majority'
-            }
-        })
+    all_candidates.append({
+        'structure': disordered['structures'][0],
+        'formula': disordered['formulas'][0],
+        'metadata': {
+            'seed_formula': seed_formula,
+            'seed_mp_id': seed_search['material_ids'][0],
+            'is_disordered': True,
+            'requires_ordering': 'majority'
+        }
+    })
 
 # Storage
 for i, candidate in enumerate(all_candidates):

@@ -12,7 +12,7 @@ description: |
   - Configuration space: "enumerate orderings", "SQS generation", "disorder-to-ordered", "vacancy defects", "interstitials"
   - Scale: "generate 50 structures", "100 candidates", "high-throughput", "ML training set", "candidate library"
   - Starting points: Element lists ("Li-Mn-P-O system"), formulas ("LiCoO2 analogues"), structure types ("olivine"), ICSD/MP IDs
-  - Workflows: "composition discovery", "prototype matching", "lattice perturbation", "supercell expansion"
+  - Workflows: "prototype matching", "lattice perturbation", "supercell expansion"
   
   **Complete pipeline coverage:**
   Elements → Compositions → Seed structures → Chemical exploration → Disorder/ordering → Defects → Perturbation → ASE database
@@ -30,7 +30,6 @@ Structure generation follows a **funnel process**: start broad (many composition
 
 **Complete pipeline:**
 ```
-Phase 0: Elements → Compositions (if starting from element list)
 Phase 1: Compositions → Seed Structures (if no template exists)  
 Phase 2: Seed Structures → Chemical Variants (substitution, doping, ion exchange)
 Phase 3: Ordered/Disordered → Resolved Structures (enumeration, SQS, majority-species)
@@ -40,7 +39,7 @@ Phase 6: All → ASE Database Storage (with metadata and provenance)
 ```
 
 **Entry points match your starting information:**
-- Elements only (Li-Mn-P-O)? → Start Phase 0
+- Elements only (Li-Mn-P-O)? → Start Phase 1
 - Composition known (LiMnPO₄) but no structure? → Start Phase 1  
 - Structure from MP/CIF/ASE exists? → Start Phase 2 (or skip to Phase 3-5)
 
@@ -63,24 +62,6 @@ Phase 6: All → ASE Database Storage (with metadata and provenance)
 ## Workflow Phases (High-Level)
 
 **For complete detailed instructions, algorithms, parameter tables, and decision logic, see [references/phase-guides.md](references/phase-guides.md).**
-
-### Phase 0: Composition Discovery 
-
-**When:** Starting from elements only (e.g., "Li-Mn-P-O system")  
-**Skip if:** You already have target compositions or structures
-
-**Three discovery strategies:**
-1. **Exhaustive enumeration** (`composition_enumerator`) — Systematic charge-neutral exploration
-2. **Template-based** (`mp_search_materials`) — Find analogues, extract composition patterns
-3. **ICSD substitution** (`pymatgen_substitution_predictor`) — Predict likely substitutions from known materials
-
-**Decision:** Known analogue? → Template + ICSD. Exploratory? → Enumeration → filter by stability.
-
-**Output:** Ranked list of stable/metastable compositions
-
-**Next:** For each composition, check MP for structures. Found → Phase 2; Not found → Phase 1.
-
----
 
 ### Phase 1: Seed Structure Building
 
@@ -257,7 +238,6 @@ ase_store_result(
 
 | Phase | Tool | Purpose | Key Decision |
 |-------|------|---------|--------------|
-| 0 | `composition_enumerator` | Charge-balanced compositions | Systematic vs heuristic |
 | 0 | `pymatgen_substitution_predictor` | ICSD-guided substitutions | Uses lambda-scaling |
 | 0 | `mp_search_materials` | Template structures | Elements, stability filter |
 | 1 | `pymatgen_prototype_builder` | Build from spacegroup | Need lattice parameter estimate |
@@ -294,8 +274,6 @@ ase_store_result(
 
 ```
 What do you have?
-├─ Elements only (Li-Co-O) → Phase 0 (composition discovery)
-│   └─ Output: Formulas → Check MP → Found? Phase 2 : Phase 1
 ├─ Composition (LiCoO₂) → Check MP for structure
 │   ├─ Found on MP → Phase 2 (chemical exploration)
 │   └─ Not found → Phase 1 (prototype building)
@@ -339,7 +317,7 @@ Is structure disordered?
    ✅ Use `disorder_generator` → `majority_orderer` for dilute doping
 
 4. **Not storing intermediate phases**  
-   If Phase 0 → Phase 2 → Phase 3 workflow crashes at Phase 3, you lose Phase 0/2 results. Store after each phase in ASE database.
+   If Phase 1 → Phase 2 → Phase 3 workflow crashes at Phase 3, you lose Phase 1/2 results. Store after each phase in ASE database.
 
 5. **Skipping charge neutrality checks**  
    For ionic materials, charge-imbalanced structures are unphysical. Use `ion_exchange_generator` or manually verify with `composition_analyzer`.
@@ -353,13 +331,13 @@ Is structure disordered?
 **Pattern catalog:**
 - Pattern 1: Isostructural analogue screen (simple, Phase 2 only)
 - Pattern 2: Battery cathode analogue (Phase 2 ion exchange)
-- Pattern 3: High-entropy oxide SQS (Phase 0 → Phase 3)
+- Pattern 3: High-entropy oxide SQS (Phase 1 → Phase 3)
 - Pattern 4: Ground-state ordering search (Phase 3 enumeration)
-- Pattern 5: Lanthanide-doped phosphor screen (Phase 0 → Phase 2 → Phase 3, 93 structures)
+- Pattern 5: Lanthanide-doped phosphor screen (Phase 1 → Phase 2 → Phase 3, 93 structures)
 - Pattern 6: Oxygen vacancy defects (Phase 4)
 - Pattern 7: Perovskite B-site doping (Phase 2B)
 - Pattern 8: ML training set generation (Phase 2 + Phase 5)
-- Pattern 9: Full pipeline (Phase 0 → Phase 5, all capabilities)
+- Pattern 9: Full pipeline (Phase 1 → Phase 5, all capabilities)
 
 **Example: Simple isostructural rocksalt screen (10 structures in 30 seconds):**
 
@@ -419,5 +397,5 @@ For more complex examples including disorder handling, defects, and multi-phase 
 
 - **Batch tool-calling pattern** — For standalone Python scripts that call MatClaw tools, use the shared MCP client template in [../_shared/tool-calling-pattern.md](../_shared/tool-calling-pattern.md). It covers both local stdio launches and remote HTTP/SSE connections.
 - **Concrete batch example** — See [examples/batch_generation_example.py](examples/batch_generation_example.py) for a complete generation script using that pattern.
-- **[references/phase-guides.md](references/phase-guides.md)** — Complete Phase 0-5 instructions with algorithms, parameter tables, decision logic, physical basis explanations
+- **[references/phase-guides.md](references/phase-guides.md)** — Complete Phase 1-5 instructions with algorithms, parameter tables, decision logic, physical basis explanations
 - **[references/examples.md](references/examples.md)** — 9 complete working patterns from simple to complex, including full code and expected outputs

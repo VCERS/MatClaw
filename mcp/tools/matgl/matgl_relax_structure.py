@@ -152,7 +152,6 @@ def matgl_relax_structure(
     try:
         from pymatgen.core import Structure
         from pymatgen.io.cif import CifParser
-        from pymatgen.io.vasp import Poscar
         import matgl
         from matgl.ext.ase import Relaxer
         import numpy as np
@@ -179,8 +178,7 @@ def matgl_relax_structure(
                 os.unlink(temp_path)
         else:
             # Assume POSCAR format
-            poscar = Poscar.from_string(input_structure)
-            structure = poscar.structure
+            structure = Structure.from_str(input_structure, fmt="poscar")
         
         # Store initial structure as CIF
         from pymatgen.io.cif import CifWriter

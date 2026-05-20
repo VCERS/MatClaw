@@ -6,6 +6,7 @@ Run with: pytest tests/matgl/test_matgl_predict_eform.py -v
 
 import pytest
 from pymatgen.io.cif import CifWriter
+from pymatgen.io.vasp import Poscar
 from tools.matgl.matgl_predict_eform import matgl_predict_eform
 import dgl # needs to be imported even if not used directly
 
@@ -127,6 +128,28 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         assert result["success"] is True
         assert "formation_energy_per_atom" in result
+
+    def test_poscar_string_input(self):
+        """Test prediction with POSCAR string input."""
+        from pymatgen.core import Lattice, Structure
+
+        struct = Structure.from_spacegroup(
+            "Pm-3m",
+            Lattice.cubic(4.1437),
+            ["Cs", "Cl"],
+            [[0, 0, 0], [0.5, 0.5, 0.5]]
+        )
+        poscar_string = str(Poscar(struct))
+
+        result = matgl_predict_eform(
+            input_structure=poscar_string,
+            model="MEGNet-Eform-MP-2018.6.1"
+        )
+
+        assert result["success"] is True
+        assert "formation_energy_per_atom" in result
+        assert result["formula"] == "CsCl"
+        assert result["num_sites"] == 2
 
     def test_interpretation_field(self):
         """Test that interpretation field is provided."""
