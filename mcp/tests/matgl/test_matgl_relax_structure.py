@@ -6,6 +6,7 @@ Run with: pytest tests/matgl/test_matgl_relax_structure.py -v
 
 import pytest
 from pymatgen.io.cif import CifWriter
+from pymatgen.io.vasp import Poscar
 from tools.matgl.matgl_relax_structure import matgl_relax_structure
 
 
@@ -107,6 +108,30 @@ Cl1 Cl 0.5 0.5 0.5 1.0
         
         assert result["success"] is True
         assert "final_structure" in result
+
+    def test_poscar_string_input(self):
+        """Test relaxation with POSCAR string input."""
+        from pymatgen.core import Lattice, Structure
+
+        struct = Structure.from_spacegroup(
+            "Pm-3m",
+            Lattice.cubic(4.2),
+            ["Cs", "Cl"],
+            [[0, 0, 0], [0.5, 0.5, 0.5]]
+        )
+        poscar_string = str(Poscar(struct))
+
+        result = matgl_relax_structure(
+            input_structure=poscar_string,
+            model="TensorNet-PES-MatPES-r2SCAN-2025.2",
+            fmax=0.05,
+            max_steps=200
+        )
+
+        assert result["success"] is True
+        assert "final_structure" in result
+        assert "initial_energy_eV" in result
+        assert "final_energy_eV" in result
 
     def test_verbose_output(self):
         """Test that verbose mode includes trajectory information."""

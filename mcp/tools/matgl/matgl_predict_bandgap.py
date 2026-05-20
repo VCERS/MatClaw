@@ -96,7 +96,6 @@ def matgl_predict_bandgap(
     try:
         from pymatgen.core import Structure
         from pymatgen.io.cif import CifParser
-        from pymatgen.io.vasp import Poscar
         import matgl
         import torch
     except ImportError as e:
@@ -122,8 +121,7 @@ def matgl_predict_bandgap(
                 os.unlink(temp_path)
         else:
             # Assume POSCAR format
-            poscar = Poscar.from_string(input_structure)
-            structure = poscar.structure
+            structure = Structure.from_str(input_structure, fmt="poscar")
         
         # Get structure info
         formula = structure.composition.reduced_formula

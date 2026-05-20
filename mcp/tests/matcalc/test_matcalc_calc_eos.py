@@ -8,11 +8,28 @@ Run single test: pytest tests/matcalc/test_matcalc_calc_eos.py::TestEOSCalc::tes
 import pytest
 import numpy as np
 from pymatgen.io.cif import CifWriter
+from pymatgen.io.vasp import Poscar
 from tools.matcalc.matcalc_calc_eos import matcalc_calc_eos
 
 
 class TestEOSCalc:
     """Tests for EOS calculations."""
+
+    def test_poscar_string_input(self, cubic_si_structure):
+        """Test EOS calculation with POSCAR string input."""
+        result = matcalc_calc_eos(
+            input_structure=str(Poscar(cubic_si_structure)),
+            calculator="TensorNet-PES-MatPES-r2SCAN-2025.2",
+            relax_structure=False,
+            fmax=0.2,
+            n_points=7,
+            max_abs_strain=0.1,
+        )
+
+        assert result["success"] is True, f"Calculation failed: {result.get('error', 'Unknown error')}"
+        assert "volumes" in result
+        assert "energies" in result
+        assert result["num_points"] == 7
 
     def test_basic_eos_calculation(self, cubic_si_structure):
         """Test basic EOS calculation with Si structure."""

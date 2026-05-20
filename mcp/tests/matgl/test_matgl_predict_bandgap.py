@@ -6,6 +6,7 @@ Run with: pytest tests/matgl/test_matgl_predict_bandgap.py -v
 
 import pytest
 from pymatgen.io.cif import CifWriter
+from pymatgen.io.vasp import Poscar
 from tools.matgl.matgl_predict_bandgap import matgl_predict_bandgap
 import dgl # needs to be imported even if not used directly
 
@@ -140,6 +141,25 @@ class TestMatglPredictBandgap:
         assert result["success"] is True
         assert "band_gap" in result
         assert result["formula"] == "CsCl"
+
+    def test_poscar_string_input(self):
+        """Test with POSCAR string input."""
+        from pymatgen.core import Lattice, Structure
+
+        struct = Structure.from_spacegroup(
+            "Pm-3m",
+            Lattice.cubic(4.1437),
+            ["Cs", "Cl"],
+            [[0, 0, 0], [0.5, 0.5, 0.5]]
+        )
+        poscar_string = str(Poscar(struct))
+
+        result = matgl_predict_bandgap(input_structure=poscar_string)
+
+        assert result["success"] is True
+        assert "band_gap" in result
+        assert result["formula"] == "CsCl"
+        assert result["num_sites"] == 2
 
     def test_material_classification(self):
         """Test that material classification is provided."""

@@ -173,7 +173,6 @@ def matcalc_calc_eos(
     try:
         from pymatgen.core import Structure
         from pymatgen.io.cif import CifParser
-        from pymatgen.io.vasp import Poscar
         from pymatgen.analysis.eos import EOS
         import matcalc as mtc
     except ImportError as e:
@@ -203,8 +202,7 @@ def matcalc_calc_eos(
                     os.unlink(temp_path)
         else:
             # POSCAR format
-            poscar = Poscar.from_string(input_structure)
-            structure = poscar.structure
+            structure = Structure.from_str(input_structure, fmt="poscar")
         
         from pymatgen.io.cif import CifWriter
         initial_structure_cif = str(CifWriter(structure))

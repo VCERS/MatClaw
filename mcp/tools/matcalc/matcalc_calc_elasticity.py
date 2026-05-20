@@ -198,7 +198,6 @@ def matcalc_calc_elasticity(
     try:
         from pymatgen.core import Structure
         from pymatgen.io.cif import CifParser
-        from pymatgen.io.vasp import Poscar
         import matcalc as mtc
         from pymatgen.analysis.elasticity import ElasticTensor
     except ImportError as e:
@@ -236,8 +235,7 @@ def matcalc_calc_elasticity(
                     os.unlink(temp_path)
         else:
             # Assume POSCAR format
-            poscar = Poscar.from_string(input_structure)
-            structure = poscar.structure
+            structure = Structure.from_str(input_structure, fmt="poscar")
         
         # Store initial structure
         from pymatgen.io.cif import CifWriter
