@@ -2,12 +2,17 @@
 Tool for comparing two crystal structures to determine if they are equivalent.
 
 Uses pymatgen's StructureMatcher to perform symmetry-aware structure comparison.
-Handles different unit cell choices, lattice distortions within tolerances, and 
+Handles different unit cell choices, lattice distortions within tolerances, and
 supercell/subcell relationships. Essential for deduplication, structure validation,
 and comparing theoretical predictions against experimental or database structures.
+
+In addition to strict structure matching, the tool also computes a framework-level
+comparison that ignores site chemistry and occupancies. This helps compare
+experimental disordered structures to idealized ordered models without changing the
+meaning of the primary `match` field.
 """
 
-from typing import Dict, Any, Optional, Annotated, List
+from typing import Dict, Any, Annotated
 from pydantic import Field
 
 
@@ -173,6 +178,10 @@ def pymatgen_structure_matcher(
             - success (bool): Whether comparison completed successfully
             - match (bool): Whether structures are equivalent within tolerances
             - confidence (str): "exact", "high", "medium", or "low" based on tolerances
+            - framework_match (bool): Whether the site framework matches when site
+              chemistry and occupancies are ignored
+            - framework_confidence (str): Confidence for framework match using the
+              same tolerance semantics as `confidence`
             - structure_1_info (dict): Information about first structure:
                 - formula (str): Reduced chemical formula
                 - n_sites (int): Number of sites
@@ -185,11 +194,17 @@ def pymatgen_structure_matcher(
                 - supercell_relation (str or None): If one is supercell of other
                 - site_mapping (list or None): Site correspondences (if return_mapping=True)
                 - rms_distance (float or None): RMS distance between matched atoms
+            - framework_comparison (dict): Framework-only comparison details:
+                - method (str): Comparison method used
+                - basis (str): Which structure abstraction was compared
+                - supercell_relation (str or None): If one is supercell of other
+                - rms_distance (float or None): RMS distance between matched atoms
             - mismatch_reasons (list): Reasons for mismatch if match=False:
                 - composition_mismatch
                 - lattice_parameter_mismatch
                 - site_position_mismatch
                 - space_group_mismatch
+            - framework_mismatch_reasons (list): Reasons frameworks do not match
             - parameters (dict): Tolerances used for comparison
             - warnings (list): Any warnings generated
             - error (str): Error message if comparison failed
@@ -243,6 +258,17 @@ def pymatgen_structure_matcher(
                 "error": f"Structure parsing failed: {str(e)}"
             }
         
+        def determine_confidence(is_match: bool) -> str:
+            if not is_match:
+                return "no_match"
+            if l_tol <= 0.05 and s_tol <= 0.1 and angle_tol <= 1.0:
+                return "exact"
+            if l_tol <= 0.1 and s_tol <= 0.2 and angle_tol <= 3.0:
+                return "high"
+            if l_tol <= 0.2 and s_tol <= 0.3 and angle_tol <= 5.0:
+                return "medium"
+            return "low"
+
         # Get structure information
         def get_structure_info(struct: Structure, label: str) -> Dict[str, Any]:
             """Extract comprehensive structure information."""
@@ -272,36 +298,90 @@ def pymatgen_structure_matcher(
                 info["space_group_symbol"] = None
             
             return info
+
+        def build_framework_structure(struct: Structure) -> Structure:
+            """Return a chemistry-agnostic structure preserving only the site framework."""
+            return Structure(
+                lattice=struct.lattice,
+                species=["H"] * struct.num_sites,
+                coords=[site.frac_coords for site in struct],
+                coords_are_cartesian=False,
+            )
+
+        def get_supercell_relation(struct_a: Structure, struct_b: Structure) -> str | None:
+            if not attempt_supercell:
+                return None
+            if struct_b.num_sites > struct_a.num_sites:
+                return "structure_2_is_supercell_of_structure_1"
+            if struct_a.num_sites > struct_b.num_sites:
+                return "structure_1_is_supercell_of_structure_2"
+            return None
+
+        def calculate_rms_distance(
+            matcher: StructureMatcher,
+            struct_a: Structure,
+            struct_b: Structure,
+        ) -> float | None:
+            try:
+                try:
+                    s1, s2, fu, s1_supercell = matcher.get_s2_like_s1(struct_a, struct_b)
+                    if s1 is not None and s2 is not None:
+                        distances = []
+                        for site1, site2 in zip(s1, s2):
+                            dist = np.linalg.norm(site1.coords - site2.coords)
+                            distances.append(dist)
+                        if distances:
+                            return float(np.sqrt(np.mean(np.array(distances) ** 2)))
+                except Exception:
+                    if struct_a.num_sites == struct_b.num_sites:
+                        distances = []
+                        for site1, site2 in zip(struct_a, struct_b):
+                            dist = np.linalg.norm(site1.coords - site2.coords)
+                            distances.append(dist)
+                        if distances:
+                            return float(np.sqrt(np.mean(np.array(distances) ** 2)))
+            except Exception as e:
+                warnings.append(f"Could not calculate RMS distance: {str(e)}")
+            return None
+
+        def infer_mismatch_reasons(
+            struct_a: Structure,
+            struct_b: Structure,
+            info_a: Dict[str, Any],
+            info_b: Dict[str, Any],
+            *,
+            include_composition: bool,
+        ) -> list[str]:
+            mismatch_reasons = []
+            if include_composition and struct_a.composition.reduced_formula != struct_b.composition.reduced_formula:
+                mismatch_reasons.append("composition_mismatch")
+
+            lat1, lat2 = struct_a.lattice, struct_b.lattice
+            if abs(lat1.a - lat2.a) / min(lat1.a, lat2.a) > l_tol or \
+               abs(lat1.b - lat2.b) / min(lat1.b, lat2.b) > l_tol or \
+               abs(lat1.c - lat2.c) / min(lat1.c, lat2.c) > l_tol:
+                mismatch_reasons.append("lattice_parameter_mismatch")
+
+            if abs(lat1.alpha - lat2.alpha) > angle_tol or \
+               abs(lat1.beta - lat2.beta) > angle_tol or \
+               abs(lat1.gamma - lat2.gamma) > angle_tol:
+                mismatch_reasons.append("lattice_angle_mismatch")
+
+            if info_a["space_group"] and info_b["space_group"]:
+                if info_a["space_group"] != info_b["space_group"]:
+                    mismatch_reasons.append("space_group_mismatch")
+
+            if not mismatch_reasons:
+                mismatch_reasons.append("site_position_mismatch")
+
+            return mismatch_reasons
         
         struct1_info = get_structure_info(struct1, "structure_1")
         struct2_info = get_structure_info(struct2, "structure_2")
-        
-        # Quick composition check
-        if struct1.composition.reduced_formula != struct2.composition.reduced_formula:
-            return {
-                "success": True,
-                "match": False,
-                "confidence": "exact",
-                "structure_1_info": struct1_info,
-                "structure_2_info": struct2_info,
-                "comparison_details": {
-                    "method": "composition_check",
-                    "supercell_relation": None,
-                    "site_mapping": None,
-                    "rms_distance": None
-                },
-                "mismatch_reasons": ["composition_mismatch"],
-                "parameters": {
-                    "l_tol": l_tol,
-                    "s_tol": s_tol,
-                    "angle_tol": angle_tol,
-                    "primitive_cell": primitive_cell,
-                    "scale": scale,
-                    "attempt_supercell": attempt_supercell
-                },
-                "warnings": warnings if warnings else None,
-                "message": f"Structures have different compositions: {struct1_info['formula']} vs {struct2_info['formula']}"
-            }
+        framework_struct1 = build_framework_structure(struct1)
+        framework_struct2 = build_framework_structure(struct2)
+        framework_struct1_info = get_structure_info(framework_struct1, "framework_structure_1")
+        framework_struct2_info = get_structure_info(framework_struct2, "framework_structure_2")
         
         # Set up comparator
         comparator_map = {
@@ -316,10 +396,10 @@ def pymatgen_structure_matcher(
                 "success": False,
                 "error": f"Unknown comparator: {comparator}. Choose from: {list(comparator_map.keys())}"
             }
-        
-        species_comparator = comparator_map[comparator]
-        
-        # Create StructureMatcher
+
+        exact_comparator = comparator_map[comparator]
+
+        # Create StructureMatchers
         matcher = StructureMatcher(
             ltol=l_tol,
             stol=s_tol,
@@ -328,130 +408,113 @@ def pymatgen_structure_matcher(
             scale=scale,
             attempt_supercell=attempt_supercell,
             allow_subset=allow_subset,
-            comparator=species_comparator,
+            comparator=exact_comparator,
+            supercell_size=supercell_size
+        )
+        framework_matcher = StructureMatcher(
+            ltol=l_tol,
+            stol=s_tol,
+            angle_tol=angle_tol,
+            primitive_cell=primitive_cell,
+            scale=scale,
+            attempt_supercell=attempt_supercell,
+            allow_subset=allow_subset,
+            comparator=SpeciesComparator(),
             supercell_size=supercell_size
         )
         
         # Perform matching
         try:
-            is_match = bool(matcher.fit(struct1, struct2))  # Convert numpy bool to Python bool
-            
-            # Get detailed results if matched
-            supercell_relation = None
-            site_mapping = None
-            rms_distance = None
-            
-            if is_match:
-                # Check for supercell relationship
-                if attempt_supercell:
-                    # Check if struct2 is supercell of struct1
-                    if struct2.num_sites > struct1.num_sites:
-                        supercell_relation = "structure_2_is_supercell_of_structure_1"
-                    elif struct1.num_sites > struct2.num_sites:
-                        supercell_relation = "structure_1_is_supercell_of_structure_2"
-                
-                # Get site mapping if requested
-                if return_mapping:
-                    try:
-                        # Get the mapping of sites
-                        s1, s2, fu, s1_supercell = matcher.get_s2_like_s1(struct1, struct2)
-                        site_mapping = []
-                        for i, site in enumerate(s1):
-                            site_mapping.append({
-                                "structure_1_site": i,
-                                "structure_2_site": None,  # Would need more complex logic to track
-                                "species": str(site.specie),
-                                "coords_1": site.frac_coords.tolist()
-                            })
-                    except Exception as e:
-                        warnings.append(f"Could not extract site mapping: {str(e)}")
-                
-                # Calculate RMS distance between matched structures
-                try:
-                    # Try using get_s2_like_s1 to get transformed structures
-                    # This may fail if primitive_cell=True
-                    try:
-                        s1, s2, fu, s1_supercell = matcher.get_s2_like_s1(struct1, struct2)
-                        # Manually calculate RMS distance from transformed structures
-                        if s1 is not None and s2 is not None:
-                            import numpy as np
-                            # Calculate RMS of cartesian distances between corresponding sites
-                            distances = []
-                            for site1, site2 in zip(s1, s2):
-                                dist = np.linalg.norm(site1.coords - site2.coords)
-                                distances.append(dist)
-                            if distances:
-                                rms_distance = float(np.sqrt(np.mean(np.array(distances)**2)))
-                    except Exception:
-                        # If get_s2_like_s1 fails (e.g., with primitive_cell=True),
-                        # try a direct comparison for identical structures
-                        if struct1.num_sites == struct2.num_sites:
-                            import numpy as np
-                            distances = []
-                            for site1, site2 in zip(struct1, struct2):
-                                dist = np.linalg.norm(site1.coords - site2.coords)
-                                distances.append(dist)
-                            if distances:
-                                rms_distance = float(np.sqrt(np.mean(np.array(distances)**2)))
-                except Exception as e:
-                    warnings.append(f"Could not calculate RMS distance: {str(e)}")
-            
-            # Determine confidence level
-            if is_match:
-                if l_tol <= 0.05 and s_tol <= 0.1 and angle_tol <= 1.0:
-                    confidence = "exact"
-                elif l_tol <= 0.1 and s_tol <= 0.2 and angle_tol <= 3.0:
-                    confidence = "high"
-                elif l_tol <= 0.2 and s_tol <= 0.3 and angle_tol <= 5.0:
-                    confidence = "medium"
-                else:
-                    confidence = "low"
+            compositions_match = struct1.composition.reduced_formula == struct2.composition.reduced_formula
+            if compositions_match:
+                is_match = bool(matcher.fit(struct1, struct2))
+                comparison_method = "StructureMatcher"
+                mismatch_reasons = None
             else:
-                confidence = "no_match"
-            
-            # If no match, try to determine reasons
-            mismatch_reasons = []
-            if not is_match:
-                # Check lattice parameters
-                lat1, lat2 = struct1.lattice, struct2.lattice
-                if abs(lat1.a - lat2.a) / min(lat1.a, lat2.a) > l_tol or \
-                   abs(lat1.b - lat2.b) / min(lat1.b, lat2.b) > l_tol or \
-                   abs(lat1.c - lat2.c) / min(lat1.c, lat2.c) > l_tol:
-                    mismatch_reasons.append("lattice_parameter_mismatch")
-                
-                if abs(lat1.alpha - lat2.alpha) > angle_tol or \
-                   abs(lat1.beta - lat2.beta) > angle_tol or \
-                   abs(lat1.gamma - lat2.gamma) > angle_tol:
-                    mismatch_reasons.append("lattice_angle_mismatch")
-                
-                # Check space groups
-                if struct1_info["space_group"] and struct2_info["space_group"]:
-                    if struct1_info["space_group"] != struct2_info["space_group"]:
-                        mismatch_reasons.append("space_group_mismatch")
-                
-                # If no specific reason found, it's likely site positions
-                if not mismatch_reasons:
-                    mismatch_reasons.append("site_position_mismatch")
+                is_match = False
+                comparison_method = "composition_check"
+                mismatch_reasons = ["composition_mismatch"]
+
+            supercell_relation = get_supercell_relation(struct1, struct2) if is_match else None
+            site_mapping = None
+            rms_distance = calculate_rms_distance(matcher, struct1, struct2) if is_match else None
+
+            if is_match and return_mapping:
+                try:
+                    s1, s2, fu, s1_supercell = matcher.get_s2_like_s1(struct1, struct2)
+                    site_mapping = []
+                    for i, site in enumerate(s1):
+                        site_mapping.append({
+                            "structure_1_site": i,
+                            "structure_2_site": None,
+                            "species": str(site.specie),
+                            "coords_1": site.frac_coords.tolist()
+                        })
+                except Exception as e:
+                    warnings.append(f"Could not extract site mapping: {str(e)}")
+
+            confidence = determine_confidence(is_match)
+            if not is_match and mismatch_reasons is None:
+                mismatch_reasons = infer_mismatch_reasons(
+                    struct1,
+                    struct2,
+                    struct1_info,
+                    struct2_info,
+                    include_composition=True,
+                )
+
+            framework_match = bool(framework_matcher.fit(framework_struct1, framework_struct2))
+            framework_confidence = determine_confidence(framework_match)
+            framework_supercell_relation = (
+                get_supercell_relation(framework_struct1, framework_struct2)
+                if framework_match
+                else None
+            )
+            framework_rms_distance = (
+                calculate_rms_distance(framework_matcher, framework_struct1, framework_struct2)
+                if framework_match
+                else None
+            )
+            framework_mismatch_reasons = None
+            if not framework_match:
+                framework_mismatch_reasons = infer_mismatch_reasons(
+                    framework_struct1,
+                    framework_struct2,
+                    framework_struct1_info,
+                    framework_struct2_info,
+                    include_composition=False,
+                )
             
             message = f"Structures {'match' if is_match else 'do not match'}"
             if is_match and supercell_relation:
                 message += f" ({supercell_relation})"
             if is_match and rms_distance is not None:
                 message += f" with RMS distance {rms_distance:.4f} Å"
+            if framework_match and not is_match:
+                message += "; frameworks match when site chemistry is ignored"
             
             return {
                 "success": True,
                 "match": is_match,
                 "confidence": confidence,
+                "framework_match": framework_match,
+                "framework_confidence": framework_confidence,
                 "structure_1_info": struct1_info,
                 "structure_2_info": struct2_info,
                 "comparison_details": {
-                    "method": "StructureMatcher",
+                    "method": comparison_method,
                     "supercell_relation": supercell_relation,
                     "site_mapping": site_mapping,
                     "rms_distance": rms_distance
                 },
+                "framework_comparison": {
+                    "method": "StructureMatcher",
+                    "basis": "all_sites_species_ignored",
+                    "supercell_relation": framework_supercell_relation,
+                    "rms_distance": framework_rms_distance
+                },
                 "mismatch_reasons": mismatch_reasons if not is_match else None,
+                "framework_mismatch_reasons": framework_mismatch_reasons,
                 "parameters": {
                     "l_tol": l_tol,
                     "s_tol": s_tol,

@@ -54,6 +54,7 @@ direct
         assert result["success"] is True
         assert result["match"] is True
         assert result["confidence"] in ["exact", "high", "medium"]
+        assert result["framework_match"] is True
         assert result["structure_1_info"]["formula"] == "NaCl"
         assert result["structure_2_info"]["formula"] == "NaCl"
         assert result["comparison_details"]["rms_distance"] is not None
@@ -102,6 +103,56 @@ Cl1 Cl 0.5 0.5 0.5
         assert result["success"] is True
         assert result["match"] is False
         assert "composition_mismatch" in result["mismatch_reasons"]
+        assert result["framework_match"] is True
+        assert result["framework_comparison"]["basis"] == "all_sites_species_ignored"
+
+    def test_disordered_vs_ordered_framework_match(self):
+        """Test that a disordered experimental-like structure can match an ordered framework."""
+        disordered_structure = """data_MixedHalide
+_cell_length_a       5.6402
+_cell_length_b       5.6402
+_cell_length_c       5.6402
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    90.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+M1 Na 0.0 0.0 0.0 0.5
+M1b K 0.0 0.0 0.0 0.5
+Cl1 Cl 0.5 0.5 0.5 1.0
+"""
+
+        ordered_structure = """data_NaCl
+_cell_length_a       5.6402
+_cell_length_b       5.6402
+_cell_length_c       5.6402
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    90.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Na1 Na 0.0 0.0 0.0
+Cl1 Cl 0.5 0.5 0.5
+"""
+
+        result = pymatgen_structure_matcher(
+            structure_1=disordered_structure,
+            structure_2=ordered_structure,
+        )
+
+        assert result["success"] is True
+        assert result["match"] is False
+        assert result["framework_match"] is True
+        assert result["framework_confidence"] in ["exact", "high", "medium"]
 
 
 class TestStructureMatcherTolerances:
@@ -144,6 +195,7 @@ direct
         assert result["success"] is True
         # Should match with these tolerances
         assert result["match"] is True
+        assert result["framework_match"] is True
 
     def test_strict_tolerance_no_match(self):
         """Test that strict tolerances prevent matching distorted structures."""
@@ -183,6 +235,7 @@ direct
         assert result["success"] is True
         # Should not match with these strict tolerances and scale=False
         assert result["match"] is False
+        assert result["framework_match"] is False
 
 
 class TestStructureMatcherOptions:
@@ -210,6 +263,7 @@ direct
         
         assert result["success"] is True
         assert result["match"] is True
+        assert result["framework_match"] is True
 
     def test_comparator_element_vs_species(self):
         """Test ElementComparator ignores oxidation states."""
@@ -234,6 +288,7 @@ direct
         
         assert result["success"] is True
         assert result["match"] is True
+        assert result["framework_match"] is True
 
     def test_return_mapping(self):
         """Test that return_mapping option provides site mapping."""
@@ -257,6 +312,7 @@ direct
         
         assert result["success"] is True
         assert result["match"] is True
+        assert result["framework_match"] is True
         # Site mapping should be present when structures match and return_mapping=True
         if result["comparison_details"]["site_mapping"] is not None:
             assert isinstance(result["comparison_details"]["site_mapping"], list)

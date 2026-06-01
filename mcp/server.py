@@ -28,6 +28,7 @@ from tools.ase import (
     ase_list_databases
 )
 from tools.pymatgen import (
+    pymatgen_structure_matcher,
     pymatgen_prototype_builder,
     pymatgen_substitution_generator,
     pymatgen_substitution_predictor,
@@ -137,6 +138,7 @@ mcp.tool()(ase_get_atoms)
 mcp.tool()(ase_list_databases)
 
 # Pymatgen structure generation tools
+mcp.tool()(pymatgen_structure_matcher)
 mcp.tool()(pymatgen_prototype_builder)
 mcp.tool()(pymatgen_substitution_generator)
 mcp.tool()(pymatgen_substitution_predictor)
