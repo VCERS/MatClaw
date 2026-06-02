@@ -6,10 +6,13 @@ site occupancies, which is essential for modeling solid solutions, high-entropy 
 partial substitutions, and doped systems. The disordered output structures can be used as input for SQS generation
 or systematic enumeration.
 
+**Important:** This tool is deterministic. Given identical input parameters, it produces identical output.
+To generate multiple distinct ordered configurations from disorder, use enumeration_orderer or sqs_orderer.
+
 Typical workflow:
     1. Get ordered structure from Materials Project or prototype
     2. Add disorder with this tool → fractional occupancy on sites
-    3. Generate orderered structure using one of the orderer tools
+    3. Generate ordered variants using enumeration_orderer or sqs_orderer
 
 Examples:
     - Solid solutions: (Li,Na)CoO₂, Al_xGa_{1-x}N
@@ -147,6 +150,9 @@ def pymatgen_disorder_generator(
     
     This tool is the inverse of pymatgen_enumeration_orderer: it creates disordered
     structures FROM ordered ones, enabling solid solution and high-entropy material modeling.
+
+    **Important:** This tool is deterministic. There is no randomness in how disorder is applied. 
+    To generate multiple distinct ordered configurations from disorder, use enumeration_orderer or sqs_orderer.
 
     Algorithm
     ---------
