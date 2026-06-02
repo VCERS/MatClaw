@@ -6,10 +6,10 @@ Handles different unit cell choices, lattice distortions within tolerances, and
 supercell/subcell relationships. Essential for deduplication, structure validation,
 and comparing theoretical predictions against experimental or database structures.
 
-In addition to strict structure matching, the tool also computes a framework-level
-comparison that ignores site chemistry and occupancies. This helps compare
-experimental disordered structures to idealized ordered models without changing the
-meaning of the primary `match` field.
+The 'comparator' parameter controls the matching criteria, allowing flexible
+comparison strategies from strict composition matching to geometry-only comparisons.
+This enables comparing ordered structures to disordered ones, structures with
+partial occupancy differences, or purely geometric frameworks.
 """
 
 from typing import Dict, Any, Annotated
@@ -126,12 +126,31 @@ def pymatgen_structure_matcher(
         Field(
             default="SpeciesComparator",
             description=(
-                "Method for comparing atomic species:\n"
-                "- 'SpeciesComparator': Exact element matching (default)\n"
-                "- 'ElementComparator': Ignores oxidation states\n"
-                "- 'FrameworkComparator': Ignores certain 'framework' atoms\n"
-                "- 'OccupancyComparator': Considers partial occupancies\n"
-                "Default: 'SpeciesComparator'."
+                "Method for comparing atomic species. Controls how strictly the matching criteria are applied:\n"
+                "\n"
+                "• 'SpeciesComparator' (default):\n"
+                "    Exact element and oxidation state matching.\n"
+                "    Fails if compositions differ (even slightly).\n"
+                "    Use for: Strict structural matching where composition must match exactly.\n"
+                "    Example: Distinguishing Fe2+ from Fe3+.\n"
+                "\n"
+                "• 'ElementComparator':\n"
+                "    Elements must match, but ignores oxidation states.\n"
+                "    Still fails if element compositions differ.\n"
+                "    Use for: Comparing same elements with different oxidation states.\n"
+                "    Example: Fe2O3 vs FeO both match (same elements, Fe and O).\n"
+                "\n"
+                "• 'FrameworkComparator':\n"
+                "    Ignores ALL chemistry - compares geometry only!\n"
+                "    Succeeds even with completely different compositions.\n"
+                "    Use for: Comparing ordered vs disordered structures, different substitutions, or purely geometric frameworks.\n"
+                "    Example: Ba₀.₉₄₅Mg₀.₁Ga₃.₉₅₅Se₇ (disordered) matches BaMgGa₄Se₇ (ordered) geometrically.\n"
+                "\n"
+                "• 'OccupancyComparator':\n"
+                "    Matches occupancy PATTERNS on sites (full vs partial).\n"
+                "    Fails when occupancy patterns differ (e.g., fractional vs integer).\n"
+                "    Use for: Comparing structures with similar partial occupancy distributions.\n"
+                "    Example: Matches structures with 0.5 occupancy at same sites, but fails if one has 0.5 and other has 1.0.\n"
             )
         )
     ] = "SpeciesComparator",
@@ -178,10 +197,8 @@ def pymatgen_structure_matcher(
             - success (bool): Whether comparison completed successfully
             - match (bool): Whether structures are equivalent within tolerances
             - confidence (str): "exact", "high", "medium", or "low" based on tolerances
-            - framework_match (bool): Whether the site framework matches when site
-              chemistry and occupancies are ignored
-            - framework_confidence (str): Confidence for framework match using the
-              same tolerance semantics as `confidence`
+            - rms_distance (float or None): RMS displacement normalized by (Vol/nsites)^(1/3) (Å)
+            - max_distance (float or None): Maximum distance between paired sites (Å)
             - structure_1_info (dict): Information about first structure:
                 - formula (str): Reduced chemical formula
                 - n_sites (int): Number of sites
@@ -193,19 +210,13 @@ def pymatgen_structure_matcher(
                 - method (str): Comparison method used
                 - supercell_relation (str or None): If one is supercell of other
                 - site_mapping (list or None): Site correspondences (if return_mapping=True)
-                - rms_distance (float or None): RMS distance between matched atoms
-            - framework_comparison (dict): Framework-only comparison details:
-                - method (str): Comparison method used
-                - basis (str): Which structure abstraction was compared
-                - supercell_relation (str or None): If one is supercell of other
-                - rms_distance (float or None): RMS distance between matched atoms
+                - rms_distance (float or None): RMS distance between structures (Å)
             - mismatch_reasons (list): Reasons for mismatch if match=False:
                 - composition_mismatch
                 - lattice_parameter_mismatch
                 - site_position_mismatch
                 - space_group_mismatch
-            - framework_mismatch_reasons (list): Reasons frameworks do not match
-            - parameters (dict): Tolerances used for comparison
+            - parameters (dict): Tolerances and comparator used for comparison
             - warnings (list): Any warnings generated
             - error (str): Error message if comparison failed
     """
@@ -317,33 +328,6 @@ def pymatgen_structure_matcher(
                 return "structure_1_is_supercell_of_structure_2"
             return None
 
-        def calculate_rms_distance(
-            matcher: StructureMatcher,
-            struct_a: Structure,
-            struct_b: Structure,
-        ) -> float | None:
-            try:
-                try:
-                    s1, s2, fu, s1_supercell = matcher.get_s2_like_s1(struct_a, struct_b)
-                    if s1 is not None and s2 is not None:
-                        distances = []
-                        for site1, site2 in zip(s1, s2):
-                            dist = np.linalg.norm(site1.coords - site2.coords)
-                            distances.append(dist)
-                        if distances:
-                            return float(np.sqrt(np.mean(np.array(distances) ** 2)))
-                except Exception:
-                    if struct_a.num_sites == struct_b.num_sites:
-                        distances = []
-                        for site1, site2 in zip(struct_a, struct_b):
-                            dist = np.linalg.norm(site1.coords - site2.coords)
-                            distances.append(dist)
-                        if distances:
-                            return float(np.sqrt(np.mean(np.array(distances) ** 2)))
-            except Exception as e:
-                warnings.append(f"Could not calculate RMS distance: {str(e)}")
-            return None
-
         def infer_mismatch_reasons(
             struct_a: Structure,
             struct_b: Structure,
@@ -378,10 +362,7 @@ def pymatgen_structure_matcher(
         
         struct1_info = get_structure_info(struct1, "structure_1")
         struct2_info = get_structure_info(struct2, "structure_2")
-        framework_struct1 = build_framework_structure(struct1)
-        framework_struct2 = build_framework_structure(struct2)
-        framework_struct1_info = get_structure_info(framework_struct1, "framework_structure_1")
-        framework_struct2_info = get_structure_info(framework_struct2, "framework_structure_2")
+
         
         # Set up comparator
         comparator_map = {
@@ -411,33 +392,41 @@ def pymatgen_structure_matcher(
             comparator=exact_comparator,
             supercell_size=supercell_size
         )
-        framework_matcher = StructureMatcher(
-            ltol=l_tol,
-            stol=s_tol,
-            angle_tol=angle_tol,
-            primitive_cell=primitive_cell,
-            scale=scale,
-            attempt_supercell=attempt_supercell,
-            allow_subset=allow_subset,
-            comparator=SpeciesComparator(),
-            supercell_size=supercell_size
-        )
         
         # Perform matching
         try:
-            compositions_match = struct1.composition.reduced_formula == struct2.composition.reduced_formula
-            if compositions_match:
+            # With FrameworkComparator, skip composition check since it's geometry-only
+            if comparator == "FrameworkComparator":
                 is_match = bool(matcher.fit(struct1, struct2))
                 comparison_method = "StructureMatcher"
                 mismatch_reasons = None
             else:
-                is_match = False
-                comparison_method = "composition_check"
-                mismatch_reasons = ["composition_mismatch"]
+                compositions_match = struct1.composition.reduced_formula == struct2.composition.reduced_formula
+                if compositions_match:
+                    is_match = bool(matcher.fit(struct1, struct2))
+                    comparison_method = "StructureMatcher"
+                    mismatch_reasons = None
+                else:
+                    is_match = False
+                    comparison_method = "composition_check"
+                    mismatch_reasons = ["composition_mismatch"]
 
             supercell_relation = get_supercell_relation(struct1, struct2) if is_match else None
             site_mapping = None
-            rms_distance = calculate_rms_distance(matcher, struct1, struct2) if is_match else None
+            # Calculate RMS distance for diagnostic purposes
+            try:
+                rms_result_raw = matcher.get_rms_dist(struct1, struct2)
+                if rms_result_raw:
+                    normalized_rms, max_distance = rms_result_raw
+                    rms_distance = float(normalized_rms)
+                    max_distance = float(max_distance)
+                else:
+                    rms_distance = None
+                    max_distance = None
+            except Exception as e:
+                warnings.append(f"Could not calculate RMS distance: {str(e)}")
+                rms_distance = None
+                max_distance = None
 
             if is_match and return_mapping:
                 try:
@@ -462,43 +451,19 @@ def pymatgen_structure_matcher(
                     struct2_info,
                     include_composition=True,
                 )
-
-            framework_match = bool(framework_matcher.fit(framework_struct1, framework_struct2))
-            framework_confidence = determine_confidence(framework_match)
-            framework_supercell_relation = (
-                get_supercell_relation(framework_struct1, framework_struct2)
-                if framework_match
-                else None
-            )
-            framework_rms_distance = (
-                calculate_rms_distance(framework_matcher, framework_struct1, framework_struct2)
-                if framework_match
-                else None
-            )
-            framework_mismatch_reasons = None
-            if not framework_match:
-                framework_mismatch_reasons = infer_mismatch_reasons(
-                    framework_struct1,
-                    framework_struct2,
-                    framework_struct1_info,
-                    framework_struct2_info,
-                    include_composition=False,
-                )
             
             message = f"Structures {'match' if is_match else 'do not match'}"
             if is_match and supercell_relation:
                 message += f" ({supercell_relation})"
             if is_match and rms_distance is not None:
                 message += f" with RMS distance {rms_distance:.4f} Å"
-            if framework_match and not is_match:
-                message += "; frameworks match when site chemistry is ignored"
             
             return {
                 "success": True,
                 "match": is_match,
                 "confidence": confidence,
-                "framework_match": framework_match,
-                "framework_confidence": framework_confidence,
+                "rms_distance": rms_distance,
+                "max_distance": max_distance,
                 "structure_1_info": struct1_info,
                 "structure_2_info": struct2_info,
                 "comparison_details": {
@@ -507,14 +472,7 @@ def pymatgen_structure_matcher(
                     "site_mapping": site_mapping,
                     "rms_distance": rms_distance
                 },
-                "framework_comparison": {
-                    "method": "StructureMatcher",
-                    "basis": "all_sites_species_ignored",
-                    "supercell_relation": framework_supercell_relation,
-                    "rms_distance": framework_rms_distance
-                },
                 "mismatch_reasons": mismatch_reasons if not is_match else None,
-                "framework_mismatch_reasons": framework_mismatch_reasons,
                 "parameters": {
                     "l_tol": l_tol,
                     "s_tol": s_tol,

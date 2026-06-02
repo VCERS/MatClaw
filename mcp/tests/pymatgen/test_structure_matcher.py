@@ -54,13 +54,17 @@ direct
         assert result["success"] is True
         assert result["match"] is True
         assert result["confidence"] in ["exact", "high", "medium"]
-        assert result["framework_match"] is True
         assert result["structure_1_info"]["formula"] == "NaCl"
         assert result["structure_2_info"]["formula"] == "NaCl"
         assert result["comparison_details"]["rms_distance"] is not None
 
     def test_different_compositions_no_match(self):
-        """Test that structures with different compositions don't match."""
+        """Test that structures with different compositions don't match by default.
+        
+        When compositions differ, SpeciesComparator will reject the match.
+        To compare geometric frameworks despite composition differences, use
+        comparator='FrameworkComparator'.
+        """
         nacl_structure = """data_NaCl
 _cell_length_a       5.6402
 _cell_length_b       5.6402  
@@ -79,9 +83,9 @@ Cl1 Cl 0.5 0.5 0.5
 """
 
         licl_structure = """data_LiCl
-_cell_length_a       5.14
-_cell_length_b       5.14  
-_cell_length_c       5.14
+_cell_length_a       5.6402
+_cell_length_b       5.6402  
+_cell_length_c       5.6402
 _cell_angle_alpha    90.0
 _cell_angle_beta     90.0
 _cell_angle_gamma    90.0
@@ -103,11 +107,21 @@ Cl1 Cl 0.5 0.5 0.5
         assert result["success"] is True
         assert result["match"] is False
         assert "composition_mismatch" in result["mismatch_reasons"]
-        assert result["framework_match"] is True
-        assert result["framework_comparison"]["basis"] == "all_sites_species_ignored"
+        
+        # Now test framework matching with FrameworkComparator
+        framework_result = pymatgen_structure_matcher(
+            structure_1=nacl_structure,
+            structure_2=licl_structure,
+            comparator="FrameworkComparator"
+        )
+        assert framework_result["match"] is True
 
     def test_disordered_vs_ordered_framework_match(self):
-        """Test that a disordered experimental-like structure can match an ordered framework."""
+        """Test matching disordered vs ordered structures using FrameworkComparator.
+        
+        A disordered experimental-like structure can match an ordered framework
+        when using FrameworkComparator, which ignores site chemistry and occupancies.
+        """
         disordered_structure = """data_MixedHalide
 _cell_length_a       5.6402
 _cell_length_b       5.6402
@@ -144,6 +158,7 @@ Na1 Na 0.0 0.0 0.0
 Cl1 Cl 0.5 0.5 0.5
 """
 
+        # With default SpeciesComparator, won't match due to composition/occupancy differences
         result = pymatgen_structure_matcher(
             structure_1=disordered_structure,
             structure_2=ordered_structure,
@@ -151,8 +166,19 @@ Cl1 Cl 0.5 0.5 0.5
 
         assert result["success"] is True
         assert result["match"] is False
-        assert result["framework_match"] is True
-        assert result["framework_confidence"] in ["exact", "high", "medium"]
+        # Verify RMS distance fields are present (may be None when compositions don't match)
+        assert "rms_distance" in result
+        assert "max_distance" in result
+        
+        # With FrameworkComparator, they should match geometrically
+        framework_result = pymatgen_structure_matcher(
+            structure_1=disordered_structure,
+            structure_2=ordered_structure,
+            comparator="FrameworkComparator"
+        )
+        assert framework_result["success"] is True
+        assert framework_result["match"] is True
+        assert framework_result["confidence"] in ["exact", "high", "medium"]
 
 
 class TestStructureMatcherTolerances:
@@ -195,7 +221,6 @@ direct
         assert result["success"] is True
         # Should match with these tolerances
         assert result["match"] is True
-        assert result["framework_match"] is True
 
     def test_strict_tolerance_no_match(self):
         """Test that strict tolerances prevent matching distorted structures."""
@@ -235,7 +260,6 @@ direct
         assert result["success"] is True
         # Should not match with these strict tolerances and scale=False
         assert result["match"] is False
-        assert result["framework_match"] is False
 
 
 class TestStructureMatcherOptions:
@@ -263,7 +287,6 @@ direct
         
         assert result["success"] is True
         assert result["match"] is True
-        assert result["framework_match"] is True
 
     def test_comparator_element_vs_species(self):
         """Test ElementComparator ignores oxidation states."""
@@ -288,7 +311,6 @@ direct
         
         assert result["success"] is True
         assert result["match"] is True
-        assert result["framework_match"] is True
 
     def test_return_mapping(self):
         """Test that return_mapping option provides site mapping."""
@@ -312,7 +334,6 @@ direct
         
         assert result["success"] is True
         assert result["match"] is True
-        assert result["framework_match"] is True
         # Site mapping should be present when structures match and return_mapping=True
         if result["comparison_details"]["site_mapping"] is not None:
             assert isinstance(result["comparison_details"]["site_mapping"], list)
