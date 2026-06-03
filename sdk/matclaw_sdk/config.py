@@ -138,17 +138,31 @@ class Config:
         self.timeout = config.get("timeout", 30)
         
         if transport_type == "http":
+            http_cfg = config.get("http", {})
             self.transport = HttpTransport(
-                url=config.get("url", "http://localhost:5000"),
+                url=config.get("url") or http_cfg.get("url", "http://localhost:5000"),
                 timeout=self.timeout,
-                verify_ssl=config.get("verify_ssl", True),
+                verify_ssl=config.get("verify_ssl", http_cfg.get("verify_ssl", True)),
             )
         
         elif transport_type == "stdio":
             # Check for command at root level first, then nested under 'stdio'
-            command = config.get("command") or config.get("stdio", {}).get("command")
+            stdio_cfg = config.get("stdio", {})
+            command = config.get("command") or stdio_cfg.get("command")
+            args = config.get("args") or stdio_cfg.get("args", [])
+
             if not command:
                 raise ConfigurationError("stdio transport requires 'command'")
+
+            # Build full shell command string (args may be a list or space-separated string)
+            if isinstance(args, list) and args:
+                args_str = " ".join(
+                    f'"{a}"' if " " in a else a for a in args
+                )
+                command = f"{command} {args_str}"
+            elif isinstance(args, str) and args:
+                command = f"{command} {args}"
+
             self.transport = StdioTransport(
                 command=command,
                 timeout=self.timeout,

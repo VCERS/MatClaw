@@ -213,5 +213,39 @@ mcp.tool()(lula_generate_robot_description)
 
 
 if __name__ == "__main__":
-    logger.info("Starting MatClaw MCP Server")
-    mcp.run()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="MatClaw MCP Server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default="stdio",
+        help="Transport mode (default: stdio)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8500,
+        help="Port for streamable-http transport (default: 8500)"
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host for streamable-http transport (default: 127.0.0.1)"
+    )
+    args = parser.parse_args()
+
+    if args.transport == "stdio":
+        logger.info("Starting MatClaw MCP Server (stdio)")
+        mcp.run(transport="stdio")
+    else:
+        logger.info(
+            f"Starting MatClaw MCP Server ({args.transport}) "
+            f"on {args.host}:{args.port}"
+        )
+        # Enable stateless JSON mode for HTTP transport
+        mcp.settings.stateless_http = True
+        mcp.settings.json_response = True
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+        mcp.run(transport=args.transport)
