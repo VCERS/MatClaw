@@ -395,7 +395,6 @@ For more complex examples including disorder handling, defects, and multi-phase 
 
 **All detailed documentation in references/ directory:**
 
-- **Batch tool-calling pattern** — For standalone Python scripts that call MatClaw tools, use the shared MCP client template in [../_shared/tool-calling-pattern.md](../_shared/tool-calling-pattern.md). It covers both local stdio launches and remote HTTP/SSE connections.
-- **Concrete batch example** — See [examples/batch_generation_example.py](examples/batch_generation_example.py) for a complete generation script using that pattern.
+- **Batch scripts** — Use `matclaw_sdk` (install with `pip install -e /path/to/MatClaw/sdk/`). Import tools directly: `from matclaw_sdk import tool_name`. See [examples/batch_generation_example.py](examples/batch_generation_example.py) for a complete example.
 - **[references/phase-guides.md](references/phase-guides.md)** — Complete Phase 1-5 instructions with algorithms, parameter tables, decision logic, physical basis explanations
 - **[references/examples.md](references/examples.md)** — 9 complete working patterns from simple to complex, including full code and expected outputs

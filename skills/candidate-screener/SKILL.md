@@ -218,8 +218,7 @@ See [references/ml-calculations-guide.md](references/ml-calculations-guide.md) f
 3. Execute with save-after-every-candidate pattern
 4. Support iterative refinement (adjust criteria, reuse cached properties)
 
-**Batch scripts:** Use the shared MCP client pattern in [../_shared/tool-calling-pattern.md](../_shared/tool-calling-pattern.md) for both local stdio and remote HTTP/SSE tool access.  
-**Concrete batch example:** See [examples/batch_screening_example.py](examples/batch_screening_example.py) for a complete screening script built on that pattern.  
+**Batch scripts:** Use `matclaw_sdk` (install with `pip install -e /path/to/MatClaw/sdk/`). Import tools directly: `from matclaw_sdk import tool_name`. See [examples/batch_screening_example.py](examples/batch_screening_example.py) for a complete example.  
 Complete implementation is in [references/execution-guide.md](references/execution-guide.md).
 
 ---

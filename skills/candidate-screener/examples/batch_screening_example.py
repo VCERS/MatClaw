@@ -9,27 +9,19 @@ using MCP tools. Demonstrates:
     - Both stdio (local) and SSE (remote) MCP connections
 
 Architecture:
-    - Client-side: Pure Python (only requires mcp SDK + python-dotenv)
+    - Client-side: Pure Python (only requires matclaw_sdk)
     - Structure format: CIF (standard crystallographic format) for all I/O
-    - Server-side: MCP tools handle all pymatgen/materials operations
+    - Server-side: MCP tools handled transparently by matclaw_sdk
 
 Dependencies:
-    pip install mcp python-dotenv
+    pip install -e /path/to/MatClaw/sdk/
 
 Usage:
-    # Local development (stdio) - auto-detected if no MATCLAW_MCP_URL
-    python batch_screening_example.py
-    
-    # Remote server (SSE/HTTP) - auto-detected if MATCLAW_MCP_URL is set
-    export MATCLAW_MCP_URL="http://remote-server:8000/sse"
-    python batch_screening_example.py
-    
-    # Resume automatically (script tracks progress in screening_results.json)
+    # Run directly (connection configured via sdk/config.yaml)
     python batch_screening_example.py
 
-Environment Variables:
-    MATCLAW_MCP_URL: HTTP/SSE server URL (if set, uses SSE mode; otherwise stdio)
-    MATCLAW_SERVER_PATH: Path to local server.py (for stdio mode, defaults to ../../../mcp/server.py)
+    # Resume automatically (script tracks progress in screening_results.json)
+    python batch_screening_example.py
 
 The script tracks progress in screening_results.json, allowing automatic resume
 if interrupted. Results include detailed properties, screening outcomes, and rankings.
@@ -65,25 +57,12 @@ import asyncio
 import argparse
 import json
 import logging
-import os
 import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional, List
-from contextlib import asynccontextmanager
 
-# MCP SDK imports
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcp.client.sse import sse_client
-
-# Optional: python-dotenv for reading .env files
-try:
-    from dotenv import dotenv_values
-    HAS_DOTENV = True
-except ImportError:
-    HAS_DOTENV = False
-    print("Warning: python-dotenv not installed. Environment variables must be set manually.")
+from matclaw_sdk import async_call_tool
 
 
 # Configure logging
@@ -96,92 +75,16 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# Utility Functions (inlined for self-contained script)
+# Utility Functions
 # ============================================================================
 
-@asynccontextmanager
-async def connect_mcp(connection_type: str = None):
-    """
-    Connect to MCP server with flexible connection options (context manager).
-    
-    Supports:
-    - stdio: Local subprocess (default for development)
-    - sse: Remote HTTP/SSE server (production)
-    
-    Connection determined by (in order):
-    1. connection_type parameter (if provided)
-    2. MATCLAW_MCP_URL env var (if set, use SSE)
-    3. Default: stdio with relative path to ../../mcp/server.py
-    
-    Args:
-        connection_type: Optional explicit connection type ("stdio" or "sse")
-        
-    Yields:
-        Tuple of (session, read, write) for MCP communication
-    """
-    if connection_type is None:
-        # Auto-detect based on environment
-        if os.getenv("MATCLAW_MCP_URL"):
-            connection_type = "sse"
-        else:
-            connection_type = "stdio"
-    
-    if connection_type == "sse":
-        # Remote server via HTTP/SSE
-        url = os.getenv("MATCLAW_MCP_URL", "http://localhost:8000/sse")
-        logger.info(f"Connecting to MCP server via SSE: {url}")
-        async with sse_client(url) as (read, write):
-            session = ClientSession(read, write)
-            async with session:
-                await session.initialize()
-                logger.info("Connected to MCP server via SSE")
-                yield session, read, write
-        
-    elif connection_type == "stdio":
-        # Local server subprocess
-        server_path = os.getenv(
-            "MATCLAW_SERVER_PATH",
-            str(Path(__file__).parent.parent.parent / "mcp" / "server.py")
-        )
-        
-        # Use venv Python (required for dependencies)
-        mcp_dir = Path(server_path).parent
-        venv_python = mcp_dir / "venv" / "Scripts" / "python.exe"
-        if not venv_python.exists():
-            # Fallback for Unix-like systems
-            venv_python = mcp_dir / "venv" / "bin" / "python"
-        
-        if not venv_python.exists():
-            raise FileNotFoundError(
-                f"MCP venv not found at {venv_python}. "
-                f"Please set up the virtual environment first with dependencies from mcp/requirements.txt"
-            )
-        
-        # Load environment variables from mcp/.env
-        env_file = mcp_dir / ".env"
-        env_vars = dict(os.environ)  # Start with current environment
-        if HAS_DOTENV and env_file.exists():
-            # Merge .env variables (they take precedence)
-            env_vars.update(dotenv_values(env_file))
-            logger.info(f"Loaded environment variables from {env_file}")
-        
-        logger.info(f"Connecting to MCP server via stdio: {server_path}")
-        logger.info(f"Using Python: {venv_python}")
-        
-        server_params = StdioServerParameters(
-            command=str(venv_python),
-            args=[str(server_path)],
-            env=env_vars
-        )
-        async with stdio_client(server_params) as (read, write):
-            session = ClientSession(read, write)
-            async with session:
-                await session.initialize()
-                logger.info("Connected to MCP server via stdio")
-                yield session, read, write
-    
-    else:
-        raise ValueError(f"Unknown connection type: {connection_type}. Use 'stdio' or 'sse'.")
+def parse_result(result) -> dict:
+    """Parse matclaw_sdk tool result to a Python dict."""
+    if isinstance(result, dict) and "content" in result:
+        for item in result.get("content", []):
+            if item.get("type") == "text":
+                return json.loads(item["text"])
+    return {}
 
 
 def save_results(results_file: Path, results: dict):
@@ -193,15 +96,6 @@ def save_results(results_file: Path, results: dict):
     
     # Atomic rename (POSIX) / replace (Windows)
     temp_file.replace(results_file)
-
-
-def parse_tool_result(result) -> dict:
-    """Parse MCP tool result from response object."""
-    if result.content and len(result.content) > 0:
-        content_item = result.content[0]
-        if hasattr(content_item, 'text'):
-            return json.loads(content_item.text)
-    return {}
 
 
 # ============================================================================
@@ -323,24 +217,22 @@ class BatchScreener:
         self.results["metadata"]["last_updated"] = datetime.now().isoformat()
         save_results(self.results_file, self.results)
     
-    async def validate_structure(self, session: ClientSession, candidate: Dict) -> bool:
+    async def validate_structure(self, candidate: Dict) -> bool:
         """
-        Phase 1: Validate structure integrity via MCP.
-        
+        Phase 1: Validate structure integrity.
+
         CUSTOMIZATION POINT: Add additional validation checks.
         """
         try:
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "structure_validator",
-                {
-                    "input_structure": candidate["cif_string"],
-                    "check_overlaps": True,
-                    "overlap_tolerance": 0.5,
-                    "check_bonds": True,
-                    "check_composition": True
-                }
+                input_structure=candidate["cif_string"],
+                check_overlaps=True,
+                overlap_tolerance=0.5,
+                check_bonds=True,
+                check_composition=True
             )
-            data = parse_tool_result(result)
+            data = parse_result(result)
             
             if data["is_valid"]:
                 candidate["properties"]["validity"] = data
@@ -362,32 +254,32 @@ class BatchScreener:
             logger.error(f"  {candidate['id']}: Validation exception - {e}")
             return False
     
-    async def retrieve_properties_hierarchical(self, session: ClientSession, candidate: Dict) -> bool:
+    async def retrieve_properties_hierarchical(self, candidate: Dict) -> bool:
         """
         Phase 2: Hierarchical property retrieval (MP → ASE → ML).
-        
+
         CUSTOMIZATION POINT: Modify retrieval hierarchy for your data sources.
-        
+
         Returns:
             True if properties successfully retrieved, False otherwise
         """
         formula = candidate["properties"]["formula"]
-        
+
         # Clean formula for base structure search (remove dopants)
         base_formula = self._clean_formula_for_search(formula)
-        
+
         logger.info(f"  {candidate['id']}: Retrieving properties for {formula} (base: {base_formula})")
-        
+
         # Try Materials Project first (highest confidence)
-        if await self._try_materials_project(session, candidate, base_formula):
+        if await self._try_materials_project(candidate, base_formula):
             return True
-        
+
         # Try ASE cache second (medium confidence)
-        if self.ase_db_path and await self._try_ase_cache(session, candidate, formula):
+        if self.ase_db_path and await self._try_ase_cache(candidate, formula):
             return True
-        
+
         # Fall back to ML predictions (lower confidence, requires DFT verification)
-        return await self._run_ml_predictions(session, candidate)
+        return await self._run_ml_predictions(candidate)
     
     def _clean_formula_for_search(self, formula: str) -> str:
         """Remove dopants and normalize formula for database search."""
@@ -403,18 +295,16 @@ class BatchScreener:
         
         return cleaned
     
-    async def _try_materials_project(self, session: ClientSession, candidate: Dict, formula: str) -> bool:
-        """Try to retrieve properties from Materials Project via MCP."""
+    async def _try_materials_project(self, candidate: Dict, formula: str) -> bool:
+        """Try to retrieve properties from Materials Project."""
         try:
             # Search for material
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "mp_search_materials",
-                {
-                    "formula": formula,
-                    "is_stable": None  # Include metastable
-                }
+                formula=formula,
+                is_stable=None
             )
-            search_result = parse_tool_result(result)
+            search_result = parse_result(result)
             
             if search_result.get("count", 0) == 0:
                 logger.info(f"    {candidate['id']}: Not found in Materials Project")
@@ -425,15 +315,13 @@ class BatchScreener:
             logger.info(f"    {candidate['id']}: Found in MP as {mp_id}")
             
             # Retrieve detailed properties
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "mp_get_material_properties",
-                {
-                    "material_ids": [mp_id],
-                    "properties": ["formation_energy_per_atom", "band_gap", "energy_above_hull", 
-                                 "symmetry", "density"]
-                }
+                material_ids=[mp_id],
+                properties=["formation_energy_per_atom", "band_gap", "energy_above_hull",
+                            "symmetry", "density"]
             )
-            props = parse_tool_result(result)
+            props = parse_result(result)
             
             if props.get("count", 0) > 0:
                 mp_data = props["properties"][0]
@@ -456,17 +344,15 @@ class BatchScreener:
         
         return False
     
-    async def _try_ase_cache(self, session: ClientSession, candidate: Dict, formula: str) -> bool:
-        """Try to retrieve properties from ASE database cache via MCP."""
+    async def _try_ase_cache(self, candidate: Dict, formula: str) -> bool:
+        """Try to retrieve properties from ASE database cache."""
         try:
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "ase_query",
-                {
-                    "db_path": str(self.ase_db_path),
-                    "formula": formula
-                }
+                db_path=str(self.ase_db_path),
+                formula=formula
             )
-            ase_result = parse_tool_result(result)
+            ase_result = parse_result(result)
             
             if ase_result.get("count", 0) > 0:
                 # Use most recent entry
@@ -488,22 +374,20 @@ class BatchScreener:
         
         return False
     
-    async def _run_ml_predictions(self, session: ClientSession, candidate: Dict) -> bool:
-        """Run ML predictions using MatGL via MCP."""
+    async def _run_ml_predictions(self, candidate: Dict) -> bool:
+        """Run ML predictions using MatGL."""
         try:
             logger.info(f"    {candidate['id']}: Running ML predictions...")
-            
+
             # Step 1: Relax structure
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "matgl_relax_structure",
-                {
-                    "input_structure": candidate["cif_string"],
-                    "fmax": 0.1,
-                    "steps": 500,
-                    "optimizer": "FIRE"
-                }
+                input_structure=candidate["cif_string"],
+                fmax=0.1,
+                steps=500,
+                optimizer="FIRE"
             )
-            relaxed = parse_tool_result(result)
+            relaxed = parse_result(result)
             
             if not relaxed.get("converged", False):
                 raise Exception("Relaxation did not converge")
@@ -520,26 +404,22 @@ class BatchScreener:
                 f.write(relaxed_structure)
             
             # Step 2: Predict formation energy
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "matgl_predict_eform",
-                {
-                    "input_structure": relaxed_structure,
-                    "model": "MEGNet-Eform-MP-2018.6.1"
-                }
+                input_structure=relaxed_structure,
+                model="MEGNet-Eform-MP-2018.6.1"
             )
-            eform_result = parse_tool_result(result)
+            eform_result = parse_result(result)
             
             if not eform_result or "formation_energy_per_atom" not in eform_result:
                 logger.warning(f"    {candidate['id']}: Error parsing matgl_predict_eform response. Check tool response format.")
             
             # Step 3: Predict band gap
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "matgl_predict_bandgap",
-                {
-                    "input_structure": relaxed_structure
-                }
+                input_structure=relaxed_structure
             )
-            bandgap_result = parse_tool_result(result)
+            bandgap_result = parse_result(result)
             
             if not bandgap_result or "band_gap" not in bandgap_result:
                 logger.warning(f"    {candidate['id']}: Error parsing matgl_predict_bandgap response. Check tool response format.")
@@ -695,46 +575,46 @@ class BatchScreener:
         self.results["summary_statistics"]["ranked"] = len(passed)
         logger.info(f"Ranked {len(passed)} candidates")
     
-    async def process_candidate(self, session: ClientSession, candidate: Dict) -> bool:
+    async def process_candidate(self, candidate: Dict) -> bool:
         """Process single candidate through all phases."""
         # Skip if already processed
         if candidate["status"] != "pending":
             logger.info(f"{candidate['id']}: Already processed, skipping")
             return True
-        
+
         logger.info(f"{candidate['id']}: Processing...")
-        
+
         try:
             # Phase 1: Validation
-            if not await self.validate_structure(session, candidate):
+            if not await self.validate_structure(candidate):
                 return False
-            
+
             # Phase 2: Property retrieval
-            if not await self.retrieve_properties_hierarchical(session, candidate):
+            if not await self.retrieve_properties_hierarchical(candidate):
                 return False
-            
+
             # Phase 3: Screening
             if self.apply_screening_criteria(candidate):
                 # Phase 4: Calculate scores for passed candidates
                 self.calculate_scores(candidate)
-            
+
             return True
-            
+
         except Exception as e:
             candidate["status"] = "properties_failed"
             candidate["screening_result"]["rejection_reason"] = f"Processing error: {str(e)}"
             logger.error(f"{candidate['id']}: Processing error - {e}")
             return False
-    
-    async def run(self, session: ClientSession):
-        """Execute complete screening workflow via MCP."""
+
+    async def run(self):
+        """Execute complete screening workflow."""
         import time
         start_time = time.time()
-        
+
         logger.info("=" * 80)
         logger.info("STARTING BATCH SCREENING WORKFLOW")
         logger.info("=" * 80)
-        
+
         # Load candidates (from checkpoint or fresh)
         checkpoint = self.load_checkpoint()
         if checkpoint:
@@ -742,26 +622,26 @@ class BatchScreener:
         else:
             candidates = self.load_candidates()
             self.results["candidates"] = candidates
-        
+
         # Process each candidate
         total = len(self.results["candidates"])
         for i, candidate in enumerate(self.results["candidates"], 1):
             logger.info(f"\n[{i}/{total}] Processing {candidate['id']}...")
-            
-            await self.process_candidate(session, candidate)
-            
+
+            await self.process_candidate(candidate)
+
             # Save checkpoint after each candidate
             self.save_checkpoint()
-        
+
         # Final ranking
         self.rank_candidates()
-        
+
         # Record total time
         self.results["metadata"]["screening_time_seconds"] = time.time() - start_time
-        
+
         # Save final results
         self.save_checkpoint()
-        
+
         logger.info(f"\nScreening complete in {self.results['metadata']['screening_time_seconds']:.1f} seconds")
         logger.info(f"Results saved to {self.results_file}")
 
@@ -789,9 +669,8 @@ async def main():
         ase_db_path=args.ase_db
     )
     
-    # Run screening workflow with MCP connection
-    async with connect_mcp() as session:
-        await screener.run(session)
+    # Run screening workflow
+    await screener.run()
 
 
 if __name__ == "__main__":
