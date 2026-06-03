@@ -17,9 +17,9 @@ MatClaw follows a layered architecture:
 │              Skills                     │  ← High-level workflows
 │     (orchestrate multiple tools)        │
 └─────────────────┬───────────────────────┘
-                  │
+                  │ Direct tool call or matclaw_sdk
 ┌─────────────────▼───────────────────────┐
-│             MCP Server                  │  ← Exposes tools via MCP
+│             MCP Server                  │  ← Exposes tools via stdio or HTTP
 │   ┌─────────────────────────────────┐   │
 │   │           Tools                 │   │
 │   └─────────────────────────────────┘   │
@@ -72,47 +72,122 @@ MatClaw follows a layered architecture:
 
 ## Setup
 
-Some of the dependencies for the MCP server require pre-compiled binaries which match your specific PyTorch and CUDA versions. To ensure proper installation, you may either use Option A or Option B.
+### 1. MCP Server (`mcp/`)
 
-### Option A
+Some dependencies require pre-compiled binaries matching your PyTorch and CUDA versions.
 
-Run the following script, which will automatically detect your environment to install the apppropriate dependencies for the MCP server:
-
+**Option A — auto-install:**
 ```bash
 cd mcp
 ./setup.sh
 ```
 
-### Option B
-
-1. Check your PyTorch and CUDA versions:
-
-```bash
-python -c "import torch; print(f'Torch: {torch.__version__} | CUDA: {torch.version.cuda}')"
-```
-
-2. In `requirements.txt`, change the links at the top to match your Torch and CUDA version. For example for Torch 2.11.0+cu130 and CUDA 13.0, use:
-```
---find-links https://data.pyg.org/whl/torch-2.11.0+cu130.html
-```
-
-3. Install the dependencies in a virtual environment:
+**Option B — manual:**
 ```bash
 cd mcp
 python -m venv venv
-source venv/bin/activate # or source venv/Scripts/activate for Windows 
+source venv/bin/activate
+# If needed, update --find-links in requirements.txt for your Torch/CUDA version
 pip install -r requirements.txt
 ```
 
-## Usage
+### 2. Python SDK (`sdk/`)
 
-Start the MCP server:
 ```bash
-cd mcp
-python server.py
+cd sdk
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
 ```
 
-Skills can then reference the exposed tools for autonomous agent workflows.
+## Running the Server
+
+The MCP server supports two transport modes:
+
+### Stdio (default)
+
+VS Code launches the server automatically when configured in `.vscode/mcp.json`. Run manually:
+
+```bash
+cd mcp
+source venv/bin/activate
+python server.py                            # uses --transport stdio (default)
+```
+
+### HTTP (streamable-http)
+
+Start the server as a long-lived HTTP process, then connect from anywhere:
+
+```bash
+cd mcp
+source venv/bin/activate
+python server.py --transport streamable-http --port 8500
+```
+
+Switch the SDK to HTTP mode by editing `sdk/config.yaml`:
+```yaml
+transport: http
+http:
+  url: http://localhost:8500
+```
+
+Or set environment variables instead:
+```bash
+export MATCLAW_TRANSPORT=http
+export MATCLAW_HTTP_URL=http://localhost:8500
+```
+
+## Python SDK (`matclaw_sdk`)
+
+The SDK provides a thin client over the MCP server, letting you call any tool with a direct Python import — no MCP boilerplate needed.
+
+### Quick start
+
+```python
+from matclaw_sdk import mp_search_materials, matgl_predict_bandgap
+
+result = mp_search_materials(formula="NaCl")
+print(result)
+```
+
+All tools exposed by the server are available as top-level imports from `matclaw_sdk`.
+
+### Configuration
+
+The SDK auto-loads configuration from (highest priority first):
+
+1. **Environment variables** — `MATCLAW_TRANSPORT`, `MATCLAW_HTTP_URL`, `MATCLAW_TIMEOUT`
+2. **`~/.matclaw/config.yaml`** — user-wide config
+3. **`./matclaw.config.yaml`** — project-specific config
+4. **`sdk/config.yaml`** — bundled defaults
+
+```yaml
+# sdk/config.yaml
+transport: stdio                       # "stdio" or "http"
+stdio:
+  command: "/path/to/venv/bin/python"
+  args: ["/path/to/server.py", "--transport", "stdio"]
+http:
+  url: http://localhost:8500
+  verify_ssl: false
+timeout: 30
+```
+
+### Async usage
+
+For batch scripts making many sequential tool calls, use `async_call_tool` directly:
+
+```python
+import asyncio
+from matclaw_sdk import async_call_tool
+
+async def main():
+    result = await async_call_tool("mp_search_materials", formula="NaCl")
+    print(result)
+
+asyncio.run(main())
+```
 
 ## Development Status
 
