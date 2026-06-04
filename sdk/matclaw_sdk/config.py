@@ -109,6 +109,23 @@ class Config:
             sdk_dir / "config.yaml",
         ]
         
+        # For editable installs, find the actual SDK source directory
+        # (__file__ resolves to site-packages, not the source checkout)
+        try:
+            site_pkgs = Path(__file__).parent.parent
+            for dist_info in site_pkgs.glob("matclaw_sdk-*.dist-info"):
+                direct_url = dist_info / "direct_url.json"
+                if direct_url.exists():
+                    import json as _json
+                    data = _json.loads(direct_url.read_text())
+                    url = data.get("url", "").replace("file://", "")
+                    if url:
+                        sdk_source = Path(url)
+                        config_paths.append(sdk_source / "config.yaml")
+                    break
+        except Exception:
+            pass
+        
         for config_path in config_paths:
             if config_path.exists():
                 try:
