@@ -10,6 +10,9 @@ from tools.pubchem import (
     pubchem_get_compound_properties,
     pubchem_get_safety_data,
 )
+from tools.cod import (
+    cod_search_structures,
+)
 from tools.materials_project import (
     mp_search_materials,
     mp_get_material_properties,
@@ -115,6 +118,8 @@ load_dotenv()
 mcp = FastMCP(name="matclaw-mcp-server")
 
 # Add tools
+# COD tools
+mcp.tool()(cod_search_structures)
 # Pubchem tools
 mcp.tool()(pubchem_search_compounds)
 mcp.tool()(pubchem_get_compound_properties)
