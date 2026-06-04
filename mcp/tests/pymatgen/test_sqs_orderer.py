@@ -529,3 +529,92 @@ class TestPipelineIntegration:
         elements1 = sorted(str(sp) for sp in s.composition.elements)
         elements2 = sorted(str(sp) for sp in s2.composition.elements)
         assert elements1 == elements2
+
+
+# Uniform-fractional disorder (real-world pattern)
+class TestUniformFractionalDisorder:
+    """Tests using bagase_ga_mg_uniform fixture — uniform fractional occupancy
+    across multiple equivalent sites, mimicking disorder_generator output."""
+
+    def test_sqs_succeeds_via_internal_rounding(self, bagase_ga_mg_uniform):
+        """SQS has built-in largest-remainder distribution and should handle
+        uniform fractional disorder at small supercell sizes."""
+        result = pymatgen_sqs_orderer(
+            bagase_ga_mg_uniform,
+            n_structures=1,
+            supercell_size=4,
+            n_mc_steps=1000,
+            n_shells=2,
+            output_format="cif",
+        )
+        assert result["success"] is True
+        assert result["count"] >= 1
+        for s in result["structures"]:
+            assert _is_ordered(s)
+
+    def test_sqs_works_at_supercell_8(self, bagase_ga_mg_uniform):
+        """SQS with default supercell_size=8 should also succeed with
+        the uniform fractional disorder fixture."""
+        from pymatgen.core import Structure
+        result = pymatgen_sqs_orderer(
+            bagase_ga_mg_uniform,
+            n_structures=1,
+            supercell_size=8,
+            n_mc_steps=2000,
+            n_shells=2,
+            output_format="cif",
+        )
+        assert result["success"] is True
+        assert result["count"] >= 1
+        s = Structure.from_str(result["structures"][0], fmt="cif")
+        assert s.is_ordered
+
+    # ── Dual-site uniform fixture tests ──
+
+    def test_dual_site_sqs_succeeds(self, bagase_ba_ga_mg_uniform):
+        """bagase_ba_ga_mg_uniform: Mg on both Ba and Ga sites uniformly.
+        SQS should succeed via internal _int_distribute."""
+        result = pymatgen_sqs_orderer(
+            bagase_ba_ga_mg_uniform,
+            n_structures=1,
+            supercell_size=4,
+            n_mc_steps=1000,
+            n_shells=2,
+            output_format="cif",
+        )
+        assert result["success"] is True
+        assert result["count"] >= 1
+
+    def test_dual_site_output_contains_mg(self, bagase_ba_ga_mg_uniform):
+        """SQS on dual-site uniform fixture should retain Mg."""
+        from pymatgen.core import Structure
+        result = pymatgen_sqs_orderer(
+            bagase_ba_ga_mg_uniform,
+            n_structures=1,
+            supercell_size=4,
+            n_mc_steps=1000,
+            n_shells=2,
+            output_format="cif",
+        )
+        assert result["success"] is True
+        s = Structure.from_str(result["structures"][0], fmt="cif")
+        mg_count = s.composition.get("Mg", 0)
+        assert mg_count > 0, f"Expected Mg, got {s.composition}"
+
+    def test_dual_site_metadata_keys(self, bagase_ba_ga_mg_uniform):
+        """All metadata keys should be present for dual-site disorder."""
+        result = pymatgen_sqs_orderer(
+            bagase_ba_ga_mg_uniform,
+            n_structures=1,
+            supercell_size=4,
+            n_mc_steps=1000,
+            n_shells=2,
+            output_format="cif",
+        )
+        assert result["success"] is True
+        meta = result["metadata"][0]
+        required = {"index", "source_formula", "sqs_formula", "n_sites",
+                     "supercell_size", "sqs_error", "warren_cowley",
+                     "composition", "n_mc_steps", "backend", "mcsqs_used"}
+        for key in required:
+            assert key in meta, f"Missing metadata key: {key}"
