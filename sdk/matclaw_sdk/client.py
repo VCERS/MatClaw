@@ -5,6 +5,7 @@ Core MCP client for MatClaw SDK.
 import asyncio
 import json
 import logging
+import threading
 from typing import Any, Dict, List, Optional, Callable
 from functools import wraps
 
@@ -251,6 +252,36 @@ class MatClawClient:
 
 # Global client instance
 _global_client: Optional[MatClawClient] = None
+_loop_thread: Optional["BackgroundLoop"] = None
+
+
+class BackgroundLoop:
+    """Runs an asyncio event loop on a daemon thread for sync calls."""
+
+    def __init__(self):
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def run_sync(self, coro) -> Any:
+        """Schedule a coroutine on the background loop and wait for the result."""
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        return future.result()
+
+    def stop(self):
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join(timeout=2)
+
+
+def _get_loop() -> BackgroundLoop:
+    global _loop_thread
+    if _loop_thread is None:
+        _loop_thread = BackgroundLoop()
+    return _loop_thread
 
 
 def get_client() -> MatClawClient:
@@ -263,7 +294,7 @@ def get_client() -> MatClawClient:
 
 def sync_call_tool(tool_name: str, **kwargs) -> Any:
     """
-    Synchronously call a tool (blocking wrapper around async).
+    Synchronously call a tool via a persistent background event loop.
     
     Args:
         tool_name: Name of the tool
@@ -273,7 +304,8 @@ def sync_call_tool(tool_name: str, **kwargs) -> Any:
         Tool result
     """
     client = get_client()
-    return asyncio.run(client.call_tool(tool_name, **kwargs))
+    loop_runner = _get_loop()
+    return loop_runner.run_sync(client.call_tool(tool_name, **kwargs))
 
 
 async def async_call_tool(tool_name: str, **kwargs) -> Any:
