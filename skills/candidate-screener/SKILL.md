@@ -56,9 +56,9 @@ Validates and enriches candidate structures with properties using hierarchical d
 ### Phase 2A: Property Retrieval (Hierarchical)
 | Source | Tools | Priority | Confidence |
 |--------|-------|----------|------------|
-| Materials Project | `mp_search_materials`, `mp_get_material_properties` | 1st (best) | 1.0 (DFT) |
-| ASE cache | `ase_query`, `ase_connect_or_create_db` | 2nd | 0.8-1.0 |
-| ML calculation | MatGL + matcalc | 3rd | 0.65-0.75 |
+| Materials Project | `mp_search_materials`, `mp_get_material_properties` | 1st |
+| ASE cache | `ase_query`, `ase_connect_or_create_db` | 2nd |
+| ML calculation | MatGL + matcalc | 3rd |
 
 ### Phase 2B: ML Calculations
 | Ecosystem | Tools | Properties | Speed |
@@ -68,10 +68,10 @@ Validates and enriches candidate structures with properties using hierarchical d
 | **Relaxation** | `matgl_relax_structure` | Before all predictions (removes artifacts, handles disorder) | 5-10s |
 
 **MatGL tools (fast screening):**
-- `matgl_predict_eform`: Formation energy (M3GNet/MEGNet 2018 models)
-- `matgl_predict_bandgap`: Electronic band gap (MEGNet 2019 model)
+- `matgl_predict_eform`: Formation energy
+- `matgl_predict_bandgap`: Electronic band gap
 
-**matcalc tools (detailed calculations, 2025 ML potentials):**
+**matcalc tools (detailed calculations):**
 - `matcalc_calc_elasticity`: Elastic tensor, bulk/shear/Young's modulus
 - `matcalc_calc_phonon`: Phonon dispersion, dynamic stability
 - `matcalc_calc_surface`: Surface energies (catalyst screening)
