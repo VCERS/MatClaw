@@ -20,8 +20,8 @@ Validates and enriches candidate structures with properties using hierarchical d
 **This skill implements a property enrichment pipeline, NOT a blind filter:**
 
 1. **Hierarchical property retrieval** (MP → ASE cache → ML calculation)
-   - Try high-quality DFT data first (Materials Project)
-   - Fall back to cached results (ASE database)
+   - Try high-quality DFT data first (Materials Project — includes band gap, formation energy)
+   - Then cached results (ASE database)
    - Only run ML calculations if necessary (MatGL + matcalc)
 
 2. **Complete transparency** - log rejection reasons for diagnostics and refinement
@@ -56,9 +56,9 @@ Validates and enriches candidate structures with properties using hierarchical d
 ### Phase 2A: Property Retrieval (Hierarchical)
 | Source | Tools | Priority | Confidence |
 |--------|-------|----------|------------|
-| Materials Project | `mp_search_materials`, `mp_get_material_properties` | 1st (best) | 1.0 (DFT) |
-| ASE cache | `ase_query`, `ase_connect_or_create_db` | 2nd | 0.8-1.0 |
-| ML calculation | MatGL + matcalc | 3rd | 0.65-0.75 |
+| Materials Project | `mp_search_materials`, `mp_get_material_properties` | 1st |
+| ASE cache | `ase_query`, `ase_connect_or_create_db` | 2nd |
+| ML calculation | MatGL + matcalc | 3rd |
 
 ### Phase 2B: ML Calculations
 | Ecosystem | Tools | Properties | Speed |
@@ -68,10 +68,10 @@ Validates and enriches candidate structures with properties using hierarchical d
 | **Relaxation** | `matgl_relax_structure` | Before all predictions (removes artifacts, handles disorder) | 5-10s |
 
 **MatGL tools (fast screening):**
-- `matgl_predict_eform`: Formation energy (M3GNet/MEGNet 2018 models)
-- `matgl_predict_bandgap`: Electronic band gap (MEGNet 2019 model)
+- `matgl_predict_eform`: Formation energy
+- `matgl_predict_bandgap`: Electronic band gap
 
-**matcalc tools (detailed calculations, 2025 ML potentials):**
+**matcalc tools (detailed calculations):**
 - `matcalc_calc_elasticity`: Elastic tensor, bulk/shear/Young's modulus
 - `matcalc_calc_phonon`: Phonon dispersion, dynamic stability
 - `matcalc_calc_surface`: Surface energies (catalyst screening)
@@ -79,9 +79,9 @@ Validates and enriches candidate structures with properties using hierarchical d
 - `matcalc_calc_adsorption`: Adsorption energies
 - `matcalc_calc_md`: Molecular dynamics
 - `matcalc_calc_neb`: Reaction barriers, diffusion paths
-- `matcalc_calc_phonon3`: Thermal conductivity (expensive!)
+- `matcalc_calc_phonon3`: Thermal conductivity
 - `matcalc_calc_qha`: Thermal expansion
-- `matcalc_calc_energetics`: Formation + cohesive energy (use MatGL for screening instead)
+- `matcalc_calc_energetics`: Formation + cohesive energy
 - `matcalc_calc_interface`: Grain boundary / heterostructure energies
 
 ### Phase 3: Ranking & Selection
@@ -218,8 +218,7 @@ See [references/ml-calculations-guide.md](references/ml-calculations-guide.md) f
 3. Execute with save-after-every-candidate pattern
 4. Support iterative refinement (adjust criteria, reuse cached properties)
 
-**Batch scripts:** Use the shared MCP client pattern in [../_shared/tool-calling-pattern.md](../_shared/tool-calling-pattern.md) for both local stdio and remote HTTP/SSE tool access.  
-**Concrete batch example:** See [examples/batch_screening_example.py](examples/batch_screening_example.py) for a complete screening script built on that pattern.  
+**Batch scripts:** Use `matclaw_sdk` (install with `pip install -e /path/to/MatClaw/sdk/`). Import tools directly: `from matclaw_sdk import tool_name`. See [examples/batch_screening_example.py](examples/batch_screening_example.py) for a complete example.  
 Complete implementation is in [references/execution-guide.md](references/execution-guide.md).
 
 ---

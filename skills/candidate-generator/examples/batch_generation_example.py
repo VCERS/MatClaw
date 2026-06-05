@@ -6,27 +6,19 @@ using MCP tools. It supports both stdio (local) and SSE/HTTP (remote) connection
 with automatic checkpoint/resume capability.
 
 Architecture:
-    - Client-side: Pure Python (only requires mcp SDK + python-dotenv)
+    - Client-side: Pure Python (only requires matclaw_sdk)
     - Structure format: CIF (standard crystallographic format) for all I/O
-    - Server-side: MCP tools handle all pymatgen/materials operations
+    - Server-side: MCP tools handled transparently by matclaw_sdk
 
 Dependencies:
-    pip install mcp python-dotenv
+    pip install -e /path/to/MatClaw/sdk/
 
 Usage:
-    # Local development (stdio) - auto-detected if no MATCLAW_MCP_URL
-    python batch_generation.py
-    
-    # Remote server (SSE/HTTP) - auto-detected if MATCLAW_MCP_URL is set
-    export MATCLAW_MCP_URL="http://remote-server:8000/sse"
+    # Run directly (connection configured via sdk/config.yaml)
     python batch_generation.py
     
     # Resume automatically (script tracks progress in the plan file)
     python batch_generation.py
-
-Environment Variables:
-    MATCLAW_MCP_URL: HTTP/SSE server URL (if set, uses SSE mode; otherwise stdio)
-    MATCLAW_SERVER_PATH: Path to local server.py (for stdio mode, defaults to ../../mcp/server.py)
 
 The script tracks progress directly in the plan file (adds 'status' field to each 
 candidate), allowing automatic resume if interrupted. Completed structures are saved 
@@ -67,24 +59,11 @@ import asyncio
 import argparse
 import json
 import logging
-import os
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
-from contextlib import asynccontextmanager
 
-# MCP SDK imports
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcp.client.sse import sse_client
-
-# Optional: python-dotenv for reading .env files
-try:
-    from dotenv import dotenv_values
-    HAS_DOTENV = True
-except ImportError:
-    HAS_DOTENV = False
-    print("Warning: python-dotenv not installed. Environment variables must be set manually.")
+from matclaw_sdk import async_call_tool
 
 
 # Configure logging
@@ -97,92 +76,10 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# Utility Functions (inlined for self-contained script)
+# Utility Functions
 # ============================================================================
 
-@asynccontextmanager
-async def connect_mcp(connection_type: str = None):
-    """
-    Connect to MCP server with flexible connection options (context manager).
-    
-    Supports:
-    - stdio: Local subprocess (default for development)
-    - sse: Remote HTTP/SSE server (production)
-    
-    Connection determined by (in order):
-    1. connection_type parameter (if provided)
-    2. MATCLAW_MCP_URL env var (if set, use SSE)
-    3. Default: stdio with relative path to ../../mcp/server.py
-    
-    Args:
-        connection_type: Optional explicit connection type ("stdio" or "sse")
-        
-    Yields:
-        Tuple of (session, read, write) for MCP communication
-    """
-    if connection_type is None:
-        # Auto-detect based on environment
-        if os.getenv("MATCLAW_MCP_URL"):
-            connection_type = "sse"
-        else:
-            connection_type = "stdio"
-    
-    if connection_type == "sse":
-        # Remote server via HTTP/SSE
-        url = os.getenv("MATCLAW_MCP_URL", "http://localhost:8000/sse")
-        logger.info(f"Connecting to MCP server via SSE: {url}")
-        async with sse_client(url) as (read, write):
-            session = ClientSession(read, write)
-            async with session:
-                await session.initialize()
-                logger.info("Connected to MCP server via SSE")
-                yield session, read, write
-        
-    elif connection_type == "stdio":
-        # Local server subprocess
-        server_path = os.getenv(
-            "MATCLAW_SERVER_PATH",
-            str(Path(__file__).parent.parent.parent / "mcp" / "server.py")
-        )
-        
-        # Use venv Python (required for dependencies)
-        mcp_dir = Path(server_path).parent
-        venv_python = mcp_dir / "venv" / "Scripts" / "python.exe"
-        if not venv_python.exists():
-            # Fallback for Unix-like systems
-            venv_python = mcp_dir / "venv" / "bin" / "python"
-        
-        if not venv_python.exists():
-            raise FileNotFoundError(
-                f"MCP venv not found at {venv_python}. "
-                f"Please set up the virtual environment first with dependencies from mcp/requirements.txt"
-            )
-        
-        # Load environment variables from mcp/.env
-        env_file = mcp_dir / ".env"
-        env_vars = dict(os.environ)  # Start with current environment
-        if HAS_DOTENV and env_file.exists():
-            # Merge .env variables (they take precedence)
-            env_vars.update(dotenv_values(env_file))
-            logger.info(f"Loaded environment variables from {env_file}")
-        
-        logger.info(f"Connecting to MCP server via stdio: {server_path}")
-        logger.info(f"Using Python: {venv_python}")
-        
-        server_params = StdioServerParameters(
-            command=str(venv_python),
-            args=[str(server_path)],
-            env=env_vars
-        )
-        async with stdio_client(server_params) as (read, write):
-            session = ClientSession(read, write)
-            async with session:
-                await session.initialize()
-                logger.info("Connected to MCP server via stdio")
-                yield session, read, write
-    
-    else:
-        raise ValueError(f"Unknown connection type: {connection_type}. Use 'stdio' or 'sse'.")
+
 
 
 def save_plan(plan_file: Path, plan: dict):
@@ -196,13 +93,7 @@ def save_plan(plan_file: Path, plan: dict):
     temp_file.replace(plan_file)
 
 
-def parse_tool_result(result) -> dict:
-    """Parse MCP tool result from response object."""
-    if result.content and len(result.content) > 0:
-        content_item = result.content[0]
-        if hasattr(content_item, 'text'):
-            return json.loads(content_item.text)
-    return None
+
 
 
 # ============================================================================
@@ -255,14 +146,13 @@ class BatchGenerator:
         self.plan['metadata']['last_updated'] = datetime.now().isoformat()
         save_plan(self.plan_file, self.plan)
     
-    async def get_base_structure(self, session, material_id: str) -> Optional[str]:
+    async def get_base_structure(self, material_id: str) -> Optional[str]:
         """
         Get base structure from Materials Project with caching.
-        
+
         Args:
-            session: MCP session
             material_id: Materials Project ID (e.g., "mp-4591")
-            
+
         Returns:
             CIF string or None if error
         """
@@ -274,23 +164,21 @@ class BatchGenerator:
         # Fetch from Materials Project
         logger.info(f"Fetching base structure {material_id} from Materials Project...")
         try:
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "mp_get_material_properties",
-                {"material_ids": [material_id]}
+                material_ids=[material_id]
             )
-            
-            data = parse_tool_result(result)
-            
+
             # Check for errors/warnings from MP tool
-            if 'error' in data:
-                logger.error(f"[ERROR] MP tool error: {data['error']}")
-            if 'warnings' in data:
-                for warning in data['warnings']:
+            if 'error' in result:
+                logger.error(f"[ERROR] MP tool error: {result['error']}")
+            if 'warnings' in result:
+                for warning in result['warnings']:
                     logger.warning(f"[WARNING] MP tool warning: {warning}")
             
             # Extract CIF from MP response (server returns CIF format directly)
-            if data and 'properties' in data and len(data['properties']) > 0:
-                material_data = data['properties'][0]
+            if 'properties' in result and len(result['properties']) > 0:
+                material_data = result['properties'][0]
                 if material_data.get('material_id') == material_id and 'structure' in material_data:
                     structure_data = material_data['structure']
                     cif_string = structure_data.get('cif')
@@ -316,21 +204,20 @@ class BatchGenerator:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
-    async def generate_structure(self, session, candidate: dict, base_cif: str, batch: dict) -> Optional[str]:
+    async def generate_structure(self, candidate: dict, base_cif: str, batch: dict) -> Optional[str]:
         """
-        Generate structure using MCP tool (dynamic tool selection).
-        
+        Generate structure using matclaw_sdk tool (dynamic tool selection).
+
         This method demonstrates FLEXIBLE tool calling:
         - Reads tool name from candidate or batch (not hardcoded)
         - Passes tool_parameters directly without assumptions
         - Injects base structure automatically if not in params
-        
+
         Args:
-            session: MCP session
             candidate: Candidate dict from plan
             base_cif: Base structure as CIF string
             batch: Parent batch dict
-            
+
         Returns:
             CIF string or None if error
         """
@@ -356,33 +243,30 @@ class BatchGenerator:
             logger.debug(f"  Calling {tool_name} with params: {list(tool_params.keys())}")
             
             # Call MCP tool dynamically
-            result = await session.call_tool(tool_name, tool_params)
-            
-            data = parse_tool_result(result)
-            
+            result = await async_call_tool(tool_name, **tool_params)
+
             # Check for tool-level errors
-            if isinstance(data, dict) and 'success' in data and not data['success']:
-                logger.error(f"[ERROR] Tool error: {data.get('error', 'Unknown error')}")
+            if isinstance(result, dict) and 'success' in result and not result['success']:
+                logger.error(f"[ERROR] Tool error: {result.get('error', 'Unknown error')}")
                 return None
             
-            if data and 'structures' in data and len(data['structures']) > 0:
-                return data['structures'][0]
+            if result and 'structures' in result and len(result['structures']) > 0:
+                return result['structures'][0]
             else:
-                logger.error(f"[ERROR] No structure returned. Data: {data}")
+                logger.error(f"[ERROR] No structure returned. Data: {result}")
                 return None
                 
         except Exception as e:
             logger.error(f"[ERROR] Error generating structure: {e}")
             return None
     
-    async def find_material_id(self, session, formula: str) -> Optional[str]:
+    async def find_material_id(self, formula: str) -> Optional[str]:
         """
         Find Materials Project ID for a given formula.
-        
+
         Args:
-            session: MCP session
             formula: Chemical formula (e.g., "SrNb2O6")
-            
+
         Returns:
             Material ID (e.g., "mp-4591") or None if not found
         """
@@ -393,24 +277,20 @@ class BatchGenerator:
         
         try:
             logger.info(f"  Searching Materials Project for {formula}...")
-            result = await session.call_tool(
+            result = await async_call_tool(
                 "mp_search_materials",
-                {
-                    "formula": formula,
-                    "num_results": 5  # Get top 5 to choose from
-                }
+                formula=formula,
+                num_results=5
             )
-            
-            data = parse_tool_result(result)
 
-            if not data or 'materials' not in data:
+            if not result or 'materials' not in result:
                 logger.error(f"  Error parsing mp_search_materials response. Check tool response format.")
                 return None
             
-            if len(data['materials']) > 0:
+            if len(result['materials']) > 0:
                 # Prefer stable materials (energy_above_hull = 0)
                 stable_materials = [
-                    m for m in data['materials'] 
+                    m for m in result['materials'] 
                     if m.get('energy_above_hull', float('inf')) == 0
                 ]
                 
@@ -419,7 +299,7 @@ class BatchGenerator:
                     logger.info(f"  Found stable material: {material_id}")
                 else:
                     # No stable materials, take the first one
-                    material_id = data['materials'][0]['material_id']
+                    material_id = result['materials'][0]['material_id']
                     logger.warning(f"  No stable materials found, using {material_id}")
                 
                 # Cache the result
@@ -457,18 +337,17 @@ class BatchGenerator:
         cif_path.write_text(structure_data)
         return cif_path
     
-    async def process_candidate(self, session, candidate: dict, batch: dict) -> bool:
+    async def process_candidate(self, candidate: dict, batch: dict) -> bool:
         """
         Process a single candidate with flexible base structure resolution.
-        
+
         CUSTOMIZATION POINT: This method demonstrates the complete workflow.
         Adapt the base structure resolution logic for your specific needs.
-        
+
         Args:
-            session: MCP session
             candidate: Candidate dict from plan
             batch: Parent batch dict
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -506,21 +385,21 @@ class BatchGenerator:
             if 'base_mp_id' in tool_params:
                 base_id = tool_params['base_mp_id']
                 logger.debug(f"  Using base_mp_id from tool_parameters: {base_id}")
-                base_cif = await self.get_base_structure(session, base_id)
+                base_cif = await self.get_base_structure(base_id)
             
             # Priority 2: Direct MP ID at candidate level
             elif 'base_mp_id' in candidate:
                 base_id = candidate['base_mp_id']
                 logger.debug(f"  Using base_mp_id from candidate: {base_id}")
-                base_cif = await self.get_base_structure(session, base_id)
+                base_cif = await self.get_base_structure(base_id)
             
             # Priority 3: Formula in candidate (search MP)
             elif 'base_composition' in candidate:
                 base_formula = candidate['base_composition']
                 logger.debug(f"  Searching MP for base_composition: {base_formula}")
-                base_id = await self.find_material_id(session, base_formula)
+                base_id = await self.find_material_id(base_formula)
                 if base_id:
-                    base_cif = await self.get_base_structure(session, base_id)
+                    base_cif = await self.get_base_structure(base_id)
             
             # Priority 4 & 5: Batch-level defaults
             elif 'base_structure_query' in batch:
@@ -530,15 +409,15 @@ class BatchGenerator:
                 if 'mp_id' in base_query:
                     base_id = base_query['mp_id']
                     logger.debug(f"  Using mp_id from batch query: {base_id}")
-                    base_cif = await self.get_base_structure(session, base_id)
+                    base_cif = await self.get_base_structure(base_id)
                 
                 # Fall back to formula search
                 elif 'formula' in base_query:
                     base_formula = base_query['formula']
                     logger.debug(f"  Searching MP for batch formula: {base_formula}")
-                    base_id = await self.find_material_id(session, base_formula)
+                    base_id = await self.find_material_id(base_formula)
                     if base_id:
-                        base_cif = await self.get_base_structure(session, base_id)
+                        base_cif = await self.get_base_structure(base_id)
             
             # Validation: Ensure we got a base structure
             if not base_cif:
@@ -549,7 +428,7 @@ class BatchGenerator:
                 )
             
             # Generate structure (with dynamic tool selection)
-            cif_content = await self.generate_structure(session, candidate, base_cif, batch)
+            cif_content = await self.generate_structure(candidate, base_cif, batch)
             if not cif_content:
                 raise ValueError("Structure generation failed")
             
@@ -582,46 +461,40 @@ class BatchGenerator:
     
     async def run(self):
         """Run batch generation with progress tracking."""
-        # Setup
         self.load_plan()
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Connect to MCP and process batches
-        async with connect_mcp() as (session, read, write):
-            # Process batches
-            total_candidates = self.plan['metadata']['total_planned']
-            processed = 0
-            
-            for batch in self.plan['batches']:
-                batch_id = batch['batch_id']
-                logger.info(f"\n{'='*60}")
-                logger.info(f"Batch {batch_id}: {batch['description']}")
-                logger.info(f"{'='*60}")
-                
-                for candidate in batch['candidates']:
-                    await self.process_candidate(session, candidate, batch)
-                    processed += 1
-                    
-                    # Progress update
-                    completed = sum(1 for b in self.plan['batches'] 
-                                   for c in b['candidates'] if c.get('status') == 'completed')
-                    failed = sum(1 for b in self.plan['batches'] 
-                                for c in b['candidates'] if c.get('status') == 'failed')
-                    logger.info(f"Progress: {processed}/{total_candidates} processed "
-                              f"({completed} completed, {failed} failed)")
-            
-            # Final summary
-            completed = sum(1 for b in self.plan['batches'] 
-                           for c in b['candidates'] if c.get('status') == 'completed')
-            failed = sum(1 for b in self.plan['batches'] 
-                        for c in b['candidates'] if c.get('status') == 'failed')
+
+        total_candidates = self.plan['metadata']['total_planned']
+        processed = 0
+
+        for batch in self.plan['batches']:
+            batch_id = batch['batch_id']
             logger.info(f"\n{'='*60}")
-            logger.info(f"FINAL SUMMARY")
+            logger.info(f"Batch {batch_id}: {batch['description']}")
             logger.info(f"{'='*60}")
-            logger.info(f"Total candidates: {total_candidates}")
-            logger.info(f"Completed: {completed}")
-            logger.info(f"Failed: {failed}")
-            logger.info(f"Success rate: {completed/total_candidates*100:.1f}%")
+
+            for candidate in batch['candidates']:
+                await self.process_candidate(candidate, batch)
+                processed += 1
+
+                completed = sum(1 for b in self.plan['batches']
+                               for c in b['candidates'] if c.get('status') == 'completed')
+                failed = sum(1 for b in self.plan['batches']
+                            for c in b['candidates'] if c.get('status') == 'failed')
+                logger.info(f"Progress: {processed}/{total_candidates} processed "
+                          f"({completed} completed, {failed} failed)")
+
+        completed = sum(1 for b in self.plan['batches']
+                       for c in b['candidates'] if c.get('status') == 'completed')
+        failed = sum(1 for b in self.plan['batches']
+                    for c in b['candidates'] if c.get('status') == 'failed')
+        logger.info(f"\n{'='*60}")
+        logger.info(f"FINAL SUMMARY")
+        logger.info(f"{'='*60}")
+        logger.info(f"Total candidates: {total_candidates}")
+        logger.info(f"Completed: {completed}")
+        logger.info(f"Failed: {failed}")
+        logger.info(f"Success rate: {completed/total_candidates*100:.1f}%")
 
 
 async def main():

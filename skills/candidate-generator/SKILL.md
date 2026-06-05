@@ -11,7 +11,7 @@ description: |
   - Materials classes: "battery cathodes", "perovskites", "isostructural analogues", "high-entropy oxides", "defects"
   - Configuration space: "enumerate orderings", "SQS generation", "disorder-to-ordered", "vacancy defects", "interstitials"
   - Scale: "generate 50 structures", "100 candidates", "high-throughput", "ML training set", "candidate library"
-  - Starting points: Element lists ("Li-Mn-P-O system"), formulas ("LiCoO2 analogues"), structure types ("olivine"), ICSD/MP IDs
+  - Starting points: Element lists ("Li-Mn-P-O system"), formulas ("LiCoO2 analogues"), structure types ("olivine"), ICSD/MP/COD IDs
   - Workflows: "prototype matching", "lattice perturbation", "supercell expansion"
   
   **Complete pipeline coverage:**
@@ -35,19 +35,20 @@ Phase 2: Seed Structures → Chemical Variants (substitution, doping, ion exchan
 Phase 3: Ordered/Disordered → Resolved Structures (enumeration, SQS, majority-species)
 Phase 4: Structures → Defect Supercells (vacancies, substitutions, interstitials)
 Phase 5: Structures → Perturbed Structures (rattling, strain for DFT/ML initialization)
-Phase 6: All → ASE Database Storage (with metadata and provenance)
+Phase 6: All → Per-candidate directory storage + ASE database index
 ```
 
 **Entry points match your starting information:**
 - Elements only (Li-Mn-P-O)? → Start Phase 1
-- Composition known (LiMnPO₄) but no structure? → Start Phase 1  
-- Structure from MP/CIF/ASE exists? → Start Phase 2 (or skip to Phase 3-5)
+- Composition known (LiMnPO₄) but no structure? → **Search both `mp_search_materials` and `cod_search_structures`** for a seed before falling back to prototype building.
+- Structure from MP/COD/CIF/ASE exists? → Start Phase 2 (or skip to Phase 3-5)
 
 **Working principles:**
 1. **MCP tools generate complete structures** — Every tool returns CIF/POSCAR with atom positions, unit cell, spacegroup. Custom formula generators without structures cannot be validated or screened.
-2. **ASE database is central storage** — Store generated structures in ASE for downstream retrieval, provenance tracking, and property enrichment, but convert CIF/POSCAR outputs with the dedicated ASE conversion step before calling `ase_store_result`.
-3. **Metadata enables screening** — Tag structures with `requires_ordering`, `doping_concentration`, `host_formula` so candidate-screener knows how to handle disorder.
-4. **Scale requires planning** — For N > 20 candidates, create a planning file first to avoid tool timeout/memory issues (see [references/phase-guides.md](references/phase-guides.md)).
+2. **Organize candidates in a `candidates/` directory** — Each candidate gets its own subdirectory named clearly (e.g., `candidates/005_RbGaS2/`). This directory stores provenance metadata, unrelaxed structures, relaxed structures, and any downstream data for that candidate.
+3. **ASE database is central index** — Use ASE database for cross-candidate queries and property enrichment, but keep the canonical outputs in the per-candidate directory structure.
+4. **Metadata enables screening** — Tag structures with `requires_ordering`, `doping_concentration`, `host_formula` so candidate-screener knows how to handle disorder.
+5. **Scale requires planning** — For N > 20 candidates, create a planning file first to avoid tool timeout/memory issues (see [references/phase-guides.md](references/phase-guides.md)).
 
 > **Why use MCP tools instead of scripts?** Because materials discovery needs real crystal structures (atom positions + lattice parameters) to:
 > - Validate geometry (coordination, bond lengths) before expensive calculations
@@ -65,10 +66,14 @@ Phase 6: All → ASE Database Storage (with metadata and provenance)
 
 ### Phase 1: Seed Structure Building
 
-**When:** Need to build structure from scratch (no MP/CIF template available)  
+**When:** Need to build structure from scratch (no MP/COD/CIF template available)  
 **Skip if:** Structure already exists
 
-**Tool:** `pymatgen_prototype_builder`
+**Before falling back to prototype building, always search both databases:**
+1. `mp_search_materials(formula=...)` — rich DFT properties available if found
+2. `cod_search_structures(formula=...)` — fills the gap for experimental/niche compounds not in MP
+
+Only reach for `pymatgen_prototype_builder` when neither database has the compound.
 
 **Common prototypes:** Rock-salt (225), Perovskite (221), Spinel (227), Layered oxide (166), Olivine (62)
 
@@ -186,14 +191,24 @@ This tells candidate-screener how to preprocess before validation.
 
 ---
 
-### Phase 6: Storage (ASE Database)
+### Phase 6: Output Organization & Storage
 
-**Recommended: store generated structures** in ASE database for:
-- Provenance tracking (what phase/tool generated each structure)
-- Property enrichment (add screening results later)
-- Downstream retrieval (filtering, batch processing)
+**Directory structure — organize each candidate in its own subdirectory:**
+```
+candidates/
+├── 001_LiCoO2/
+│   ├── 001_LiCoO2.cif              # Generated structure
+│   ├── metadata.json               # Generation metadata (tool, parent, params)
+│   ├── 001_LiCoO2_relaxed.cif      # Post-relaxation (added later by screener)
+├── 002_NaCoO2/
+│   ├── 002_NaCoO2.cif
+│   └── metadata.json
+└── ...
+```
 
-**Tool:** `ase_store_result`
+Naming convention: `NNN_Formula` where `NNN` is a zero-padded index and `Formula` is a clear, human-readable reduced formula. This makes candidates easy to reference across tools and scripts.
+
+**ASE database as cross-candidate index:** Store generated structures in ASE for downstream retrieval, property enrichment, and batch filtering. Convert CIF/POSCAR outputs with the dedicated ASE conversion step, then store with metadata:
 
 **Essential metadata fields:**
 ```python
@@ -239,7 +254,8 @@ ase_store_result(
 | Phase | Tool | Purpose | Key Decision |
 |-------|------|---------|--------------|
 | 0 | `pymatgen_substitution_predictor` | ICSD-guided substitutions | Uses lambda-scaling |
-| 0 | `mp_search_materials` | Template structures | Elements, stability filter |
+| 0 | `mp_search_materials` | Template structures (DFT) | Elements, stability filter |
+| 0 | `cod_search_structures` | Template structures (experimental) | Niche/niche compounds not in MP |
 | 1 | `pymatgen_prototype_builder` | Build from spacegroup | Need lattice parameter estimate |
 | 2A | `pymatgen_ion_exchange_generator` | Charge-neutral substitution | Auto stoichiometry adjustment |
 | 2B | `pymatgen_substitution_generator` | Ordered enumeration | Integer occupancy |
@@ -395,7 +411,6 @@ For more complex examples including disorder handling, defects, and multi-phase 
 
 **All detailed documentation in references/ directory:**
 
-- **Batch tool-calling pattern** — For standalone Python scripts that call MatClaw tools, use the shared MCP client template in [../_shared/tool-calling-pattern.md](../_shared/tool-calling-pattern.md). It covers both local stdio launches and remote HTTP/SSE connections.
-- **Concrete batch example** — See [examples/batch_generation_example.py](examples/batch_generation_example.py) for a complete generation script using that pattern.
+- **Batch scripts** — Use `matclaw_sdk` (install with `pip install -e /path/to/MatClaw/sdk/`). Import tools directly: `from matclaw_sdk import tool_name`. See [examples/batch_generation_example.py](examples/batch_generation_example.py) for a complete example.
 - **[references/phase-guides.md](references/phase-guides.md)** — Complete Phase 1-5 instructions with algorithms, parameter tables, decision logic, physical basis explanations
 - **[references/examples.md](references/examples.md)** — 9 complete working patterns from simple to complex, including full code and expected outputs

@@ -35,7 +35,6 @@ NEED to relax structures?
    - Relaxes structures using TensorNet-PES-MatPES-r2SCAN-2025.2
    - **MANDATORY** before ALL ML predictions (MatGL and matcalc)
    - ~5-10s per structure
-   - **IMPORTANT:** Cannot call MatGL prediction tools in same Python session after this (backend conflict)
 
 2. **`matgl_predict_eform`**
    - Predicts formation energy directly
@@ -95,10 +94,6 @@ NEED to relax structures?
 ✅ **Band gap screening**
 - Only available tool for band gap prediction
 - Example: Filter candidates by band gap 1.0-2.0 eV → use `matgl_predict_bandgap`
-
-✅ **Initial rapid screening**
-- Get formation energy + band gap for all candidates in minutes
-- Use these properties to filter before expensive matcalc calculations
 
 ---
 

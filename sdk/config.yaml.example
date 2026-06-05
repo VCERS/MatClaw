@@ -1,0 +1,29 @@
+# MatClaw SDK Configuration Template
+# 
+# Copy this to one of:
+#   ~/.matclaw/config.yaml        (user-wide, highest priority)
+#   ./matclaw.config.yaml         (project-specific, higher priority)
+#
+# Configuration Priority (highest to lowest):
+#   1. Environment variables (MATCLAW_TRANSPORT, MATCLAW_HTTP_URL, etc.)
+#   2. ~/.matclaw/config.yaml (user-wide)
+#   3. ./matclaw.config.yaml (project-specific)
+#   4. <sdk>/config.yaml (bundled default)
+#   5. Hardcoded fallback to http://localhost:5000
+
+# Transport type: 'http' or 'stdio'
+transport: http
+
+# HTTP Configuration (used when transport: http)
+http:
+  url: http://localhost:5000
+  verify_ssl: true
+  timeout: 180
+
+# Stdio Configuration (used when transport: stdio)
+# Uncomment and configure if using stdio transport
+# stdio:
+#   command: "python /path/to/MatClaw/mcp/server.py"
+
+# Global timeout (seconds) - used by both transports
+timeout: 180

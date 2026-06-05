@@ -442,3 +442,145 @@ class TestErrorHandling:
         # Error/warnings should mention ordering
         messages = result.get("error", "") + " ".join(result.get("warnings") or [])
         assert "ordered" in messages.lower()
+
+
+# Uniform-fractional disorder (real-world pattern)
+class TestUniformFractionalDisorder:
+    """Tests using bagase_ga_mg_uniform fixture — uniform fractional occupancy
+    across multiple equivalent sites, mimicking disorder_generator output.
+    These structures are the hardest case for enumeration tools."""
+
+    def test_fallback_with_tolerance(self, bagase_ga_mg_uniform):
+        """Should succeed via supercell scaling + rounding fallback.
+        Default composition_tolerance=0.05 should find an acceptable scale."""
+        result = pymatgen_enumeration_orderer(
+            input_structures=bagase_ga_mg_uniform,
+            supercell_size=2,
+            n_structures=1,
+            sort_by="num_sites",
+            check_ordered_input=False,
+            add_oxidation_states=False,
+            output_format="cif",
+            max_atoms=500,
+            composition_tolerance=0.05,
+        )
+        # Must either succeed directly or trigger rounding fallback
+        assert result.get("success") is True
+        assert result["count"] >= 1
+        for s in result["structures"]:
+            assert _is_ordered_cif(s)
+
+    def test_fallback_rounding_logged(self, bagase_ga_mg_uniform):
+        """When rounding fallback triggers, rounding_preprocessing must appear."""
+        result = pymatgen_enumeration_orderer(
+            input_structures=bagase_ga_mg_uniform,
+            supercell_size=2,
+            n_structures=1,
+            sort_by="num_sites",
+            check_ordered_input=False,
+            add_oxidation_states=False,
+            output_format="cif",
+            max_atoms=500,
+            composition_tolerance=0.05,
+        )
+        assert result.get("success") is True
+        rp = result.get("rounding_preprocessing", [])
+        has_rounding = any(log.get("applied") for log in rp) if rp else False
+        # The fallback may or may not trigger depending on exact rounding error
+        # at various scales. Just verify the field exists when rounding is used.
+        if has_rounding:
+            assert "scale" in rp[0]
+            assert "error" in rp[0]
+
+    def test_fallback_loose_tolerance(self, bagase_ga_mg_uniform):
+        """With composition_tolerance=0.5, the fallback should easily find a scale."""
+        result = pymatgen_enumeration_orderer(
+            input_structures=bagase_ga_mg_uniform,
+            supercell_size=2,
+            n_structures=1,
+            sort_by="num_sites",
+            check_ordered_input=False,
+            add_oxidation_states=False,
+            output_format="cif",
+            max_atoms=500,
+            composition_tolerance=0.5,
+        )
+        assert result.get("success") is True
+        assert result["count"] >= 1
+        # With loose tolerance, rounding should definitely be applied
+        rp = result.get("rounding_preprocessing", [])
+        has_rounding = any(log.get("applied") for log in rp) if rp else False
+        assert has_rounding, "Expected rounding fallback with loose tolerance"
+
+    def test_metadata_fields_present_with_rounding(self, bagase_ga_mg_uniform):
+        """Test that standard metadata is present even after rounding fallback."""
+        result = pymatgen_enumeration_orderer(
+            input_structures=bagase_ga_mg_uniform,
+            supercell_size=2,
+            n_structures=1,
+            sort_by="num_sites",
+            check_ordered_input=False,
+            add_oxidation_states=False,
+            output_format="cif",
+            composition_tolerance=0.5,
+        )
+        assert result.get("success") is True
+        for key in ("count", "structures", "metadata", "input_info", "enumeration_params", "message"):
+            assert key in result
+        for m in result["metadata"]:
+            for key in ("index", "formula", "n_sites", "volume",
+                        "space_group_number", "space_group_symbol", "is_ordered"):
+                assert key in m
+            assert m["is_ordered"] is True
+
+    # ── Dual-site uniform fixture tests ──
+
+    def test_dual_site_fallback_succeeds(self, bagase_ba_ga_mg_uniform):
+        """bagase_ba_ga_mg_uniform has Mg on BOTH Ba and Ga sites uniformly.
+        Enumeration should trigger rounding fallback for both site types."""
+        result = pymatgen_enumeration_orderer(
+            input_structures=bagase_ba_ga_mg_uniform,
+            supercell_size=1,
+            n_structures=1,
+            sort_by="num_sites",
+            check_ordered_input=False,
+            add_oxidation_states=False,
+            output_format="cif",
+            composition_tolerance=0.5,
+        )
+        assert result.get("success") is True
+        assert result["count"] >= 1
+
+    def test_dual_site_rounding_logged(self, bagase_ba_ga_mg_uniform):
+        """Rounding should be logged in the output for dual-site disorder."""
+        result = pymatgen_enumeration_orderer(
+            input_structures=bagase_ba_ga_mg_uniform,
+            supercell_size=1,
+            n_structures=1,
+            sort_by="num_sites",
+            check_ordered_input=False,
+            add_oxidation_states=False,
+            output_format="cif",
+            composition_tolerance=0.5,
+        )
+        rp = result.get("rounding_preprocessing", [])
+        has_rounding = any(log.get("applied") for log in rp) if rp else False
+        assert has_rounding
+
+    def test_dual_site_output_contains_mg(self, bagase_ba_ga_mg_uniform):
+        """The rounded output should still contain Mg atoms."""
+        from pymatgen.core import Structure
+        result = pymatgen_enumeration_orderer(
+            input_structures=bagase_ba_ga_mg_uniform,
+            supercell_size=1,
+            n_structures=1,
+            sort_by="num_sites",
+            check_ordered_input=False,
+            add_oxidation_states=False,
+            output_format="cif",
+            composition_tolerance=0.5,
+        )
+        assert result.get("success") is True
+        s = Structure.from_str(result["structures"][0], fmt="cif")
+        mg_count = s.composition.get("Mg", 0)
+        assert mg_count > 0, f"Expected Mg in output, got composition {s.composition}"

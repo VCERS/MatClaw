@@ -214,3 +214,6 @@ data/
 
 # Temp files
 *.tmp
+
+# Config
+config.yaml

@@ -1,3 +1,4 @@
+from .pymatgen_structure_matcher import pymatgen_structure_matcher
 from .pymatgen_prototype_builder import pymatgen_prototype_builder
 from .pymatgen_substitution_generator import pymatgen_substitution_generator
 from .pymatgen_substitution_predictor import pymatgen_substitution_predictor
@@ -11,6 +12,7 @@ from .pymatgen_majority_orderer import pymatgen_majority_orderer
 from .pymatgen_disorder_generator import pymatgen_disorder_generator
 
 __all__ = [
+    "pymatgen_structure_matcher",
     "pymatgen_prototype_builder",
     "pymatgen_substitution_generator",
     "pymatgen_substitution_predictor",

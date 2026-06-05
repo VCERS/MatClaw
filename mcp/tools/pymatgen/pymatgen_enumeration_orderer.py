@@ -143,8 +143,38 @@ def pymatgen_enumeration_orderer(
                 "'json': JSON-serialised Structure dict string."
             )
         )
-    ] = "cif"
-) -> Dict[str, Any]:
+    ] = "cif",
+    max_atoms: Annotated[
+        int,
+        Field(
+            default=500,
+            ge=10,
+            le=10000,
+            description=(
+                "Maximum number of atoms allowed in the supercell after scaling. "
+                "The tool searches supercell sizes from 1×1×1 upward to find one where "
+                "fractional occupancies can be rounded to integers with error below "
+                "composition_tolerance. This caps the search to prevent generating "
+                "prohibitively large cells. Default: 500."
+            )
+        )
+    ] = 500,
+    composition_tolerance: Annotated[
+        float,
+        Field(
+            default=0.05,
+            ge=0.0,
+            le=0.5,
+            description=(
+                "Maximum allowed fractional-atom error per disordered site after "
+                "supercell scaling. The tool tries increasing supercell sizes until "
+                "the total rounding error (sum of |fractional - rounded| across all "
+                "disordered sites) falls below this threshold. "
+                "A value of 0.05 means ≤5% of a dopant atom may be lost/added per site. "
+                "Default: 0.05."
+            )
+        )
+    ] = 0.05,) -> Dict[str, Any]:
     """
     Generate ordered candidates from disordered structures with partial occupancies.
 
@@ -216,6 +246,7 @@ def pymatgen_enumeration_orderer(
         }
 
     structures: List[Structure] = []
+    warnings: List[str] = []
     for i, item in enumerate(raw_list):
         try:
             if isinstance(item, str):
@@ -233,6 +264,7 @@ def pymatgen_enumeration_orderer(
 
     if not structures:
         return {"success": False, "error": "No valid input structures provided."}
+
 
     # Import OrderDisorderedStructureTransformation
     try:
@@ -253,107 +285,208 @@ def pymatgen_enumeration_orderer(
     metadata_list: List[Dict[str, Any]] = []
     warnings: List[str] = []
     skipped_ordered: List[str] = []
+    rounding_logs: List[dict] = []
 
-    for struct in structures:
-        src_formula = struct.composition.reduced_formula
+    def _try_enumeration(struct_to_enum, src_formula, sort_override=None):
+        """Run OrderDisorderedStructureTransformation on a structure.
+        Returns (success_bool, structures_with_energy_list, warnings_list)."""
+        enum_sort = sort_override or sort_by
+        has_ox = False
+        this_struct = struct_to_enum.copy()
 
-        # Skip already-ordered structures if requested
-        if check_ordered_input and struct.is_ordered:
-            skipped_ordered.append(src_formula)
-            warnings.append(
-                f"Structure '{src_formula}' is already fully ordered (no partial occupancies) "
-                "and was skipped. Set check_ordered_input=False to enumerate it anyway."
-            )
-            continue
-
-        # Create supercell to accommodate fractional occupancies
-        struct_for_enum = struct.copy()
-        effective_sort = sort_by
-        
-        # Create a supercell to make fractional occupancies work
-        try:
-            from pymatgen.transformations.standard_transformations import SupercellTransformation
-            # Create a supercell based on supercell_size
-            scaling_matrix = [[supercell_size, 0, 0], [0, supercell_size, 0], [0, 0, 1]]
-            super_trans = SupercellTransformation(scaling_matrix)
-            struct_for_enum = super_trans.apply_transformation(struct_for_enum)
-        except Exception as e:
-            warnings.append(f"Failed to create supercell for '{src_formula}': {e}")
-            continue
-        
-        # Add oxidation states if needed for Ewald ranking  
-        needs_oxidation = sort_by == "ewald" and add_oxidation_states
-        has_oxidation = False
-        
-        if needs_oxidation:
+        # Add oxidation states if needed for Ewald ranking
+        if enum_sort == "ewald" and add_oxidation_states:
             try:
                 from pymatgen.analysis.bond_valence import BVAnalyzer
                 bva = BVAnalyzer()
-                struct_for_enum = bva.get_oxi_state_decorated_structure(struct_for_enum)
-                has_oxidation = True
+                this_struct = bva.get_oxi_state_decorated_structure(this_struct)
+                has_ox = True
             except Exception as e:
                 warnings.append(
-                    f"Structure '{src_formula}': could not auto-assign oxidation states "
-                    f"({e}). Falling back to sort_by='num_sites' for this structure."
+                    f"'{src_formula}': could not assign oxidation states ({str(e)[:60]}). "
+                    f"Falling back to sort_by='num_sites'."
                 )
-                effective_sort = "num_sites"
+                enum_sort = "num_sites"
 
-        # Use OrderDisorderedStructureTransformation
-        # Use no_oxi_states=True if we don't have oxidation states decorated
         trans = OrderDisorderedStructureTransformation(
             algo=0,
             symmetrized_structures=refine_structure,
-            no_oxi_states=not has_oxidation,
+            no_oxi_states=not has_ox,
             symprec=symm_prec if symm_prec else 0.1,
         )
-
         try:
-            raw = trans.apply_transformation(struct_for_enum, return_ranked_list=n_structures)
+            raw = trans.apply_transformation(this_struct, return_ranked_list=n_structures)
         except Exception as e:
-            warnings.append(f"Ordering failed for '{src_formula}': {e}")
-            continue
+            return False, [], [f"Ordering failed for '{src_formula}': {e}"]
 
-        # Handle return value - can be Structure or list
         if isinstance(raw, Structure):
             raw = [raw]
         elif not isinstance(raw, list):
-            warnings.append(f"Unexpected return type from ordering for '{src_formula}'.")
-            continue
+            return False, [], [f"Unexpected return type for '{src_formula}'."]
 
-        # Calculate Ewald energies if needed for sorting
-        structures_with_energy = []
+        results = []
         for s in raw:
-            if isinstance(s, dict):
-                struct_obj = s.get("structure", s)
-            else:
-                struct_obj = s
-            
-            ewald_e = None
-            if effective_sort == "ewald":
+            s_obj = s.get("structure", s) if isinstance(s, dict) else s
+            ew = None
+            if enum_sort == "ewald":
                 try:
                     from pymatgen.analysis.ewald import EwaldSummation
-                    ewald = EwaldSummation(struct_obj)
-                    ewald_e = ewald.total_energy
+                    ew = EwaldSummation(s_obj).total_energy
                 except Exception:
                     pass
-            
-            structures_with_energy.append({"structure": struct_obj, "energy": ewald_e})
+            results.append({"structure": s_obj, "energy": ew})
 
-        # Sort structures
-        if effective_sort == "ewald":
-            structures_with_energy.sort(key=lambda x: x["energy"] if x["energy"] is not None else float('inf'))
-        elif effective_sort == "num_sites":
-            structures_with_energy.sort(key=lambda x: len(x["structure"]))
-        elif sort_by == "random":
+        if enum_sort == "ewald":
+            results.sort(key=lambda x: x["energy"] if x["energy"] is not None else float('inf'))
+        elif enum_sort == "num_sites":
+            results.sort(key=lambda x: len(x["structure"]))
+        else:
             import random as _rng
-            _rng.shuffle(structures_with_energy)
+            _rng.shuffle(results)
+
+        return True, results, []
+
+    def _supercell_round_fallback(struct):
+        """When enumeration fails on a disordered structure, find a supercell
+        size where rounding fractional occupancies → integers makes enumeration
+        succeed. Tries scales 1-4, uses the first acceptable one or the best
+        available. Returns (scaled_rounded_structure, scale, was_rounded, log)."""
+        from copy import deepcopy
+        from collections import defaultdict
+
+        log = {"applied": False, "scale": 1, "error": 0.0}
+        if struct.is_ordered:
+            return struct, 1, False, log
+
+        # Build site-group signatures
+        sig_groups = defaultdict(list)
+        for i, site in enumerate(struct):
+            if not site.is_ordered:
+                sig = tuple(sorted((str(sp), round(float(f), 6)) for sp, f in site.species.items()))
+                sig_groups[sig].append(i)
+
+        best_result = None
+        best_scale = 1
+        best_err = float("inf")
+
+        for scale in [1, 2, 3, 4]:
+            if len(struct) * (scale ** 3) > max_atoms:
+                continue
+            total_err = 0.0
+            for sig, idxs in sig_groups.items():
+                if len(sig) <= 1: continue
+                occ = {sp: f for sp, f in sig}
+                n = len(idxs) * (scale ** 3)
+                for sp, f in occ.items():
+                    total_err += abs(f * n - round(f * n))
+            
+            # Build the rounded structure for this scale
+            scaled = deepcopy(struct)
+            scaled.make_supercell([scale, scale, scale])
+            sc_groups = defaultdict(list)
+            for idx, site in enumerate(scaled):
+                if not site.is_ordered:
+                    sig = tuple(sorted((str(sp), round(float(f), 6)) for sp, f in site.species.items()))
+                    sc_groups[sig].append(idx)
+            for sig, idxs in sc_groups.items():
+                if len(sig) <= 1: continue
+                occ = {sp: f for sp, f in sig}
+                n = len(idxs)
+                counts = {sp: round(f * n) for sp, f in occ.items()}
+                diff = n - sum(counts.values())
+                if diff != 0:
+                    adj = sorted(occ.items(), key=lambda x: abs(x[1] * n - round(x[1] * n)), reverse=True)
+                    for k in range(abs(diff)):
+                        counts[adj[k % len(adj)][0]] += 1 if diff > 0 else -1
+                assn = []
+                for sp, cnt in counts.items():
+                    assn.extend([sp] * cnt)
+                for i2, sp in zip(idxs, assn):
+                    scaled.replace(i2, sp)
+
+            if total_err <= composition_tolerance:
+                # Acceptable — return immediately
+                log = {"applied": True, "scale": scale, "error": round(total_err, 4)}
+                return scaled, scale, True, log
+            
+            if total_err < best_err:
+                best_result = scaled
+                best_scale = scale
+                best_err = total_err
+
+        if best_result is not None:
+            # Return best available even if tolerance exceeded
+            log = {"applied": True, "scale": best_scale, "error": round(best_err, 4),
+                   "tolerance_exceeded": True}
+            warnings.append(
+                f"Rounding error {best_err:.4f} exceeds composition_tolerance "
+                f"({composition_tolerance}) at best scale {best_scale}×."
+            )
+            return best_result, best_scale, True, log
+
+        log["reason"] = "No scale within max_atoms"
+        return struct, 1, False, log
+
+    for i, struct in enumerate(structures):
+        src_formula = struct.composition.reduced_formula
+        effective_sort = sort_by
+
+        # Skip already-ordered structures
+        if struct.is_ordered:
+            if check_ordered_input:
+                skipped_ordered.append(src_formula)
+                warnings.append(
+                    f"'{src_formula}' is already fully ordered and was skipped. "
+                    "Set check_ordered_input=False to enumerate it anyway."
+                )
+                continue
+            # If ordered and check_ordered_input=False, pass through
+            struct_for_enum = struct.copy()
+        else:
+            struct_for_enum = struct.copy()
+            # Create supercell
+            try:
+                from pymatgen.transformations.standard_transformations import SupercellTransformation
+                sm = [[supercell_size, 0, 0], [0, supercell_size, 0], [0, 0, 1]]
+                struct_for_enum = SupercellTransformation(sm).apply_transformation(struct_for_enum)
+            except Exception as e:
+                warnings.append(f"Supercell failed for '{src_formula}': {e}")
+                continue
+
+        # Try enumeration
+        enum_ok, results, enum_warns = _try_enumeration(struct_for_enum, src_formula)
+        if enum_warns:
+            warnings.extend(enum_warns)
+
+        if not enum_ok and not struct.is_ordered:
+            # Enumeration failed — try supercell scaling + rounding fallback
+            fb_struct, fb_scale, was_rounded, fb_log = _supercell_round_fallback(struct)
+            if was_rounded:
+                rounding_logs.append(fb_log)
+                warnings.append(
+                    f"'{src_formula}': enumeration failed on original structure. "
+                    f"Applied supercell scaling {fb_scale}× + rounding (error={fb_log['error']:.4f})."
+                )
+                # Re-try with the scaled+rounded (now fully ordered) structure
+                _append_result(
+                    fb_struct, None, src_formula, len(struct),
+                    symm_prec, output_format,
+                    generated_structures, metadata_list, warnings,
+                    backend="enumeration_orderer (via rounding fallback)"
+                )
+                continue
+            else:
+                # Fallback also failed — just record the original error
+                if not enum_warns:
+                    warnings.append(f"All ordering attempts failed for '{src_formula}'.")
+                continue
 
         n_atoms_parent = len(struct)
-        for entry in structures_with_energy[:n_structures]:
-            s = entry["structure"]
+        for entry in results[:n_structures]:
+            s_obj = entry["structure"]
             e = entry.get("energy")
             _append_result(
-                s, e, src_formula, n_atoms_parent,
+                s_obj, e, src_formula, n_atoms_parent,
                 symm_prec, output_format,
                 generated_structures, metadata_list, warnings,
                 backend="OrderDisorderedStructureTransformation"
@@ -388,6 +521,8 @@ def pymatgen_enumeration_orderer(
         "check_ordered_input": check_ordered_input,
         "add_oxidation_states": add_oxidation_states,
         "output_format": output_format,
+        "max_atoms": max_atoms,
+        "composition_tolerance": composition_tolerance,
     }
 
     result: Dict[str, Any] = {
@@ -400,11 +535,13 @@ def pymatgen_enumeration_orderer(
         "message": (
             f"Generated {len(generated_structures)} ordered structure(s) from "
             f"{len(structures)} input structure(s) "
-            f"(sort_by='{sort_by}'). Note: No supercell enumeration performed."
+            f"(sort_by='{sort_by}')."
         ),
     }
     if warnings:
         result["warnings"] = warnings
+    if any(log.get("applied") for log in rounding_logs):
+        result["rounding_preprocessing"] = rounding_logs
     return result
 
 

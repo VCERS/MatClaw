@@ -1,0 +1,6 @@
+# MatClaw SDK Requirements
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+aiohttp>=3.8.0       # Async HTTP client
+pyyaml>=6.0          # YAML config file support

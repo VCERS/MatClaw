@@ -10,6 +10,9 @@ from tools.pubchem import (
     pubchem_get_compound_properties,
     pubchem_get_safety_data,
 )
+from tools.cod import (
+    cod_search_structures,
+)
 from tools.materials_project import (
     mp_search_materials,
     mp_get_material_properties,
@@ -28,6 +31,7 @@ from tools.ase import (
     ase_list_databases
 )
 from tools.pymatgen import (
+    pymatgen_structure_matcher,
     pymatgen_prototype_builder,
     pymatgen_substitution_generator,
     pymatgen_substitution_predictor,
@@ -114,6 +118,8 @@ load_dotenv()
 mcp = FastMCP(name="matclaw-mcp-server")
 
 # Add tools
+# COD tools
+mcp.tool()(cod_search_structures)
 # Pubchem tools
 mcp.tool()(pubchem_search_compounds)
 mcp.tool()(pubchem_get_compound_properties)
@@ -137,6 +143,7 @@ mcp.tool()(ase_get_atoms)
 mcp.tool()(ase_list_databases)
 
 # Pymatgen structure generation tools
+mcp.tool()(pymatgen_structure_matcher)
 mcp.tool()(pymatgen_prototype_builder)
 mcp.tool()(pymatgen_substitution_generator)
 mcp.tool()(pymatgen_substitution_predictor)
@@ -211,5 +218,39 @@ mcp.tool()(lula_generate_robot_description)
 
 
 if __name__ == "__main__":
-    logger.info("Starting MatClaw MCP Server")
-    mcp.run()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="MatClaw MCP Server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default="stdio",
+        help="Transport mode (default: stdio)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8500,
+        help="Port for streamable-http transport (default: 8500)"
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host for streamable-http transport (default: 127.0.0.1)"
+    )
+    args = parser.parse_args()
+
+    if args.transport == "stdio":
+        logger.info("Starting MatClaw MCP Server (stdio)")
+        mcp.run(transport="stdio")
+    else:
+        logger.info(
+            f"Starting MatClaw MCP Server ({args.transport}) "
+            f"on {args.host}:{args.port}"
+        )
+        # Enable stateless JSON mode for HTTP transport
+        mcp.settings.stateless_http = True
+        mcp.settings.json_response = True
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+        mcp.run(transport=args.transport)
