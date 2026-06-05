@@ -190,14 +190,59 @@ class MatClawClient:
 
                 raise ToolError(_format_tool_error(tool_name, raw_error, kwargs))
 
-            return result
-            
+            # Unwrap the MCP content envelope so callers get the actual tool data
+            return self._unwrap_result(result)
+
         except TransportError as e:
             raise ToolError(f"Failed to call tool {tool_name}: {e}")
         except ToolError:
             raise
         except Exception as e:
             raise ToolError(f"Unexpected error calling {tool_name}: {e}")
+
+    @staticmethod
+    def _unwrap_result(result: Any) -> Any:
+        """
+        Unwrap the MCP result envelope to return the actual tool data.
+
+        MCP tools return results in the format:
+            {"content": [{"type": "text", "text": "<json string>"}]}
+
+        This extracts the inner data so callers get the actual
+        tool response directly, without needing to parse the envelope.
+        """
+        if not isinstance(result, dict):
+            return result
+
+        content = result.get("content", [])
+        if not content:
+            return result
+
+        # Single text content item — parse JSON
+        if len(content) == 1 and content[0].get("type") == "text":
+            text = content[0].get("text", "")
+            if not text:
+                return result
+            try:
+                return json.loads(text)
+            except (json.JSONDecodeError, TypeError):
+                return text
+
+        # Multiple content items — unwrap each
+        if len(content) > 1:
+            unwrapped = []
+            for item in content:
+                if item.get("type") == "text":
+                    text = item.get("text", "")
+                    try:
+                        unwrapped.append(json.loads(text))
+                    except (json.JSONDecodeError, TypeError):
+                        unwrapped.append(text)
+                else:
+                    unwrapped.append(item)
+            return unwrapped
+
+        return result
     
     async def list_tools(self) -> List[Dict[str, Any]]:
         """

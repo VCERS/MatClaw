@@ -78,13 +78,7 @@ logger = logging.getLogger(__name__)
 # Utility Functions
 # ============================================================================
 
-def parse_result(result) -> dict:
-    """Parse matclaw_sdk tool result to a Python dict."""
-    if isinstance(result, dict) and "content" in result:
-        for item in result.get("content", []):
-            if item.get("type") == "text":
-                return json.loads(item["text"])
-    return {}
+
 
 
 def save_results(results_file: Path, results: dict):
@@ -232,19 +226,17 @@ class BatchScreener:
                 check_bonds=True,
                 check_composition=True
             )
-            data = parse_result(result)
-            
-            if data["is_valid"]:
-                candidate["properties"]["validity"] = data
-                candidate["properties"]["formula"] = data["formula"]
+            if result["is_valid"]:
+                candidate["properties"]["validity"] = result
+                candidate["properties"]["formula"] = result["formula"]
                 self.results["summary_statistics"]["validated"] += 1
-                logger.info(f"  {candidate['id']}: Structure VALID ({data['formula']})")
+                logger.info(f"  {candidate['id']}: Structure VALID ({result['formula']})")
                 return True
             else:
                 candidate["status"] = "validation_failed"
-                candidate["screening_result"]["rejection_reason"] = "; ".join(data["issues"])
+                candidate["screening_result"]["rejection_reason"] = "; ".join(result["issues"])
                 self.results["summary_statistics"]["validation_failed"] += 1
-                logger.warning(f"  {candidate['id']}: Structure INVALID - {data['issues']}")
+                logger.warning(f"  {candidate['id']}: Structure INVALID - {result['issues']}")
                 return False
                 
         except Exception as e:
@@ -299,13 +291,11 @@ class BatchScreener:
         """Try to retrieve properties from Materials Project."""
         try:
             # Search for material
-            result = await async_call_tool(
+            search_result = await async_call_tool(
                 "mp_search_materials",
                 formula=formula,
                 is_stable=None
             )
-            search_result = parse_result(result)
-            
             if search_result.get("count", 0) == 0:
                 logger.info(f"    {candidate['id']}: Not found in Materials Project")
                 return False
@@ -315,14 +305,13 @@ class BatchScreener:
             logger.info(f"    {candidate['id']}: Found in MP as {mp_id}")
             
             # Retrieve detailed properties
-            result = await async_call_tool(
+            props = await async_call_tool(
                 "mp_get_material_properties",
                 material_ids=[mp_id],
                 properties=["formation_energy_per_atom", "band_gap", "energy_above_hull",
                             "symmetry", "density"]
             )
-            props = parse_result(result)
-            
+
             if props.get("count", 0) > 0:
                 mp_data = props["properties"][0]
                 candidate["properties"].update({
@@ -352,11 +341,9 @@ class BatchScreener:
                 db_path=str(self.ase_db_path),
                 formula=formula
             )
-            ase_result = parse_result(result)
-            
-            if ase_result.get("count", 0) > 0:
+            if result.get("count", 0) > 0:
                 # Use most recent entry
-                entry = ase_result["results"][0]
+                entry = result["results"][0]
                 candidate["properties"].update({
                     "source": "ASE_Cache",
                     "formation_energy_per_atom": entry.get("formation_energy_per_atom"),
@@ -380,66 +367,56 @@ class BatchScreener:
             logger.info(f"    {candidate['id']}: Running ML predictions...")
 
             # Step 1: Relax structure
-            result = await async_call_tool(
+            relaxed = await async_call_tool(
                 "matgl_relax_structure",
                 input_structure=candidate["cif_string"],
                 fmax=0.1,
                 steps=500,
                 optimizer="FIRE"
             )
-            relaxed = parse_result(result)
-            
             if not relaxed.get("converged", False):
                 raise Exception("Relaxation did not converge")
-            
+
             relaxed_structure = relaxed["final_structure"]
-            
+
             # Save relaxed structure (CRITICAL: preserve for DFT validation)
             candidate["relaxed_structure_cif"] = relaxed_structure
-            
+
             # Write relaxed structure to individual CIF file for direct DFT input
             relaxed_dir = Path("relaxed_structures")
             relaxed_dir.mkdir(exist_ok=True)
             with open(relaxed_dir / f"{candidate['id']}_relaxed.cif", "w") as f:
                 f.write(relaxed_structure)
-            
+
             # Step 2: Predict formation energy
-            result = await async_call_tool(
+            eform = await async_call_tool(
                 "matgl_predict_eform",
                 input_structure=relaxed_structure,
                 model="MEGNet-Eform-MP-2018.6.1"
             )
-            eform_result = parse_result(result)
-            
-            if not eform_result or "formation_energy_per_atom" not in eform_result:
-                logger.warning(f"    {candidate['id']}: Error parsing matgl_predict_eform response. Check tool response format.")
-            
+
             # Step 3: Predict band gap
-            result = await async_call_tool(
+            bandgap = await async_call_tool(
                 "matgl_predict_bandgap",
                 input_structure=relaxed_structure
             )
-            bandgap_result = parse_result(result)
-            
-            if not bandgap_result or "band_gap" not in bandgap_result:
-                logger.warning(f"    {candidate['id']}: Error parsing matgl_predict_bandgap response. Check tool response format.")
-            
+
             candidate["properties"].update({
                 "source": "ML_MatGL",
-                "formation_energy_per_atom": eform_result["formation_energy_per_atom"],
-                "band_gap": bandgap_result["band_gap"],
+                "formation_energy_per_atom": eform.get("formation_energy_per_atom"),
+                "band_gap": bandgap.get("band_gap"),
                 "energy_above_hull": None,  # Not available from ML
                 "relaxed": True,
                 "confidence": 0.70,
                 "requires_dft_verification": True
             })
-            
+
             self.results["data_sources"]["ml_calculated"] += 1
             self.results["summary_statistics"]["with_properties"] += 1
-            
+
             logger.info(f"    {candidate['id']}: ML predictions - "
-                       f"Eform={eform_result['formation_energy_per_atom']:.3f} eV/atom, "
-                       f"Eg={bandgap_result['band_gap']:.2f} eV")
+                       f"Eform={eform.get('formation_energy_per_atom', 'N/A')} eV/atom, "
+                       f"Eg={bandgap.get('band_gap', 'N/A')} eV")
             return True
             
         except Exception as e:

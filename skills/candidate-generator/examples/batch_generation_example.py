@@ -79,13 +79,7 @@ logger = logging.getLogger(__name__)
 # Utility Functions
 # ============================================================================
 
-def parse_result(result) -> dict:
-    """Parse matclaw_sdk tool result to a Python dict."""
-    if isinstance(result, dict) and "content" in result:
-        for item in result.get("content", []):
-            if item.get("type") == "text":
-                return json.loads(item["text"])
-    return {}
+
 
 
 def save_plan(plan_file: Path, plan: dict):
@@ -175,18 +169,16 @@ class BatchGenerator:
                 material_ids=[material_id]
             )
 
-            data = parse_result(result)
-            
             # Check for errors/warnings from MP tool
-            if 'error' in data:
-                logger.error(f"[ERROR] MP tool error: {data['error']}")
-            if 'warnings' in data:
-                for warning in data['warnings']:
+            if 'error' in result:
+                logger.error(f"[ERROR] MP tool error: {result['error']}")
+            if 'warnings' in result:
+                for warning in result['warnings']:
                     logger.warning(f"[WARNING] MP tool warning: {warning}")
             
             # Extract CIF from MP response (server returns CIF format directly)
-            if data and 'properties' in data and len(data['properties']) > 0:
-                material_data = data['properties'][0]
+            if 'properties' in result and len(result['properties']) > 0:
+                material_data = result['properties'][0]
                 if material_data.get('material_id') == material_id and 'structure' in material_data:
                     structure_data = material_data['structure']
                     cif_string = structure_data.get('cif')
@@ -253,17 +245,15 @@ class BatchGenerator:
             # Call MCP tool dynamically
             result = await async_call_tool(tool_name, **tool_params)
 
-            data = parse_result(result)
-            
             # Check for tool-level errors
-            if isinstance(data, dict) and 'success' in data and not data['success']:
-                logger.error(f"[ERROR] Tool error: {data.get('error', 'Unknown error')}")
+            if isinstance(result, dict) and 'success' in result and not result['success']:
+                logger.error(f"[ERROR] Tool error: {result.get('error', 'Unknown error')}")
                 return None
             
-            if data and 'structures' in data and len(data['structures']) > 0:
-                return data['structures'][0]
+            if result and 'structures' in result and len(result['structures']) > 0:
+                return result['structures'][0]
             else:
-                logger.error(f"[ERROR] No structure returned. Data: {data}")
+                logger.error(f"[ERROR] No structure returned. Data: {result}")
                 return None
                 
         except Exception as e:
@@ -293,16 +283,14 @@ class BatchGenerator:
                 num_results=5
             )
 
-            data = parse_result(result)
-
-            if not data or 'materials' not in data:
+            if not result or 'materials' not in result:
                 logger.error(f"  Error parsing mp_search_materials response. Check tool response format.")
                 return None
             
-            if len(data['materials']) > 0:
+            if len(result['materials']) > 0:
                 # Prefer stable materials (energy_above_hull = 0)
                 stable_materials = [
-                    m for m in data['materials'] 
+                    m for m in result['materials'] 
                     if m.get('energy_above_hull', float('inf')) == 0
                 ]
                 
@@ -311,7 +299,7 @@ class BatchGenerator:
                     logger.info(f"  Found stable material: {material_id}")
                 else:
                     # No stable materials, take the first one
-                    material_id = data['materials'][0]['material_id']
+                    material_id = result['materials'][0]['material_id']
                     logger.warning(f"  No stable materials found, using {material_id}")
                 
                 # Cache the result
