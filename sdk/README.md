@@ -83,10 +83,10 @@ Copy and edit [config.yaml.example](config.yaml.example) to create your own conf
 ### 3. Programmatic Configuration
 
 ```python
-from matclaw_sdk import get_config, set_config
+from matclaw_sdk import show_config, set_config
 
 # Shows current configurations
-get_config()
+show_config()
 
 # HTTP
 set_config('http', url='http://localhost:5000')

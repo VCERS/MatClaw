@@ -15,6 +15,7 @@ __all__ = [
     "get_client",
     "sync_call_tool",
     "async_call_tool",
+    "show_config",
     "set_config",
     "get_config",
     "Config",

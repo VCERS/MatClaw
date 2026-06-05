@@ -26,8 +26,15 @@ from .client import (
     get_client,
     sync_call_tool,
     async_call_tool,
+    get_tools,
+    show_tools,
 )
-from .config import set_config, get_config, Config
+from .config import (
+    get_config, 
+    set_config, 
+    show_config, 
+    Config
+)
 from .errors import (
     MatClawError,
     ConfigurationError,
@@ -51,6 +58,7 @@ __all__ = [
     # Configuration
     "set_config",
     "get_config",
+    "show_config",
     "Config",
     
     # Errors

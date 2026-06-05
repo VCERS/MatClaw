@@ -308,6 +308,29 @@ def sync_call_tool(tool_name: str, **kwargs) -> Any:
     return loop_runner.run_sync(client.call_tool(tool_name, **kwargs))
 
 
+def get_tools() -> List[Dict[str, Any]]:
+    """
+    Get all available tools from the MCP server.
+
+    Returns:
+        List of tool definitions, each with name, description, and input_schema
+    """
+    client = get_client()
+    loop_runner = _get_loop()
+    return loop_runner.run_sync(client.list_tools())
+
+
+def show_tools() -> None:
+    """
+    Print all available tools from the MCP server.
+    """
+    tools = get_tools()
+    print(f"Available tools ({len(tools)}):")
+    print("-" * 50)
+    for t in sorted(tools, key=lambda x: x["name"]):
+        print(f"  {t['name']}")
+
+
 async def async_call_tool(tool_name: str, **kwargs) -> Any:
     """
     Asynchronously call a tool.
@@ -328,4 +351,6 @@ __all__ = [
     "get_client",
     "sync_call_tool",
     "async_call_tool",
+    "get_tools",
+    "show_tools",
 ]

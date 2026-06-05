@@ -208,8 +208,9 @@ def cod_search_structures(
         Field(
             default=False,
             description=(
-                "If True, include the full CIF content in each result (as a string in the 'cif' field). "
-                "If False, return only metadata (COD ID, formula, space group) without structures. "
+                "If True, include the full CIF string in each result. "
+                "Recommended to set to False for broad searches due to large data size, "
+                "and set to True when you want to retrieve the cif for specific entries. "
                 "Default: False."
             )
         )
@@ -251,6 +252,9 @@ def cod_search_structures(
         5. By publication: year=2020, journal="Chemistry of Materials"
         6. By COD IDs: cod_ids=[1000000, 2000000]
         7. By cell volume: volume_min=500, volume_max=1000
+
+    Recommended for include_cifs=False for broad searches (returns metadata only), 
+    and include_cifs=True to retrieve the CIF content for specific entries.
 
     Returns:
         Dictionary containing:

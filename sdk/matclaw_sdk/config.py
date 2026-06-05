@@ -228,12 +228,12 @@ def get_config() -> Config:
     if _global_config is None:
         _global_config = Config()
 
-    _print_config_options(_global_config)
     return _global_config
 
 
-def _print_config_options(config: Config) -> None:
+def show_config() -> None:
     """Print current configuration options."""
+    config = get_config()
     options = {
         "transport": config.transport.__class__.__name__ if config.transport else None,
         "timeout": config.timeout,

@@ -153,6 +153,20 @@ print(result)
 
 All tools exposed by the server are available as top-level imports from `matclaw_sdk`.
 
+### Listing available tools
+
+```python
+from matclaw_sdk import get_tools, show_tools
+
+# Print a formatted list
+show_tools()
+
+# Or get the raw list for programmatic use
+tools = get_tools()
+for t in tools:
+    print(f"{t['name']}: {t.get('description', '')}")
+```
+
 ### Configuration
 
 The SDK auto-loads configuration from (highest priority first):
