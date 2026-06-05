@@ -253,4 +253,7 @@ if __name__ == "__main__":
         mcp.settings.json_response = True
         mcp.settings.host = args.host
         mcp.settings.port = args.port
+        # Disable DNS rebinding protection when binding to a non-local IP
+        if args.host not in ("127.0.0.1", "localhost", "::1"):
+            mcp.settings.transport_security = None
         mcp.run(transport=args.transport)
