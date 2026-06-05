@@ -83,13 +83,16 @@ Copy and edit [config.yaml.example](config.yaml.example) to create your own conf
 ### 3. Programmatic Configuration
 
 ```python
-from matclaw_sdk import configure_client
+from matclaw_sdk import get_config, set_config
+
+# Shows current configurations
+get_config()
 
 # HTTP
-configure_client('http', url='http://localhost:5000')
+set_config('http', url='http://localhost:5000')
 
 # Stdio
-configure_client('stdio', command='python /path/to/server.py')
+set_config('stdio', command='python /path/to/server.py')
 ```
 
 ## Examples
@@ -126,7 +129,7 @@ print(f"Final energy: {relaxed['energy']} eV")
 ### Example 3: Batch Processing with Stdio
 
 ```python
-from matclaw_sdk import configure_client, mp_search_materials
+from matclaw_sdk import set_config, mp_search_materials
 import subprocess
 import time
 
@@ -135,7 +138,7 @@ process = subprocess.Popen(["python", "mcp/server.py"])
 time.sleep(2)  # Wait for server to start
 
 # Configure SDK to use stdio
-configure_client('stdio', command='python mcp/server.py')
+set_config('stdio', command='python mcp/server.py')
 
 # Use tools
 materials = mp_search_materials(query="band_gap > 2")

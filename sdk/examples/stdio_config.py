@@ -9,7 +9,7 @@ Use stdio when:
 
 import os
 import subprocess
-from matclaw_sdk import configure_client, matgl_predict_bandgap
+from matclaw_sdk import set_config, matgl_predict_bandgap
 
 
 # Option 1: Configure via environment variables
@@ -37,7 +37,7 @@ except Exception as e:
 print("\n\nOption 2: Programmatic Configuration")
 print("-" * 50)
 
-configure_client(
+set_config(
     'stdio',
     command='python /home/sean/documents/code/MatClaw/mcp/server.py'
 )
@@ -66,7 +66,7 @@ print("\nThen the SDK will automatically use this configuration.")
 print("\n\nAdvanced: Custom Environment")
 print("-" * 50)
 
-configure_client(
+set_config(
     'stdio',
     command='python -u server.py',  # Unbuffered output
 )

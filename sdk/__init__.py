@@ -3,7 +3,7 @@ MatClaw SDK - Python client for MatClaw MCP tools.
 
 This is the main entry point. Import directly from here:
     from matclaw_sdk import matgl_predict_bandgap
-    from matclaw_sdk import configure_client
+    from matclaw_sdk import set_config
 """
 
 # Re-export everything from the matclaw_sdk submodule
@@ -15,7 +15,7 @@ __all__ = [
     "get_client",
     "sync_call_tool",
     "async_call_tool",
-    "configure_client",
+    "set_config",
     "get_config",
     "Config",
     "MatClawError",

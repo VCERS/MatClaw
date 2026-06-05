@@ -39,14 +39,14 @@ except Exception as e:
 
 
 # Example 3: Configure for different server
-from matclaw_sdk import configure_client
+from matclaw_sdk import set_config
 
 print("\nExample 3: Configure client")
 
 # Use HTTP to remote server
-configure_client('http', url='http://example.com:5000')
+set_config('http', url='http://example.com:5000')
 print("Configured for HTTP")
 
 # Or use stdio (local subprocess)
-# configure_client('stdio', command='python /path/to/server.py')
+# set_config('stdio', command='python /path/to/server.py')
 # print("Configured for stdio")

@@ -8,7 +8,7 @@ Use HTTP when:
 """
 
 import os
-from matclaw_sdk import configure_client, matgl_predict_bandgap
+from matclaw_sdk import set_config, matgl_predict_bandgap
 
 # Option 1: Configure via environment variables
 print("Option 1: Environment Variables")
@@ -37,7 +37,7 @@ except Exception as e:
 print("\n\nOption 2: Programmatic Configuration")
 print("-" * 50)
 
-configure_client(
+set_config(
     'http',
     url='http://example.com:5000',
     timeout=60,

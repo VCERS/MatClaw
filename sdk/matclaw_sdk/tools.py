@@ -132,7 +132,7 @@ __all__ = [
     "get_client",
     "sync_call_tool", 
     "async_call_tool",
-    "configure_client",
+    "set_config",
     "create_tool_wrapper",
     # Tools will be dynamically available via __getattr__
 ]

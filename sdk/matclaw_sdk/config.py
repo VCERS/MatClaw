@@ -26,7 +26,7 @@ class Config:
     def __init__(self):
         """Initialize configuration from environment/files/defaults."""
         self.transport: Optional[Transport] = None
-        self.timeout = 30
+        self.timeout = 180
         self._load_config()
     
     def _load_config(self) -> None:
@@ -67,7 +67,7 @@ class Config:
         if transport_type == "http":
             url = os.getenv("MATCLAW_HTTP_URL", "http://localhost:5000")
             verify_ssl = os.getenv("MATCLAW_HTTP_VERIFY_SSL", "true").lower() == "true"
-            timeout = int(os.getenv("MATCLAW_TIMEOUT", "30"))
+            timeout = int(os.getenv("MATCLAW_TIMEOUT", "180"))
             
             return {
                 "transport": "http",
@@ -82,7 +82,7 @@ class Config:
                 raise ConfigurationError(
                     "MATCLAW_TRANSPORT=stdio requires MATCLAW_STDIO_COMMAND"
                 )
-            timeout = int(os.getenv("MATCLAW_TIMEOUT", "30"))
+            timeout = int(os.getenv("MATCLAW_TIMEOUT", "180"))
             
             return {
                 "transport": "stdio",
@@ -146,13 +146,13 @@ class Config:
             "transport": "http",
             "url": "http://localhost:5000",
             "verify_ssl": True,
-            "timeout": 30,
+            "timeout": 180,
         }
     
     def _apply_config(self, config: Dict[str, Any]) -> None:
         """Apply configuration to create transport."""
         transport_type = config.get("transport", "http").lower()
-        self.timeout = config.get("timeout", 30)
+        self.timeout = config.get("timeout", 180)
         
         if transport_type == "http":
             http_cfg = config.get("http", {})
@@ -227,12 +227,33 @@ def get_config() -> Config:
     global _global_config
     if _global_config is None:
         _global_config = Config()
+
+    _print_config_options(_global_config)
     return _global_config
 
 
-def configure_client(
+def _print_config_options(config: Config) -> None:
+    """Print current configuration options."""
+    options = {
+        "transport": config.transport.__class__.__name__ if config.transport else None,
+        "timeout": config.timeout,
+    }
+    
+    if config.transport and hasattr(config.transport, "url"):
+        options["url"] = config.transport.url
+    if config.transport and hasattr(config.transport, "verify_ssl"):
+        options["verify_ssl"] = config.transport.verify_ssl
+    if config.transport and hasattr(config.transport, "command"):
+        options["command"] = config.transport.command
+    
+    print("Configuration options:")
+    for key, value in options.items():
+        print(f"  {key}: {value}")
+
+
+def set_config(
     transport: str,
-    timeout: int = 30,
+    timeout: int = 180,
     **kwargs
 ) -> None:
     """
@@ -246,8 +267,8 @@ def configure_client(
             For stdio: command
     
     Example:
-        configure_client('http', url='http://localhost:5000')
-        configure_client('stdio', command='python server.py')
+        set_config('http', url='http://localhost:5000')
+        set_config('stdio', command='python server.py')
     """
     global _global_config
     

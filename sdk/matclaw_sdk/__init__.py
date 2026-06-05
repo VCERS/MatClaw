@@ -16,9 +16,9 @@ Configuration:
         MATCLAW_STDIO_COMMAND=python server.py
     
     Programmatically:
-        from matclaw_sdk import configure_client
-        configure_client('http', url='http://localhost:5000')
-        configure_client('stdio', command='python server.py')
+        from matclaw_sdk import set_config
+        set_config('http', url='http://localhost:5000')
+        set_config('stdio', command='python server.py')
 """
 
 from .client import (
@@ -27,7 +27,7 @@ from .client import (
     sync_call_tool,
     async_call_tool,
 )
-from .config import configure_client, get_config, Config
+from .config import set_config, get_config, Config
 from .errors import (
     MatClawError,
     ConfigurationError,
@@ -49,7 +49,7 @@ __all__ = [
     "async_call_tool",
     
     # Configuration
-    "configure_client",
+    "set_config",
     "get_config",
     "Config",
     
