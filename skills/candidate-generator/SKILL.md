@@ -11,7 +11,7 @@ description: |
   - Materials classes: "battery cathodes", "perovskites", "isostructural analogues", "high-entropy oxides", "defects"
   - Configuration space: "enumerate orderings", "SQS generation", "disorder-to-ordered", "vacancy defects", "interstitials"
   - Scale: "generate 50 structures", "100 candidates", "high-throughput", "ML training set", "candidate library"
-  - Starting points: Element lists ("Li-Mn-P-O system"), formulas ("LiCoO2 analogues"), structure types ("olivine"), ICSD/MP IDs
+  - Starting points: Element lists ("Li-Mn-P-O system"), formulas ("LiCoO2 analogues"), structure types ("olivine"), ICSD/MP/COD IDs
   - Workflows: "prototype matching", "lattice perturbation", "supercell expansion"
   
   **Complete pipeline coverage:**
@@ -40,8 +40,8 @@ Phase 6: All → ASE Database Storage (with metadata and provenance)
 
 **Entry points match your starting information:**
 - Elements only (Li-Mn-P-O)? → Start Phase 1
-- Composition known (LiMnPO₄) but no structure? → Start Phase 1  
-- Structure from MP/CIF/ASE exists? → Start Phase 2 (or skip to Phase 3-5)
+- Composition known (LiMnPO₄) but no structure? → **Search both `mp_search_materials` and `cod_search_structures`** for a seed before falling back to prototype building.
+- Structure from MP/COD/CIF/ASE exists? → Start Phase 2 (or skip to Phase 3-5)
 
 **Working principles:**
 1. **MCP tools generate complete structures** — Every tool returns CIF/POSCAR with atom positions, unit cell, spacegroup. Custom formula generators without structures cannot be validated or screened.
@@ -65,10 +65,14 @@ Phase 6: All → ASE Database Storage (with metadata and provenance)
 
 ### Phase 1: Seed Structure Building
 
-**When:** Need to build structure from scratch (no MP/CIF template available)  
+**When:** Need to build structure from scratch (no MP/COD/CIF template available)  
 **Skip if:** Structure already exists
 
-**Tool:** `pymatgen_prototype_builder`
+**Before falling back to prototype building, always search both databases:**
+1. `mp_search_materials(formula=...)` — rich DFT properties available if found
+2. `cod_search_structures(formula=...)` — fills the gap for experimental/niche compounds not in MP
+
+Only reach for `pymatgen_prototype_builder` when neither database has the compound.
 
 **Common prototypes:** Rock-salt (225), Perovskite (221), Spinel (227), Layered oxide (166), Olivine (62)
 
@@ -239,7 +243,8 @@ ase_store_result(
 | Phase | Tool | Purpose | Key Decision |
 |-------|------|---------|--------------|
 | 0 | `pymatgen_substitution_predictor` | ICSD-guided substitutions | Uses lambda-scaling |
-| 0 | `mp_search_materials` | Template structures | Elements, stability filter |
+| 0 | `mp_search_materials` | Template structures (DFT) | Elements, stability filter |
+| 0 | `cod_search_structures` | Template structures (experimental) | Niche/niche compounds not in MP |
 | 1 | `pymatgen_prototype_builder` | Build from spacegroup | Need lattice parameter estimate |
 | 2A | `pymatgen_ion_exchange_generator` | Charge-neutral substitution | Auto stoichiometry adjustment |
 | 2B | `pymatgen_substitution_generator` | Ordered enumeration | Integer occupancy |

@@ -206,14 +206,14 @@ def cod_search_structures(
     include_cifs: Annotated[
         bool,
         Field(
-            default=True,
+            default=False,
             description=(
                 "If True, include the full CIF content in each result (as a string in the 'cif' field). "
                 "If False, return only metadata (COD ID, formula, space group) without structures. "
-                "Default: True."
+                "Default: False."
             )
         )
-    ] = True,
+    ] = False,
 
     max_results: Annotated[
         int,

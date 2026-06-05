@@ -20,8 +20,8 @@ Validates and enriches candidate structures with properties using hierarchical d
 **This skill implements a property enrichment pipeline, NOT a blind filter:**
 
 1. **Hierarchical property retrieval** (MP → ASE cache → ML calculation)
-   - Try high-quality DFT data first (Materials Project)
-   - Fall back to cached results (ASE database)
+   - Try high-quality DFT data first (Materials Project — includes band gap, formation energy)
+   - Then cached results (ASE database)
    - Only run ML calculations if necessary (MatGL + matcalc)
 
 2. **Complete transparency** - log rejection reasons for diagnostics and refinement
@@ -79,9 +79,9 @@ Validates and enriches candidate structures with properties using hierarchical d
 - `matcalc_calc_adsorption`: Adsorption energies
 - `matcalc_calc_md`: Molecular dynamics
 - `matcalc_calc_neb`: Reaction barriers, diffusion paths
-- `matcalc_calc_phonon3`: Thermal conductivity (expensive!)
+- `matcalc_calc_phonon3`: Thermal conductivity
 - `matcalc_calc_qha`: Thermal expansion
-- `matcalc_calc_energetics`: Formation + cohesive energy (use MatGL for screening instead)
+- `matcalc_calc_energetics`: Formation + cohesive energy
 - `matcalc_calc_interface`: Grain boundary / heterostructure energies
 
 ### Phase 3: Ranking & Selection

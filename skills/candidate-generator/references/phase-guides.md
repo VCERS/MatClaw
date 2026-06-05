@@ -10,14 +10,14 @@ Complete detailed instructions for each workflow phase in the candidate generati
 
 **Skip if:** You already have the seed structure from a CIF, POSCAR, or ASE database
 
-### Three Strategies
+### Four Strategies
 
 #### 1. Exact Seed Retrieval from Materials Project
 
 **Tools:** `mp_search_materials`, `mp_get_material_properties`
 
 **Best for:**
-- Starting from a known seed formula
+- Starting from a known seed formula that exists in MP
 - Reusing an experimentally or computationally validated structure
 - Fastest path into substitution or disorder workflows
 
@@ -67,7 +67,38 @@ seed_mp_id = templates['materials'][0]['material_id']
 
 **Output:** 5-10 candidate seed materials to choose from
 
-#### 3. ICSD Substitution Prediction from a Seed
+#### 3. COD Search (Crystallography Open Database)
+
+**Tool:** `cod_search_structures`
+
+**Best for:**
+- Niche, multinary, or experimental compounds not in MP (e.g., quaternary chalcogenides)
+- Experimentally synthesized materials that MP filtered out as thermodynamically metastable
+- Looking up published crystal structures from literature
+- Compounds from the paper you're reading that may or may not be in computational databases
+
+**Algorithm:**
+```python
+# Try MP first, fall back to COD
+seed_search = mp_search_materials(formula='RbCd4Ga3S9', limit=1)
+if seed_search['count'] == 0:
+    # Not in MP — try COD (experimental database)
+    cod_results = cod_search_structures(
+        formula='RbCd4Ga3S9',
+        max_results=5,
+        include_cifs=True
+    )
+    if cod_results['count'] > 0:
+        # Use first result as seed structure
+        seed_cif = cod_results['structures'][0]['cif']
+        # Convert CIF string → pymatgen Structure for downstream tools
+        from pymatgen.core import Structure
+        seed_structure = Structure.from_str(seed_cif, fmt='cif')
+```
+
+**Output:** One or more seed structure(s) with CIF content, or empty if not in any database
+
+#### 4. ICSD Substitution Prediction from a Seed
 
 **Tool:** `pymatgen_substitution_predictor`
 
@@ -92,37 +123,13 @@ predictions = pymatgen_substitution_predictor(
 
 ```
 Do you already know the seed formula?
-└─ YES: Query MP directly and use that structure
+└─ YES: Query MP first → found? Use MP structure (rich properties).
+│       Not in MP? → Query COD → found? Use COD experimental CIF.
+│       Not in either? → Build from prototype (Phase 1).
 └─ NO:
     └─ Is there a known material family or analogue set?
-        └─ YES: Search MP templates, then choose a seed
-        └─ NO: Use substitution prediction or external literature to identify a seed first
-```
-
-### Output Processing
-
-After selecting a seed material:
-
-1. **Check whether a structure exists in MP:**
-```python
-seed_search = mp_search_materials(formula=seed_formula, limit=1)
-if seed_search['count'] > 0:
-    seed_mp_id = seed_search['material_ids'][0]
-    priority = 'high'  # Known MP structure
-```
-
-2. **Retrieve the structure or fall back to Phase 1:**
-```python
-if seed_search['count'] > 0:
-    # Get structure -> skip Phase 1, go to Phase 2
-    seed_props = mp_get_material_properties(
-        material_ids=[seed_search['material_ids'][0]],
-        properties=['structure']
-    )
-    seed_structure = seed_props['properties'][0]['structure']
-else:
-    # Need to build structure -> Phase 1
-    seed_formula_needs_prototype = True
+        └─ YES: Search MP templates → choose seed
+        └─ NO: Use substitution prediction or external literature first
 ```
 
 ---
