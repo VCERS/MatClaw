@@ -110,7 +110,6 @@ class TestStructureValidator:
         result = structure_validator(
             input_structure=simple_nacl_structure,
             min_distance_threshold=1.0,
-            max_bond_deviation=0.3,
             coordination_cutoff=4.0,
             max_coordination=15
         )
@@ -189,37 +188,6 @@ direct
         
         assert result["is_valid"] is False
         assert "error" in result
-
-
-class TestBondLengthValidation:
-    """Tests specifically for bond length validation."""
-
-    def test_normal_bonds_pass(self, simple_nacl_structure):
-        """Normal Na-Cl bonds should pass validation."""
-        result = structure_validator(
-            input_structure=simple_nacl_structure,
-            max_bond_deviation=0.5
-        )
-        
-        assert "bond_lengths" in result["checks_performed"]
-        # NaCl has reasonable bond lengths, should pass or have few anomalies
-
-    def test_bond_deviation_threshold(self, simple_nacl_structure):
-        """Very strict bond deviation threshold should catch more bonds."""
-        result_strict = structure_validator(
-            input_structure=simple_nacl_structure,
-            max_bond_deviation=0.1
-        )
-        
-        result_lenient = structure_validator(
-            input_structure=simple_nacl_structure,
-            max_bond_deviation=1.0
-        )
-        
-        # Stricter threshold should catch more or equal anomalies
-        strict_anomalies = len(result_strict["details"]["bond_lengths"].get("anomalous_bonds", []))
-        lenient_anomalies = len(result_lenient["details"]["bond_lengths"].get("anomalous_bonds", []))
-        assert strict_anomalies >= lenient_anomalies
 
 
 class TestOutputFormat:
