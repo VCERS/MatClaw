@@ -607,6 +607,26 @@ def structure_validator(
                         issues, warnings, details, structure_info)
 
 
+def _convert_numpy(obj):
+    """Recursively convert numpy types to native Python types for JSON serialization."""
+    import numpy as np
+    if isinstance(obj, dict):
+        return {k: _convert_numpy(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(_convert_numpy(v) for v in obj)
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return _convert_numpy(obj.tolist())
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    return obj
+
+
 def _build_result(is_valid, checks_performed, checks_passed, checks_failed, issues, warnings, details, structure_info):
     """Helper to build standardized result dictionary."""
     result = {
@@ -623,4 +643,4 @@ def _build_result(is_valid, checks_performed, checks_passed, checks_failed, issu
     if warnings:
         result["warnings"] = warnings
     
-    return result
+    return _convert_numpy(result)

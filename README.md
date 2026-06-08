@@ -122,7 +122,15 @@ Start the server as a long-lived HTTP process, then connect from anywhere:
 ```bash
 cd mcp
 source venv/bin/activate
+
+# Single worker — local only
 python server.py --transport streamable-http --port 8500
+
+# Multiple workers — concurrent requests
+python server.py --transport streamable-http --port 8500 --workers 4
+
+# Remote access — bind to all interfaces
+python server.py --transport streamable-http --host 0.0.0.0 --port 8500 --workers 4
 ```
 
 Switch the SDK to HTTP mode by editing `sdk/config.yaml`:
