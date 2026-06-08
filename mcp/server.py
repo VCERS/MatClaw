@@ -116,6 +116,11 @@ load_dotenv()
 
 # Initialize MCP server
 mcp = FastMCP(name="matclaw-mcp-server")
+# Disable DNS rebinding protection — server host binding is controlled via --host
+mcp.settings.transport_security = None
+# Enable stateless JSON mode for HTTP transport (required for multi-worker)
+mcp.settings.stateless_http = True
+mcp.settings.json_response = True
 
 # Add tools
 # COD tools
@@ -216,6 +221,10 @@ mcp.tool()(urdf_inspect)
 mcp.tool()(lula_generate_robot_description)
 
 
+def get_http_app():
+    """Return the streamable-http Starlette app (for multi-worker uvicorn)."""
+    return mcp.streamable_http_app()
+
 
 if __name__ == "__main__":
     import argparse
@@ -238,6 +247,12 @@ if __name__ == "__main__":
         default="127.0.0.1",
         help="Host for streamable-http transport (default: 127.0.0.1)"
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of uvicorn workers for HTTP mode (default: 1)"
+    )
     args = parser.parse_args()
 
     if args.transport == "stdio":
@@ -246,14 +261,20 @@ if __name__ == "__main__":
     else:
         logger.info(
             f"Starting MatClaw MCP Server ({args.transport}) "
-            f"on {args.host}:{args.port}"
+            f"on {args.host}:{args.port} with {args.workers} worker(s)"
         )
-        # Enable stateless JSON mode for HTTP transport
-        mcp.settings.stateless_http = True
-        mcp.settings.json_response = True
         mcp.settings.host = args.host
         mcp.settings.port = args.port
-        # Disable DNS rebinding protection when binding to a non-local IP
-        if args.host not in ("127.0.0.1", "localhost", "::1"):
-            mcp.settings.transport_security = None
-        mcp.run(transport=args.transport)
+
+        if args.workers > 1:
+            import uvicorn
+            uvicorn.run(
+                "server:get_http_app",
+                host=args.host,
+                port=args.port,
+                workers=args.workers,
+                log_level=mcp.settings.log_level.lower(),
+                factory=True,
+            )
+        else:
+            mcp.run(transport=args.transport)
