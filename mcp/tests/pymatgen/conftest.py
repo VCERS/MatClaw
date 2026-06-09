@@ -218,6 +218,50 @@ def ordered_cucr2se4_obj():
 
 
 @pytest.fixture
+def bgse_ga4_disordered():
+    """
+    BGSe-like structure with 4 Ga sites, each carrying Mg doping.
+
+    Uses Pc space group with 12 atoms: 1 Ba, 4 Ga, 7 Se.
+    In the disordered version, Ga sites have fractional Mg occupancy,
+    mimicking the Ba(Ga,Mg)4Se7 solid solution from the research paper.
+
+    Returns:
+        str: Structure in CIF format with Ga sites carrying partial Mg occupancy.
+    """
+    from pymatgen.core import Structure, Lattice
+
+    # Monoclinic Pc lattice (BGSe-like)
+    lattice = Lattice.monoclinic(7.625, 6.511, 14.702, 121.24)
+    structure = Structure(
+        lattice,
+        [
+            "Ba",
+            {"Ga": 0.97, "Mg": 0.03},   # Ga1: 3% Mg
+            {"Ga": 0.97, "Mg": 0.03},   # Ga2: 3% Mg
+            {"Ga": 0.97, "Mg": 0.03},   # Ga3: 3% Mg
+            {"Ga": 0.97, "Mg": 0.03},   # Ga4: 3% Mg
+            "Se", "Se", "Se", "Se", "Se", "Se", "Se",
+        ],
+        [
+            [0.5639, 0.3535, 0.0463],  # Ba
+            [0.0072, 0.1659, 0.7408],  # Ga1
+            [1.0000, 0.0072, 1.0000],  # Ga2
+            [0.4927, 0.1583, 0.7280],  # Ga3
+            [0.2374, 0.3632, 0.2252],  # Ga4
+            [0.7824, 0.1506, 0.5532],  # Se1
+            [0.0059, 0.3633, 0.0388],  # Se2
+            [0.3285, 0.1099, 0.5422],  # Se3
+            [0.3294, 0.0178, 0.3097],  # Se4
+            [0.0973, 0.5080, 0.3233],  # Se5
+            [0.5703, 0.4948, 0.2806],  # Se6
+            [0.8169, 0.0307, 0.3040],  # Se7
+        ]
+    )
+    return structure.to(fmt="cif")
+
+
+@pytest.fixture
 def bagase_ga_mg_uniform():
     """
     Ba-Ga-Se with 10% uniform Mg on Ga sites ONLY (Ba sites are pure).

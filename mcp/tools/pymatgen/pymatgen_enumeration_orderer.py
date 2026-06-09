@@ -45,7 +45,7 @@ def pymatgen_enumeration_orderer(
             le=4,
             description=(
                 "Supercell size multiplier (1–4). "
-                "Creates a supercell of size [supercell_size, supercell_size, 1] "
+                "Creates an isotropic [s, s, s] supercell (all three axes) "
                 "to accommodate fractional occupancies before ordering. "
                 "Larger values allow more ordering possibilities but increase computation time. "
                 "Default: 2."
@@ -166,12 +166,13 @@ def pymatgen_enumeration_orderer(
             ge=0.0,
             le=0.5,
             description=(
-                "Maximum allowed fractional-atom error per disordered site after "
-                "supercell scaling. The tool tries increasing supercell sizes until "
-                "the total rounding error (sum of |fractional - rounded| across all "
-                "disordered sites) falls below this threshold. "
-                "A value of 0.05 means ≤5% of a dopant atom may be lost/added per site. "
-                "Default: 0.05."
+                "Maximum allowed sum of fractional-atom rounding errors across ALL "
+                "disordered sites after supercell scaling (0.0–0.5). "
+                "The fallback scales the cell until total_err = "
+                "sum(|fractional × n - round(fractional × n)|) ≤ tolerance. "
+                "A value of 0.05 means the summed dopant rounding error across all sites "
+                "must be ≤0.05 atoms. For low doping on few sites you may need to increase "
+                "this to 0.2–0.5. Default: 0.05."
             )
         )
     ] = 0.05,) -> Dict[str, Any]:
@@ -180,12 +181,31 @@ def pymatgen_enumeration_orderer(
 
     The workflow is:
     1. Parse one or more disordered input structures.
-    2. Expand each structure into the requested supercell.
+    2. Expand each structure into an isotropic [s, s, s] supercell.
     3. Use pymatgen's ordering transformation to generate fully ordered candidates.
-    4. Rank the resulting candidates by Ewald energy, number of sites, or random order.
+    4. If enumeration fails (e.g. fractional occupancies don't resolve to integer
+       counts), fall back to supercell scaling + rounding (see parameter guidance).
+    5. Rank the resulting candidates by Ewald energy, number of sites, or random order.
 
     The returned structures are fully ordered and suitable for downstream relaxation,
     property prediction, or DFT setup.
+
+    ## Parameter guidance
+
+    **supercell_size** — Creates an isotropic [s, s, s] supercell (all three axes).
+    Unlike SQS which scales by atom count, this directly controls the expansion factor.
+
+    **Integer rounding of dopants** — When `OrderDisorderedStructureTransformation`
+    fails on the supercell (because fractional occupancies cannot be exactly
+    represented as integers), the fallback tries scales 1×–4×, rounding each
+    species' count with `round(f × n)`. For low doping on few sites, the rounding
+    error may exceed the default `composition_tolerance=0.05`. Example: 3% Mg on
+    4 Ga sites has error ~0.16 at scale 3× → a `tolerance_exceeded=True` warning
+    is emitted but the structure is returned anyway. Increase `composition_tolerance`
+    to 0.2–0.5 to suppress this warning, or pre-scale your input cell before calling.
+
+    **n_structures** — Exhaustive enumeration genuinely produces distinct ordered
+    configurations (unlike SQS which may converge seeds to the same minimum).
 
     Returns:
         dict:
@@ -447,7 +467,7 @@ def pymatgen_enumeration_orderer(
             # Create supercell
             try:
                 from pymatgen.transformations.standard_transformations import SupercellTransformation
-                sm = [[supercell_size, 0, 0], [0, supercell_size, 0], [0, 0, 1]]
+                sm = [[supercell_size, 0, 0], [0, supercell_size, 0], [0, 0, supercell_size]]
                 struct_for_enum = SupercellTransformation(sm).apply_transformation(struct_for_enum)
             except Exception as e:
                 warnings.append(f"Supercell failed for '{src_formula}': {e}")
