@@ -106,6 +106,14 @@ from tools.urdf import (
 from tools.lula import (
     lula_generate_robot_description,
 )
+from tools.dft import (
+    prepare_calculation,
+    submit_calculation,
+    get_calculation_status,
+    fetch_results,
+    cancel_calculation,
+    restart_calculation,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -219,6 +227,14 @@ mcp.tool()(urdf_inspect)
 
 # Lula robot description generation
 mcp.tool()(lula_generate_robot_description)
+
+# DFT job-lifecycle tools (VASP + ORCA via engine dispatch)
+mcp.tool()(prepare_calculation)
+mcp.tool()(submit_calculation)
+mcp.tool()(get_calculation_status)
+mcp.tool()(fetch_results)
+mcp.tool()(cancel_calculation)
+mcp.tool()(restart_calculation)
 
 
 def get_http_app():
