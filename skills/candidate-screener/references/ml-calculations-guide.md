@@ -168,32 +168,27 @@ Validate formation energy, band gap, mechanical properties
 
 ---
 
-## Mandatory Relaxation Workflow
+## Relaxation recommendation
 
-**ALL ML predictions require relaxed structures. Always follow this sequence:**
+ML predictions are generally more reliable on relaxed (near-equilibrium) geometries. If the structure comes from a trusted optimized source (DFT, Materials Project, or well-characterized experiment), you can skip relaxation. Otherwise, it's a good idea to relax first:
 
 ```
-# WRONG: Skip relaxation
-structure_unrelaxed = candidate.structure
-eform = matgl_predict_eform(structure_unrelaxed)  # Inaccurate!
-
-# CORRECT: Relax first
 structure_unrelaxed = candidate.structure
 relaxed = matgl_relax_structure(structure_unrelaxed, fmax=0.1, max_steps=500)
 structure_relaxed = relaxed["final_structure"]
 
-# THEN predict properties
-eform = matgl_predict_eform(structure_relaxed)  # Accurate
-bandgap = matgl_predict_bandgap(structure_relaxed)  # Accurate
+# THEN predict properties on relaxed structure
+eform = matgl_predict_eform(structure_relaxed)
+bandgap = matgl_predict_bandgap(structure_relaxed)
 
-# OR calculate with matcalc
+# OR calculate with matcalc (skip internal relaxation since already relaxed)
 elasticity = matcalc_calc_elasticity(
     structure_relaxed,
-    relax_structure=False  # Already relaxed!
+    relax_structure=False
 )
 ```
 
-**Exception:** If structures come from DFT, Materials Project, or experimental data, they are already optimized → set `relax_structure=False` or skip relaxation tool.
+If you skip relaxation, don't forget to set `relax_structure=False` on matcalc tools to avoid redundant computation.
 
 ---
 

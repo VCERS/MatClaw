@@ -17,37 +17,19 @@ If you only need property-model selection, read `ml-calculations-guide.md` inste
 
 ---
 
-## Canonical Workflow
+## Typical workflow shape
 
-Follow this order for each run:
+Most screening runs follow a similar arc, but you should adapt the order and depth to the task. A reasonable outline:
 
-1. **Preprocess disorder when present**
-   - Ordered structures continue directly.
-   - Disordered structures go through majority, enumeration, or SQS ordering based on the metadata or concentration heuristic.
+1. **Handle disorder if present** — Ordered structures don't need preprocessing. Disordered ones may need majority, enumeration, or SQS ordering depending on doping level and research goals.
 
-2. **Validate before enrichment**
-   - Run structural validation and composition analysis first.
-   - Reject only when the structure is genuinely unusable.
-   - Record rejection reasons so criteria can be refined later.
+2. **Validate early** — Check structure integrity and composition before investing in property calculations. Reject only genuinely unusable structures.
 
-3. **Retrieve properties hierarchically**
-   - Try Materials Project first for highest-confidence DFT-quality data.
-   - Fall back to ASE cache when equivalent properties were already computed.
-   - Run ML calculations only when the higher-confidence sources are unavailable.
+3. **Retrieve properties** — Where to get each property depends on data availability and quality needs. You might mix sources across candidates: MP data for known compositions, ML predictions for novel ones.
 
-4. **Filter against screening criteria**
-   - Apply thresholds only after the candidate has the required properties.
-   - Keep explicit failure reasons for every rejected candidate.
+4. **Filter and rank** — Apply the user's criteria, then rank survivors by multi-objective optimization. Flag approximations and high-scoring ML-only candidates for downstream verification.
 
-5. **Rank surviving candidates**
-   - Use multi-objective ranking.
-   - Weight scores by source confidence so DFT-backed values outrank approximations.
-   - Flag strong ML-only hits for DFT verification before expensive downstream work.
-
-6. **Persist outputs**
-   - Store retrieved properties in ASE.
-   - Preserve both original and relaxed structures when relaxation was used.
-   - Emit a screening report with counts, provenance, rankings, and failure reasons.
+5. **Persist outputs** — Cache results in ASE or filesystem when practical. Preserve both original and relaxed structures. Record rejection reasons and data provenance in the report.
 
 ---
 
@@ -59,12 +41,13 @@ Use relaxed structures for ML predictions unless the structure already comes fro
 
 ### Source Priority
 
-Prefer this order:
-- Materials Project
-- ASE cache
-- ML prediction
+Higher-confidence sources are generally preferable, but the right choice depends on availability and the user's goals. A reasonable default order is:
 
-This keeps the workflow calibrated toward higher-confidence data and reduces unnecessary recomputation.
+1. Materials Project (DFT-quality, instant for known compositions)
+2. ASE cache (pre-computed results)
+3. ML prediction (fast approximations for novel compositions)
+
+Clarify with the user if a particular source should be prioritized or skipped.
 
 ### Multiple Materials Project Matches
 
