@@ -43,7 +43,16 @@ class VaspEngine(Engine):
 
         overrides = overrides or {}
         warnings: List[str] = []
-        calc_type = calc_type if calc_type in self.calc_types else "relax"
+        if calc_type not in self.calc_types:
+            warnings.append(
+                f"calc_type '{calc_type}' is not a runnable VASP template "
+                f"(supported: {', '.join(self.calc_types)}). Falling back to 'relax'. "
+                "Capabilities like DOS, band structure, phonons, or AIMD must be "
+                "expressed via `overrides` (INCAR/KPOINTS settings) on a supported "
+                "template, or by extending this engine adapter — do NOT assume the "
+                "intended physics ran."
+            )
+            calc_type = "relax"
 
         # --- parse structure -------------------------------------------------
         fmt = structure_format

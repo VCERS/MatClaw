@@ -75,7 +75,16 @@ class OrcaEngine(Engine):
     ) -> PrepareResult:
         overrides = overrides or {}
         warnings: List[str] = []
-        calc_type = calc_type if calc_type in self.calc_types else "single_point"
+        if calc_type not in self.calc_types:
+            warnings.append(
+                f"calc_type '{calc_type}' is not a runnable ORCA template "
+                f"(supported: {', '.join(self.calc_types)}). Falling back to "
+                "'single_point'. Capabilities like TD-DFT, NEB-TS, scans, or "
+                "multireference must be expressed via `overrides` (keywords/blocks) "
+                "or by extending this engine adapter — do NOT assume the intended "
+                "calculation ran."
+            )
+            calc_type = "single_point"
 
         method = overrides.get("method", _DEFAULT_METHOD)
         basis = overrides.get("basis", _DEFAULT_BASIS)

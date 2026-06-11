@@ -41,8 +41,8 @@ MatClaw follows a layered architecture:
 | **isaac-lab-scene-init** | Initialize robot scenes in NVIDIA Isaac Lab |
 | **candidate-generator** | Generate candidate materials using pymatgen structure manipulation tools |
 | **candidate-screener** | Screen candidate materials using ML prediction and stability analysis |
-| **vasp-ase** | VASP DFT calculations using ASE interface |
-| **orca_skills** | Quantum chemistry workflows: density/ESP cube generation, frontier orbital analysis, output summarization, directory triage |
+| **vasp** | End-to-end periodic plane-wave DFT with VASP: design, submit/monitor, triage, and interpret calculations via the dft_* tools |
+| **orca** | End-to-end molecular quantum chemistry with ORCA: design, submit/monitor, triage, interpret, and generate visualization cubes via the dft_* and orca_* tools |
 | **synthesis-planner** | Intelligent synthesis route planning - always tries literature search (Materials Project) first, falls back to template-based routes only when no literature data exists |
 | **active-learning** | Autonomous synthesis optimization using ARROWS with automated XRD characterization |
 | **nsys-optimizer** | Profile and optimize CUDA/GPU code using NVIDIA Nsight Systems |

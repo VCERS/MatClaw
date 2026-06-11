@@ -137,6 +137,22 @@ def test_prepare_unknown_engine(dft_env):
     assert "Unknown engine" in res["error"]
 
 
+def test_unsupported_calc_type_warns_not_silent(dft_env):
+    """A Tier-3 calc_type must warn loudly, not silently masquerade as the default."""
+    from tools.dft import dft_prepare_calculation
+
+    res = dft_prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="td-dft")
+    assert res["success"] is True
+    # Resolved calc_type reflects the ACTUAL fallback, not the request.
+    assert res["resolved_params"]["calc_type"] == "single_point"
+    assert any("not a runnable ORCA template" in w for w in res["warnings"])
+
+    res2 = dft_prepare_calculation(engine="vasp", structure=SI_POSCAR, calc_type="phonon")
+    assert res2["success"] is True
+    assert res2["resolved_params"]["calc_type"] == "relax"
+    assert any("not a runnable VASP template" in w for w in res2["warnings"])
+
+
 # -- full lifecycle via the local scheduler -----------------------------------
 
 def test_full_lifecycle_orca(dft_env):
