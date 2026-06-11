@@ -1,74 +1,140 @@
 # MatClaw
 
-**Agent tools and skills for autonomous materials research**
+**Give an AI agent a lab, not a login shell.**
 
-MatClaw is a library of specialized tools and skills designed for AI agents working in computational materials discovery. It provides capabilities across the full materials research lifecycle—from candidate generation and simulation to active learning and experiment planning.
+MatClaw turns computational materials discovery into something an AI agent can run end-to-end — generating candidate structures, screening them with ML, validating the survivors with DFT, and planning their synthesis — while the heavy compute stays safely behind a controlled interface. No SSH keys handed out, no shell access, no surprises.
 
-## Architecture
+---
 
-MatClaw follows a layered architecture:
+## Why three layers?
+
+Materials discovery is compute-heavy and security-sensitive. ML property prediction needs GPUs, DFT validation needs an HPC cluster, and a single screening campaign can touch thousands of candidates. Three problems shaped MatClaw's architecture — and each layer solves one:
+
+### 🛡️ MCP Server (Tools) — *the safe interface to your hardware*
+You don't want to hand an agent SSH access to your GPU box or HPC cluster. So the **MCP server runs on the hardware** and exposes a fixed catalog of well-scoped **tools** over stdio or HTTP. An agent on a laptop calls `matgl_predict_bandgap` or `dft_submit_calculation` and gets structured results back — without a shell, a filesystem path, or any capability the tool doesn't explicitly grant. The tool boundary *is* the security and audit boundary: the agent can do exactly what the tools allow, and nothing else.
+
+### 📚 Skills — *teaching the agent how to do science, not just call functions*
+Knowing the tools isn't the same as knowing the workflow. A tool can write a VASP input file; it can't decide that your oxide needs spin polarization, or that ML screening should come *before* you spend HPC hours on DFT. **Skills are the playbooks** — they teach an agent how to chain tools into a complete, judgment-laden workflow: *generate → screen → validate → synthesize.*
+
+### ⚡ Python SDK — *throughput for when 1 candidate becomes 1,000*
+Driving tools one agent-call at a time is fine for a handful of structures, but it doesn't scale to a high-throughput campaign. **`matclaw_sdk` exposes every server tool as a plain Python import**, so an agent (or a human) can write a script that loops over a thousand candidates programmatically — same tools, same server, batch throughput — instead of issuing thousands of individual tool calls.
 
 ```
-┌─────────────────────────────────────────┐
-│              AI Agents                  │
-└─────────────────┬───────────────────────┘
-                  │
-┌─────────────────▼───────────────────────┐
-│              Skills                     │  ← High-level workflows
-│     (orchestrate multiple tools)        │
-└─────────────────┬───────────────────────┘
-                  │ Direct tool call or matclaw_sdk
-┌─────────────────▼───────────────────────┐
-│             MCP Server                  │  ← Exposes tools via stdio or HTTP
-│   ┌─────────────────────────────────┐   │
-│   │           Tools                 │   │
-│   └─────────────────────────────────┘   │
-└─────────────────┬───────────────────────┘
-                  │
-┌─────────────────▼───────────────────────┐
-│    External Services & Libraries        │
-└─────────────────────────────────────────┘
+      AI agent  (laptop · IDE · remote · sandbox)
+                          │
+   ┌──────────────────────▼───────────────────────┐
+   │         Skills — workflow playbooks          │────┐
+   │    generate → screen → DFT → synthesize      │    │  matclaw_sdk
+   └──────────────────────┬───────────────────────┘    │  Python client for 
+                          │  direct tool-calls         │  large batch jobs
+   ┌──────────────────────▼───────────────────────┐    │
+   │  MCP Server — a fixed, safe catalog of Tools │◄───┘
+   └──────────────────────┬───────────────────────┘
+                          │  runs server-side, on the metal
+   ┌──────────────────────▼───────────────────────┐
+   │           GPUs · HPC/SLURM · databases       │
+   └──────────────────────────────────────────────┘
 ```
 
-**Tools** are implemented within the MCP server and provide atomic operations. **Skills** are agent workflows that call multiple tools through the MCP protocol to accomplish complex research tasks.
+---
+
+## The discovery funnel
+
+The materials skills compose into one autonomous high-throughput pipeline that runs all the way from a hypothesis to a synthesized, characterized material. Each stage narrows the field and hands provenance to the next:
+
+```
+      IN SILICO  ·  narrow the field computationally
+      ┌──────────────────────────────────────────────┐
+      │            Candidate generation              │
+      │   generate & enumerate 1000s of candidates   │
+      └───────────────────────┬──────────────────────┘
+                              ▼
+      ┌──────────────────────────────────────────────┐
+      │             Candidate screening              │
+      │    ML property + stability screen → 100s     │
+      └───────────────────────┬──────────────────────┘
+                              ▼
+      ┌──────────────────────────────────────────────┐
+      │                      DFT                     │
+      │   DFT verification → 10s high-confidence     │
+      └───────────────────────┬──────────────────────┘
+                              ▼
+      ┌──────────────────────────────────────────────┐
+      │               Synthesis planning             │
+      │       plan a synthesis route → recipe        │
+      └───────────────────────┬──────────────────────┘
+                              │  high-confidence candidates → the bench
+                              ▼
+      IN THE LAB  ·  make it, then learn from it
+      ┌──────────────────────────────────────────────┐
+      │         Experiment orchestration*            │◄──┐
+      │   robotic synthesis + XRD characterization   │   │
+      └───────────────────────┬──────────────────────┘   │ refine
+                              ▼                          │ synthesis
+      ┌──────────────────────────────────────────────┐   │
+      │                Active learning               │   │
+      │     suggest next conditions (ARROWS / BO)    │───┘
+      └───────────────────────┬──────────────────────┘
+                              ▼
+      ┌──────────────────────────────────────────────┐
+      │             validated material               │
+      └──────────────────────────────────────────────┘
+
+      * planned — robotic experiment orchestration (tools + skill), on the roadmap
+```
+
+ML screening is cheap, so it runs first and wide; DFT is expensive, so it runs last and narrow — only on the candidates that earned it. The `vasp` and `orca` skills ingest the ML predictions `candidate-screener` flagged for verification and return DFT-confirmed values with upgraded confidence.
+
+The candidates that clear DFT with high confidence graduate from *in silico* to the bench. There, a planned **robotic experiment-orchestration** layer executes the synthesis recipe on automated hardware and characterizes the product (e.g. by XRD), while **active-learning** (ARROWS / Bayesian optimization) reads each result and proposes the next set of conditions — closing a self-driving loop that refines the synthesis procedure until the target phase is obtained. This is also where MatClaw's robotics tooling (Isaac / URDF / Lula) meets the discovery pipeline.
+
+---
 
 ## Available Skills
 
+### Materials discovery
+| Skill | Description |
+|-------|-------------|
+| **candidate-generator** | Generate candidate materials using pymatgen structure-manipulation tools |
+| **candidate-screener** | Screen candidates via hierarchical property retrieval (Materials Project → ASE cache → ML) and multi-objective ranking |
+| **stability-analyzer** | Assess thermodynamic stability and convex-hull distance for candidate structures |
+| **vasp** | End-to-end periodic plane-wave DFT with VASP: design, submit/monitor, triage, and interpret calculations via the `dft_*` tools |
+| **orca** | End-to-end molecular quantum chemistry with ORCA: design, submit/monitor, triage, interpret, and generate visualization cubes via the `dft_*` and `orca_*` tools |
+| **synthesis-planner** | Synthesis route planning — literature-first (Materials Project), falling back to template-based routes when no literature data exists |
+| **active-learning** | Autonomous synthesis optimization with ARROWS and automated XRD characterization |
+
+### Robotics & GPU (NVIDIA Isaac / CUDA)
 | Skill | Description |
 |-------|-------------|
 | **urdf-validator** | Validate and auto-fix URDF robot models for Isaac Sim / USD compatibility |
-| **lula-description-generator** | Generate Lula robot descriptions with collision-sphere placement for NVIDIA Isaac Sim |
+| **lula-description-generator** | Generate Lula robot descriptions with collision-sphere placement for Isaac Sim |
 | **isaac-lab-scene-init** | Initialize robot scenes in NVIDIA Isaac Lab |
-| **candidate-generator** | Generate candidate materials using pymatgen structure manipulation tools |
-| **candidate-screener** | Screen candidate materials using ML prediction and stability analysis |
-| **vasp** | End-to-end periodic plane-wave DFT with VASP: design, submit/monitor, triage, and interpret calculations via the dft_* tools |
-| **orca** | End-to-end molecular quantum chemistry with ORCA: design, submit/monitor, triage, interpret, and generate visualization cubes via the dft_* and orca_* tools |
-| **synthesis-planner** | Intelligent synthesis route planning - always tries literature search (Materials Project) first, falls back to template-based routes only when no literature data exists |
-| **active-learning** | Autonomous synthesis optimization using ARROWS with automated XRD characterization |
 | **nsys-optimizer** | Profile and optimize CUDA/GPU code using NVIDIA Nsight Systems |
 
 ## Available Tools
 
 | Category | Tools |
 |----------|-------|
-| **URDF** | Robot model validation and fixing for Isaac Sim/USD compatibility (`urdf_validate`, `urdf_fix`, `urdf_inspect`) |
-| **Lula** | Generate Lula robot descriptions with automated collision-sphere placement for Isaac Sim motion planning (`lula_generate_robot_description`) |
-| **ASE** | Database management (`connect_or_create_db`, `store_result`, `query`, `get_atoms`, `list_databases`) |
-| **Materials Project** | Material search, property data, synthesis recipes, detailed property data (`search_materials`, `get_material_properties`, `get_detailed_property_data`, `search_recipe`) |
-| **PubChem** | Chemical compound search, properties, and safety data (`search_compounds`, `get_compound_properties`, `get_safety_data`) |
-| **Pymatgen** | Structure generation: substitution, enumeration, defects, SQS, ion exchange, perturbation, prototypes (7 tools) |
-| **Analysis** | Structure validation, composition analysis, structure analysis, stability analysis, structure fingerprinting (5 tools) |
-| **MatGL** | MatGL predictions for structure relaxation, band gap, and formation energy (`matgl_relax_structure`, `matgl_predict_bandgap`, `matgl_predict_eform`) |
-| **ChemLLM** | Molecule binding and synthesizability prediction using fine-tuned LLMs (`predict_molecule_binding`, `predict_molecule_synthesizability`) |
-| **Selection** | Multi-objective ranking (Pareto, weighted sum, constraint-based) (`multi_objective_ranker`) |
-| **ORCA** | Quantum chemistry output analysis and cube file generation (`orca_analysis_tools`, `orca_cube_tools`) |
-| **Synthesis Planning** | Recipe quantification and template-based route generation |
-| **ElemwiseRetro** | Synthesis recipe prediction for inorganic solid state synthesis (`er_predict_precursors`, `er_predict_temperature`) |
-| **ARROWS** | Campaign management for synthesis active learning through ARROWS (`arrows_initialize_campaign`, `arrows_suggest_experiment`, `arrows_record_result`) |
-| **Bayesian Optimization** | Campaign management for synthesis active learning through Bayesian Optimization (`bo_initialize_campaign`, `bo_suggest_experiment`, `bo_record_result`) |
-| **Characterization** | Automated phase identification from powder diffraction patterns using deep learning (`xrd_analyze_pattern`) |
-| **Image Retrieval** | Scientific paper figure extraction, image segmentation, SEM classification (`paper_image_extract`, `image_segmentation`, `sem_image_classification`) |
+| **DFT (VASP + ORCA)** | Async HPC job lifecycle for plane-wave (VASP) and molecular (ORCA) DFT — prepare, submit, poll, fetch, restart, cancel (`dft_prepare_calculation`, `dft_submit_calculation`, `dft_get_calculation_status`, `dft_fetch_results`, `dft_restart_calculation`, `dft_cancel_calculation`) |
+| **ORCA** | ORCA output analysis and `orca_plot` cube generation (`orca_summarize_output`, `orca_batch_summarize_outputs`, `orca_validate_environment`, `orca_validate_calc_dir`, `orca_find_matching_gbw`, `orca_generate_homo_lumo_cubes`, `orca_generate_density_esp_cubes`, …) |
+| **Materials Project** | Material search, property data, synthesis recipes (`mp_search_materials`, `mp_get_material_properties`, `mp_get_detailed_property_data`, `mp_search_recipe`) |
+| **PubChem** | Chemical compound search, properties, and safety data (`pubchem_search_compounds`, `pubchem_get_compound_properties`, `pubchem_get_safety_data`) |
+| **Pymatgen** | Structure generation: substitution, enumeration, defects, SQS, ion exchange, perturbation, prototypes, ordering (12 tools) |
+| **Analysis** | Structure validation, composition analysis, structure analysis, fingerprinting (`structure_validator`, `composition_analyzer`, `structure_analyzer`, `structure_fingerprinter`) |
+| **MatGL** | ML predictions for relaxation, band gap, and formation energy (`matgl_relax_structure`, `matgl_predict_bandgap`, `matgl_predict_eform`) |
+| **matcalc** | ML-potential property calculations: elasticity, phonons, EOS, surfaces, MD, NEB, and more (11 tools) |
+| **ASE** | Result database management (`ase_connect_or_create_db`, `ase_store_result`, `ase_query`, `ase_get_atoms`, `ase_list_databases`) |
+| **ChemLLM** | Molecule binding and synthesizability prediction via fine-tuned LLMs (`predict_molecule_binding`, `predict_molecule_synthesizability`) |
+| **Selection** | Multi-objective ranking — Pareto, weighted sum, constraint-based (`multi_objective_ranker`) |
+| **Synthesis Planning** | Recipe quantification and template-based route generation (`synthesis_recipe_quantifier`) |
+| **ElemwiseRetro** | Synthesis recipe prediction for inorganic solid-state synthesis (`er_predict_precursors`, `er_predict_temperature`) |
+| **ARROWS** | Active-learning campaign management for synthesis (`arrows_initialize_campaign`, `arrows_suggest_experiment`, `arrows_record_result`) |
+| **Bayesian Optimization** | Active-learning campaign management via Bayesian optimization (`bo_initialize_campaign`, `bo_suggest_experiment`, `bo_record_result`) |
+| **Characterization** | Automated phase identification from powder XRD using deep learning (`xrd_analyze_pattern`) |
+| **Image Retrieval** | Scientific-paper figure extraction, image segmentation, SEM classification |
+| **URDF** | Robot model validation and fixing for Isaac Sim/USD (`urdf_validate`, `urdf_fix`, `urdf_inspect`) |
+| **Lula** | Lula robot descriptions with automated collision-sphere placement (`lula_generate_robot_description`) |
 
+---
 
 ## Setup
 
@@ -90,6 +156,8 @@ source venv/bin/activate
 # If needed, update --find-links in requirements.txt for your Torch/CUDA version
 pip install -r requirements.txt
 ```
+
+For DFT job submission, point the server at your scheduler and engine paths via `config.yaml` (see `mcp/config.example.yaml`) or `MATCLAW_DFT_*` environment variables.
 
 ### 2. Python SDK (`sdk/`)
 
@@ -148,7 +216,7 @@ export MATCLAW_HTTP_URL=http://localhost:8500
 
 ## Python SDK (`matclaw_sdk`)
 
-The SDK provides a thin client over the MCP server, letting you call any tool with a direct Python import — no MCP boilerplate needed.
+The SDK is a thin client over the MCP server: call any tool with a direct Python import — no MCP boilerplate, no per-call agent round-trip. This is the path for **large-batch jobs**, where you loop over many candidates programmatically.
 
 ### Quick start
 
@@ -161,18 +229,28 @@ print(result)
 
 All tools exposed by the server are available as top-level imports from `matclaw_sdk`.
 
+### Batch screening example
+
+```python
+from matclaw_sdk import matgl_predict_eform
+
+# Screen a thousand candidate structures through the MCP server — no SSH,
+# the GPU work happens server-side, you just collect the results.
+survivors = []
+for structure in candidate_structures:          # e.g. 1,000 candidates
+    eform = matgl_predict_eform(input_structure=structure)
+    if eform["success"] and eform["formation_energy_per_atom"] < -0.5:
+        survivors.append(structure)
+print(f"{len(survivors)} candidates passed ML screening")
+```
+
 ### Listing available tools
 
 ```python
 from matclaw_sdk import get_tools, show_tools
 
-# Print a formatted list
-show_tools()
-
-# Or get the raw list for programmatic use
-tools = get_tools()
-for t in tools:
-    print(f"{t['name']}: {t.get('description', '')}")
+show_tools()                 # print a formatted list
+tools = get_tools()          # or get the raw list for programmatic use
 ```
 
 ### Configuration
