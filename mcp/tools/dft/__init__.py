@@ -15,36 +15,36 @@ Design:
   tools.
 
 Tools:
-- prepare_calculation
-- submit_calculation
-- get_calculation_status
-- fetch_results
-- cancel_calculation
-- restart_calculation
+- dft_prepare_calculation
+- dft_submit_calculation
+- dft_get_calculation_status
+- dft_fetch_results
+- dft_cancel_calculation
+- dft_restart_calculation
 
 Typical workflow:
-1. prepare_calculation(engine, structure, calc_type) -> job_id
-2. submit_calculation(job_id, resources)
-3. get_calculation_status(job_id)   # poll until terminal
-4. fetch_results(job_id)
+1. dft_prepare_calculation(engine, structure, calc_type) -> job_id
+2. dft_submit_calculation(job_id, resources)
+3. dft_get_calculation_status(job_id)   # poll until terminal
+4. dft_fetch_results(job_id)
 """
 
 from .lifecycle import (
-    cancel_calculation,
-    fetch_results,
-    get_calculation_status,
-    prepare_calculation,
-    restart_calculation,
-    submit_calculation,
+    dft_cancel_calculation,
+    dft_fetch_results,
+    dft_get_calculation_status,
+    dft_prepare_calculation,
+    dft_restart_calculation,
+    dft_submit_calculation,
 )
 
 __all__ = [
-    "prepare_calculation",
-    "submit_calculation",
-    "get_calculation_status",
-    "fetch_results",
-    "cancel_calculation",
-    "restart_calculation",
+    "dft_prepare_calculation",
+    "dft_submit_calculation",
+    "dft_get_calculation_status",
+    "dft_fetch_results",
+    "dft_cancel_calculation",
+    "dft_restart_calculation",
 ]
 
 __version__ = "0.1.0"

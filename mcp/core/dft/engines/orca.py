@@ -3,7 +3,7 @@ ORCA engine adapter (molecular Gaussian-basis quantum chemistry).
 
 Input generation writes a plain ``orca.inp``; result parsing deliberately
 delegates to the project's existing, tested parser
-(``tools.orca.summarize_orca_output``) rather than re-implementing it — the new
+(``tools.orca.orca_summarize_output``) rather than re-implementing it — the new
 DFT lifecycle reuses that work instead of duplicating it.
 """
 
@@ -137,17 +137,17 @@ class OrcaEngine(Engine):
 
         # Reuse the existing, tested ORCA summariser.
         try:
-            from tools.orca import summarize_orca_output
+            from tools.orca import orca_summarize_output
         except Exception as exc:  # pragma: no cover - import-path safety net
             return {
                 "parsed": False,
-                "error": f"Could not import tools.orca.summarize_orca_output: {exc}",
+                "error": f"Could not import tools.orca.orca_summarize_output: {exc}",
             }
 
         try:
-            summary = summarize_orca_output(str(out_path))
+            summary = orca_summarize_output(str(out_path))
         except Exception as exc:
-            return {"parsed": False, "error": f"summarize_orca_output raised: {exc}"}
+            return {"parsed": False, "error": f"orca_summarize_output raised: {exc}"}
         return {"parsed": True, "summary": summary}
 
     def prepare_restart(

@@ -108,9 +108,9 @@ def test_json_fields_roundtrip(dft_env):
 # -- engine input preparation -------------------------------------------------
 
 def test_prepare_orca(dft_env):
-    from tools.dft import prepare_calculation
+    from tools.dft import dft_prepare_calculation
 
-    res = prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="single_point")
+    res = dft_prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="single_point")
     assert res["success"] is True
     assert "orca.inp" in res["input_files"]
     inp = open(res["input_files"]["orca.inp"]).read()
@@ -119,9 +119,9 @@ def test_prepare_orca(dft_env):
 
 
 def test_prepare_vasp(dft_env):
-    from tools.dft import prepare_calculation
+    from tools.dft import dft_prepare_calculation
 
-    res = prepare_calculation(engine="vasp", structure=SI_POSCAR, calc_type="relax")
+    res = dft_prepare_calculation(engine="vasp", structure=SI_POSCAR, calc_type="relax")
     assert res["success"] is True
     # POTCAR is typically unavailable in CI; INCAR/POSCAR must still be written.
     assert "INCAR" in res["input_files"]
@@ -130,9 +130,9 @@ def test_prepare_vasp(dft_env):
 
 
 def test_prepare_unknown_engine(dft_env):
-    from tools.dft import prepare_calculation
+    from tools.dft import dft_prepare_calculation
 
-    res = prepare_calculation(engine="gaussian", structure=H2_XYZ)
+    res = dft_prepare_calculation(engine="gaussian", structure=H2_XYZ)
     assert res["success"] is False
     assert "Unknown engine" in res["error"]
 
@@ -141,25 +141,25 @@ def test_prepare_unknown_engine(dft_env):
 
 def test_full_lifecycle_orca(dft_env):
     from tools.dft import (
-        fetch_results,
-        get_calculation_status,
-        prepare_calculation,
-        submit_calculation,
+        dft_fetch_results,
+        dft_get_calculation_status,
+        dft_prepare_calculation,
+        dft_submit_calculation,
     )
 
-    prep = prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="single_point")
+    prep = dft_prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="single_point")
     job_id = prep["job_id"]
     assert prep["state"] == JobState.PREPARED.value
 
-    sub = submit_calculation(job_id)
+    sub = dft_submit_calculation(job_id)
     assert sub["success"] is True
     assert sub["state"] == JobState.QUEUED.value
     assert sub["scheduler_id"]
 
-    final = _poll_until_terminal(get_calculation_status, job_id)
+    final = _poll_until_terminal(dft_get_calculation_status, job_id)
     assert final["state"] == JobState.COMPLETED.value
 
-    out = fetch_results(job_id)
+    out = dft_fetch_results(job_id)
     assert out["success"] is True
     assert out["ready"] is True
     assert out["results"]["parsed"] is True
@@ -167,19 +167,19 @@ def test_full_lifecycle_orca(dft_env):
 
 
 def test_fetch_before_ready(dft_env):
-    from tools.dft import fetch_results, prepare_calculation
+    from tools.dft import dft_fetch_results, dft_prepare_calculation
 
-    prep = prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="single_point")
-    out = fetch_results(prep["job_id"])
+    prep = dft_prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="single_point")
+    out = dft_fetch_results(prep["job_id"])
     assert out["success"] is True
     assert out["ready"] is False  # prepared, not yet run
 
 
 def test_restart_clones_job(dft_env):
-    from tools.dft import prepare_calculation, restart_calculation
+    from tools.dft import dft_prepare_calculation, dft_restart_calculation
 
-    prep = prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="single_point")
-    rs = restart_calculation(prep["job_id"])
+    prep = dft_prepare_calculation(engine="orca", structure=H2_XYZ, calc_type="single_point")
+    rs = dft_restart_calculation(prep["job_id"])
     assert rs["success"] is True
     assert rs["parent_job_id"] == prep["job_id"]
     assert rs["job_id"] != prep["job_id"]

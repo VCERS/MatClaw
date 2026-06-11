@@ -6,12 +6,12 @@ HPC the agent cannot SSH into. Each call is short and non-blocking; the long
 calculation runs under the batch scheduler, and a persistent ``job_id`` ties the
 short calls together across polling cycles and even separate agent sessions.
 
-    prepare_calculation     stage validated inputs into a fresh working dir
-    submit_calculation      hand the prepared job to the scheduler
-    get_calculation_status  poll the scheduler and update the job record
-    fetch_results           parse completed outputs into structured results
-    cancel_calculation      cancel a queued/running job
-    restart_calculation     clone a job (with checkpoint) for resubmission
+    dft_prepare_calculation     stage validated inputs into a fresh working dir
+    dft_submit_calculation      hand the prepared job to the scheduler
+    dft_get_calculation_status  poll the scheduler and update the job record
+    dft_fetch_results           parse completed outputs into structured results
+    dft_cancel_calculation      cancel a queued/running job
+    dft_restart_calculation     clone a job (with checkpoint) for resubmission
 
 The physics differs by engine; the lifecycle does not. ``engine`` is a
 discriminator ("vasp" | "orca"), not a separate tool family.
@@ -52,7 +52,7 @@ def _refresh_status(record: JobRecord) -> JobRecord:
     return store.update(record.job_id, **patch) or record
 
 
-def prepare_calculation(
+def dft_prepare_calculation(
     engine: Annotated[str, Field(description='DFT engine: "vasp" (periodic) or "orca" (molecular).')],
     structure: Annotated[str, Field(description="Structure as CIF/POSCAR (VASP) or XYZ (ORCA) text.")],
     calc_type: Annotated[str, Field(description='Calculation type. VASP: relax|static|single_point. ORCA: single_point|opt|freq|opt_freq.')] = "relax",
@@ -66,7 +66,7 @@ def prepare_calculation(
 
     Creates a fresh working directory, writes the engine input files, records a
     job in the persistent store with state ``prepared``, and returns the
-    ``job_id`` to pass to ``submit_calculation``. No HPC resources are consumed.
+    ``job_id`` to pass to ``dft_submit_calculation``. No HPC resources are consumed.
 
     Returns a dict with: success, job_id, state, engine, calc_type, workdir,
     input_files, resolved_params, warnings.
@@ -109,14 +109,14 @@ def prepare_calculation(
             "input_files": prep.input_files,
             "resolved_params": prep.resolved_params,
             "warnings": prep.warnings,
-            "next_step": "Call submit_calculation(job_id) to queue the job.",
+            "next_step": "Call dft_submit_calculation(job_id) to queue the job.",
         }
     except Exception as exc:
-        return _err(f"prepare_calculation failed: {exc}")
+        return _err(f"dft_prepare_calculation failed: {exc}")
 
 
-def submit_calculation(
-    job_id: Annotated[str, Field(description="Job id returned by prepare_calculation.")],
+def dft_submit_calculation(
+    job_id: Annotated[str, Field(description="Job id returned by dft_prepare_calculation.")],
     resources: Annotated[Optional[Dict[str, Any]], Field(description='Scheduler overrides, e.g. {"nodes":1,"ntasks":32,"walltime":"12:00:00","partition":"gpu"}. Defaults come from config.')] = None,
 ) -> Dict[str, Any]:
     """Submit a prepared job to the scheduler and return its scheduler id.
@@ -135,7 +135,7 @@ def submit_calculation(
         if record.state not in (JobState.PREPARED.value, JobState.FAILED.value):
             return _err(
                 f"Job {job_id} is in state {record.state!r}; only 'prepared' or "
-                "'failed' jobs can be submitted. Use restart_calculation to clone it."
+                "'failed' jobs can be submitted. Use dft_restart_calculation to clone it."
             )
 
         resources = {**(record.resources or {}), **(resources or {})}
@@ -162,13 +162,13 @@ def submit_calculation(
             "scheduler_id": scheduler_id,
             "state": JobState.QUEUED.value,
             "submit_script": script_path,
-            "next_step": "Poll with get_calculation_status(job_id).",
+            "next_step": "Poll with dft_get_calculation_status(job_id).",
         }
     except Exception as exc:
-        return _err(f"submit_calculation failed: {exc}")
+        return _err(f"dft_submit_calculation failed: {exc}")
 
 
-def get_calculation_status(
+def dft_get_calculation_status(
     job_id: Annotated[str, Field(description="Job id to poll.")],
 ) -> Dict[str, Any]:
     """Poll the scheduler for a job and return its current lifecycle state.
@@ -198,16 +198,16 @@ def get_calculation_status(
             "updated_at": record.updated_at,
             "message": record.message,
             "next_step": (
-                "Call fetch_results(job_id)." if state == JobState.COMPLETED
-                else "Job finished without success; inspect logs or restart_calculation." if state.is_terminal
-                else "Keep polling get_calculation_status(job_id)."
+                "Call dft_fetch_results(job_id)." if state == JobState.COMPLETED
+                else "Job finished without success; inspect logs or dft_restart_calculation." if state.is_terminal
+                else "Keep polling dft_get_calculation_status(job_id)."
             ),
         }
     except Exception as exc:
-        return _err(f"get_calculation_status failed: {exc}")
+        return _err(f"dft_get_calculation_status failed: {exc}")
 
 
-def fetch_results(
+def dft_fetch_results(
     job_id: Annotated[str, Field(description="Job id whose results to parse.")],
 ) -> Dict[str, Any]:
     """Parse a completed job's outputs into structured results.
@@ -262,10 +262,10 @@ def fetch_results(
             "warnings": record.warnings,
         }
     except Exception as exc:
-        return _err(f"fetch_results failed: {exc}")
+        return _err(f"dft_fetch_results failed: {exc}")
 
 
-def cancel_calculation(
+def dft_cancel_calculation(
     job_id: Annotated[str, Field(description="Job id to cancel.")],
 ) -> Dict[str, Any]:
     """Cancel a queued or running job via the scheduler.
@@ -290,10 +290,10 @@ def cancel_calculation(
             "cancelled": ok,
         }
     except Exception as exc:
-        return _err(f"cancel_calculation failed: {exc}")
+        return _err(f"dft_cancel_calculation failed: {exc}")
 
 
-def restart_calculation(
+def dft_restart_calculation(
     job_id: Annotated[str, Field(description="Job id to restart from (typically failed or completed).")],
     overrides: Annotated[Optional[Dict[str, Any]], Field(description="Optional engine-specific overrides for the restarted job.")] = None,
     label: Annotated[Optional[str], Field(description="Label for the new job; defaults to the parent's label + '-restart'.")] = None,
@@ -301,7 +301,7 @@ def restart_calculation(
     """Clone a job into a new prepared job, wiring in any checkpoint.
 
     VASP continues from CONTCAR; ORCA copies the .gbw for an initial guess. The
-    new job starts in state ``prepared`` — submit it with submit_calculation.
+    new job starts in state ``prepared`` — submit it with dft_submit_calculation.
 
     Returns a dict with: success, job_id (new), parent_job_id, state, workdir,
     input_files, warnings.
@@ -336,7 +336,7 @@ def restart_calculation(
             "workdir": child.workdir,
             "input_files": prep.input_files,
             "warnings": prep.warnings,
-            "next_step": "Submit the restarted job with submit_calculation(job_id).",
+            "next_step": "Submit the restarted job with dft_submit_calculation(job_id).",
         }
     except Exception as exc:
-        return _err(f"restart_calculation failed: {exc}")
+        return _err(f"dft_restart_calculation failed: {exc}")

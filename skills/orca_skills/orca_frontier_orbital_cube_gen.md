@@ -2,9 +2,9 @@
 name: ORCA Frontier Orbital Cube Gen
 description: Safely prepare HOMO and LUMO cube files for visualization using guarded environment and directory preflight checks.
 tools:
-  - validate_environment
-  - validate_orca_calc_dir
-  - generate_homo_lumo_cubes
+  - orca_validate_environment
+  - orca_validate_calc_dir
+  - orca_generate_homo_lumo_cubes
 ---
 
 # ORCA Frontier Orbital Cube Gen
@@ -67,9 +67,9 @@ Do **not** use this skill when:
 
 Use these tools in order:
 
-1. `validate_environment(test_dir=calc_dir)`
-2. `validate_orca_calc_dir(calc_dir)`
-3. `generate_homo_lumo_cubes(calc_dir, preference, ngrid, operator)`
+1. `orca_validate_environment(test_dir=calc_dir)`
+2. `orca_validate_calc_dir(calc_dir)`
+3. `orca_generate_homo_lumo_cubes(calc_dir, preference, ngrid, operator)`
 
 Do not skip preflight checks in normal MCP execution.
 
@@ -82,7 +82,7 @@ Do not skip preflight checks in normal MCP execution.
 3. Decide whether cube generation should proceed.
 4. If the directory is not cube-ready, stop.
 5. If the directory requires manual review and `allow_risky_ambiguity` is false, stop.
-6. Otherwise call `generate_homo_lumo_cubes(...)`.
+6. Otherwise call `orca_generate_homo_lumo_cubes(...)`.
 7. Collect:
    - selected output file
    - orbital information
@@ -102,7 +102,7 @@ Stop and return failure if any of the following apply:
 - no `.out` file exists
 - no `.gbw` file exists
 - triage indicates manual review is needed and `allow_risky_ambiguity` is false
-- `generate_homo_lumo_cubes` fails
+- `orca_generate_homo_lumo_cubes` fails
 
 ---
 
@@ -184,8 +184,8 @@ Artifacts should include:
     "lumo_cube": "/path/job.LUMO.mo26a.ngrid808080.cube"
   },
   "tool_trace": {
-    "validate_environment": {},
-    "validate_orca_calc_dir": {},
-    "generate_homo_lumo_cubes": {}
+    "orca_validate_environment": {},
+    "orca_validate_calc_dir": {},
+    "orca_generate_homo_lumo_cubes": {}
   }
 }

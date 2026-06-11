@@ -2,7 +2,7 @@
 name: ORCA Output Summarizer
 description: Summarize a single ORCA output file into convergence, energy, orbital, and frequency findings with reliability notes.
 tools:
-  - summarize_orca_output
+  - orca_summarize_output
 ---
 
 # ORCA Output Summarizer
@@ -56,7 +56,7 @@ Input assumptions:
 
 Call the following tool:
 
-- `summarize_orca_output(out_file)`
+- `orca_summarize_output(out_file)`
 
 Do not manually reimplement its internal sub-steps unless debugging is explicitly required.
 
@@ -64,7 +64,7 @@ Do not manually reimplement its internal sub-steps unless debugging is explicitl
 
 ## Workflow
 
-1. Call `summarize_orca_output(out_file)`.
+1. Call `orca_summarize_output(out_file)`.
 2. If the tool fails:
    - report the failure clearly
    - include the main failure reason
@@ -124,7 +124,7 @@ Return a structured response containing:
 - `reliability_notes`: list of warning interpretations
 - `recommended_next_step`: short action-oriented recommendation
 - `artifacts`: extracted values and key paths
-- `tool_trace`: raw result from `summarize_orca_output`
+- `tool_trace`: raw result from `orca_summarize_output`
 
 ---
 
@@ -165,6 +165,6 @@ Do not invent missing values.
     "energy_hartree": -1234.56789
   },
   "tool_trace": {
-    "summarize_orca_output": {}
+    "orca_summarize_output": {}
   }
 }

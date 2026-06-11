@@ -2,9 +2,9 @@
 name: ORCA Density/ESP Cube Gen
 description: Safely prepare matched electron-density and electrostatic-potential cube files for visualization, including grid-consistency validation.
 tools:
-  - validate_environment
-  - validate_orca_calc_dir
-  - generate_density_and_esp_cubes
+  - orca_validate_environment
+  - orca_validate_calc_dir
+  - orca_generate_density_esp_cubes
 ---
 
 # ORCA Density/ESP Cube Gen
@@ -62,9 +62,9 @@ Do **not** use this skill when:
 
 Use these tools in order:
 
-1. `validate_environment(test_dir=calc_dir)`
-2. `validate_orca_calc_dir(calc_dir)`
-3. `generate_density_and_esp_cubes(calc_dir, preference, ngrid)`
+1. `orca_validate_environment(test_dir=calc_dir)`
+2. `orca_validate_calc_dir(calc_dir)`
+3. `orca_generate_density_esp_cubes(calc_dir, preference, ngrid)`
 
 Do not bypass preflight checks during standard MCP execution.
 
@@ -76,7 +76,7 @@ Do not bypass preflight checks during standard MCP execution.
 2. Validate calculation-directory readiness.
 3. If the directory is not cube-ready, stop.
 4. If manual review is recommended and `allow_risky_ambiguity` is false, stop.
-5. Otherwise call `generate_density_and_esp_cubes(...)`.
+5. Otherwise call `orca_generate_density_esp_cubes(...)`.
 6. Inspect returned validation information, especially grid consistency.
 7. Produce a task-level result with:
    - selected output file
@@ -177,8 +177,8 @@ Artifacts should include:
     "electrostatic_potential_cube": "/path/job_opt.scfp.esp.ngrid808080.cube"
   },
   "tool_trace": {
-    "validate_environment": {},
-    "validate_orca_calc_dir": {},
-    "generate_density_and_esp_cubes": {}
+    "orca_validate_environment": {},
+    "orca_validate_calc_dir": {},
+    "orca_generate_density_esp_cubes": {}
   }
 }

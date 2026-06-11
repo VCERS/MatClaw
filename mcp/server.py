@@ -107,12 +107,24 @@ from tools.lula import (
     lula_generate_robot_description,
 )
 from tools.dft import (
-    prepare_calculation,
-    submit_calculation,
-    get_calculation_status,
-    fetch_results,
-    cancel_calculation,
-    restart_calculation,
+    dft_prepare_calculation,
+    dft_submit_calculation,
+    dft_get_calculation_status,
+    dft_fetch_results,
+    dft_cancel_calculation,
+    dft_restart_calculation,
+)
+from tools.orca import (
+    orca_scan_output_files,
+    orca_pick_output,
+    orca_summarize_output,
+    orca_batch_summarize_outputs,
+    orca_validate_environment,
+    orca_validate_calc_dir,
+    orca_find_matching_gbw,
+    orca_generate_mo_cube,
+    orca_generate_homo_lumo_cubes,
+    orca_generate_density_esp_cubes,
 )
 
 # Set up logging
@@ -229,12 +241,24 @@ mcp.tool()(urdf_inspect)
 mcp.tool()(lula_generate_robot_description)
 
 # DFT job-lifecycle tools (VASP + ORCA via engine dispatch)
-mcp.tool()(prepare_calculation)
-mcp.tool()(submit_calculation)
-mcp.tool()(get_calculation_status)
-mcp.tool()(fetch_results)
-mcp.tool()(cancel_calculation)
-mcp.tool()(restart_calculation)
+mcp.tool()(dft_prepare_calculation)
+mcp.tool()(dft_submit_calculation)
+mcp.tool()(dft_get_calculation_status)
+mcp.tool()(dft_fetch_results)
+mcp.tool()(dft_cancel_calculation)
+mcp.tool()(dft_restart_calculation)
+
+# ORCA analysis and cube-generation tools
+mcp.tool()(orca_scan_output_files)
+mcp.tool()(orca_pick_output)
+mcp.tool()(orca_summarize_output)
+mcp.tool()(orca_batch_summarize_outputs)
+mcp.tool()(orca_validate_environment)
+mcp.tool()(orca_validate_calc_dir)
+mcp.tool()(orca_find_matching_gbw)
+mcp.tool()(orca_generate_mo_cube)
+mcp.tool()(orca_generate_homo_lumo_cubes)
+mcp.tool()(orca_generate_density_esp_cubes)
 
 
 def get_http_app():

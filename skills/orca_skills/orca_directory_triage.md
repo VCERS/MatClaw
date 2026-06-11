@@ -2,8 +2,8 @@
 name: ORCA Directory Triage
 description: Assess whether an ORCA calculation directory is ready for analysis or cube-generation workflows.
 tools:
-  - validate_environment
-  - validate_orca_calc_dir
+  - orca_validate_environment
+  - orca_validate_calc_dir
 ---
 
 # ORCA Directory Triage
@@ -60,8 +60,8 @@ Input assumptions:
 
 Call these tools:
 
-1. `validate_environment(test_dir=calc_dir)`
-2. `validate_orca_calc_dir(calc_dir)`
+1. `orca_validate_environment(test_dir=calc_dir)`
+2. `orca_validate_calc_dir(calc_dir)`
 
 Use both results together to determine readiness.
 
@@ -69,8 +69,8 @@ Use both results together to determine readiness.
 
 ## Workflow
 
-1. Call `validate_environment(test_dir=calc_dir)`.
-2. Call `validate_orca_calc_dir(calc_dir)`.
+1. Call `orca_validate_environment(test_dir=calc_dir)`.
+2. Call `orca_validate_calc_dir(calc_dir)`.
 3. Combine findings into workflow-level judgments:
    - `summary_ready`
    - `cube_ready`
@@ -198,7 +198,7 @@ Do not claim cube readiness if:
     "manual_review_recommended": true
   },
   "tool_trace": {
-    "validate_environment": {},
-    "validate_orca_calc_dir": {}
+    "orca_validate_environment": {},
+    "orca_validate_calc_dir": {}
   }
 }
