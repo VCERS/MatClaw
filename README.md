@@ -99,7 +99,7 @@ The candidates that clear DFT with high confidence graduate from *in silico* to 
 | **stability-analyzer** | Assess thermodynamic stability and convex-hull distance for candidate structures |
 | **vasp** | End-to-end periodic plane-wave DFT with VASP: design, submit/monitor, triage, and interpret calculations via the `dft_*` tools |
 | **orca** | End-to-end molecular quantum chemistry with ORCA: design, submit/monitor, triage, interpret, and generate visualization cubes via the `dft_*` and `orca_*` tools |
-| **synthesis-planner** | Synthesis route planning — literature-first (Materials Project), falling back to template-based routes when no literature data exists |
+| **synthesis-planner** | First-guess synthesis recipe (esp. precursors) by best evidence — literature (Materials Project) → ML → reasoned default; emits a robot-ready recipe + a tunable parameter space to seed the active-learning loop |
 | **active-learning** | Autonomous synthesis optimization with ARROWS and automated XRD characterization |
 
 ### Robotics & GPU (NVIDIA Isaac / CUDA)
