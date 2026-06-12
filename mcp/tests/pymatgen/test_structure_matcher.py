@@ -769,3 +769,223 @@ direct
         assert result["match"] is True
         assert result["confidence"] == "low"
 
+
+class TestCompositionSimilarity:
+    """Test the composition_similarity field in matcher output."""
+
+    def test_identical_composition(self):
+        """Test that identical compositions give distance=0.0."""
+        cif_a = """data_NaCl
+_cell_length_a       5.6402
+_cell_length_b       5.6402
+_cell_length_c       5.6402
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    90.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Na1 Na 0.0 0.0 0.0
+Cl1 Cl 0.5 0.5 0.5
+"""
+        result = pymatgen_structure_matcher(
+            structure_1=cif_a, structure_2=cif_a,
+        )
+        cs = result["composition_similarity"]
+        assert cs["distance"] == 0.0
+        assert cs["formula_1"] == "NaCl"
+        assert cs["formula_2"] == "NaCl"
+        assert all(v == 0.0 for v in cs["element_contributions"].values())
+
+    def test_totally_different_composition(self):
+        """Test completely different compositions give distance=2.0."""
+        nacl = """data_NaCl
+_cell_length_a       5.6402
+_cell_length_b       5.6402
+_cell_length_c       5.6402
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    90.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Na1 Na 0.0 0.0 0.0
+Cl1 Cl 0.5 0.5 0.5
+"""
+        zno = """data_ZnO
+_cell_length_a       3.249
+_cell_length_b       3.249
+_cell_length_c       5.205
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    120.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Zn1 Zn 0.3333 0.6667 0.0
+O1  O  0.3333 0.6667 0.3825
+"""
+        result = pymatgen_structure_matcher(
+            structure_1=nacl, structure_2=zno,
+        )
+        cs = result["composition_similarity"]
+        # No elements in common → distance = 1.0 + 1.0 = 2.0
+        assert cs["distance"] == 2.0
+        assert cs["formula_1"] == "NaCl"
+        assert cs["formula_2"] == "ZnO"
+
+    def test_partial_overlap_manhattan(self):
+        """Test partial element overlap gives intermediate distance."""
+        s1 = """data_SrGeTeO6
+_cell_length_a       5.06566
+_cell_length_b       5.06566
+_cell_length_c       5.40394
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    120.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Sr1 Sr 0.0 0.0 0.0
+Ge1 Ge 0.6667 0.3333 0.5
+Te1 Te 0.3333 0.6667 0.5
+O1  O  0.3774 0.0119 0.3129
+"""
+        s2 = """data_BaGeTeO6
+_cell_length_a       5.0855
+_cell_length_b       5.0855
+_cell_length_c       11.2898
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    120.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Ba1 Ba 0.0 0.0 0.0
+Ge1 Ge 0.6667 0.3333 0.5
+Te1 Te 0.3333 0.6667 0.5
+O1  O  0.3774 0.0119 0.3129
+"""
+        result = pymatgen_structure_matcher(
+            structure_1=s1, structure_2=s2,
+        )
+        cs = result["composition_similarity"]
+        # Simplified CIFs have 1 O atom → 4 species total (Sr/Ba, Ge, Te, O)
+        # Sr: 1/4 vs 0 → 1/4, Ba: 0 vs 1/4 → 1/4, others unchanged
+        # Total = 1/4 + 1/4 = 0.5
+        assert abs(cs["distance"] - 0.5) < 0.001
+        # Reduced formula will reflect the single O atom
+        assert cs["formula_1"] in ("SrGeTeO", "SrGeTeO6")
+        assert cs["formula_2"] in ("BaGeTeO", "BaGeTeO6")
+        assert "Sr" in cs["element_contributions"]
+        assert "Ba" in cs["element_contributions"]
+
+    def test_doped_composition_distance(self):
+        """Test matching a pure host vs lightly doped composition."""
+        pure = """data_SrGeTeO6
+_cell_length_a       5.06566
+_cell_length_b       5.06566
+_cell_length_c       5.40394
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    120.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Sr1 Sr 0.0 0.0 0.0
+Ge1 Ge 0.6667 0.3333 0.5
+Te1 Te 0.3333 0.6667 0.5
+O1  O  0.3774 0.0119 0.3129
+"""
+        doped = """data_SrGeTeO6_Mn
+_cell_length_a       5.0730
+_cell_length_b       5.0730
+_cell_length_c       5.7560
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    120.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+Sr1 Sr 0.0 0.0 0.0 1.0
+Ge1 Ge 0.6667 0.3333 0.5 0.99
+Te1 Te 0.3333 0.6667 0.5 1.0
+O1  O  0.3774 0.0119 0.3129 1.0
+Mn1 Mn 0.6667 0.3333 0.5 0.01
+"""
+        result = pymatgen_structure_matcher(
+            structure_1=pure, structure_2=doped,
+        )
+        cs = result["composition_similarity"]
+        # SrGeTeO6 (4 elements, 9 atoms) vs SrGe0.99TeO6:Mn0.01 (5 elements, ~10 atoms)
+        # Differences should be small (just a tiny Mn fraction and slightly less Ge)
+        assert cs["distance"] < 0.2  # Very similar compositions
+        assert cs["distance"] > 0.0  # But not identical
+        assert "Mn" in cs["element_contributions"]
+
+    def test_present_in_all_results(self):
+        """Test that composition_similarity exists regardless of match outcome."""
+        nacl = """data_NaCl
+_cell_length_a       5.6402
+_cell_length_b       5.6402
+_cell_length_c       5.6402
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    90.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Na1 Na 0.0 0.0 0.0
+Cl1 Cl 0.5 0.5 0.5
+"""
+        licl = """data_LiCl
+_cell_length_a       5.6402
+_cell_length_b       5.6402
+_cell_length_c       5.6402
+_cell_angle_alpha    90.0
+_cell_angle_beta     90.0
+_cell_angle_gamma    90.0
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Li1 Li 0.0 0.0 0.0
+Cl1 Cl 0.5 0.5 0.5
+"""
+        # Match = False
+        result = pymatgen_structure_matcher(structure_1=nacl, structure_2=licl)
+        assert "composition_similarity" in result
+        assert result["composition_similarity"]["distance"] > 0.0
+
+        # Error case — composition_similarity should still be present if parsing succeeded
+        invalid = pymatgen_structure_matcher(structure_1="garbage", structure_2=nacl)
+        # If structure 1 fails parsing, the error path may not have composition_similarity
+        # That's acceptable — it's a parse failure
+

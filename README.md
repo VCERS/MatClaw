@@ -183,6 +183,8 @@ source venv/bin/activate
 python server.py                            # uses --transport stdio (default)
 ```
 
+> **⚠️ Stdio timeout caveat:** The SDK's stdio transport processes requests sequentially — the server handles one tool call at a time. If a request times out, the server keeps running it, so subsequent requests queue behind it. A timeout that's too short can cause cascading delays where every new request hits the already-busy server. Set `timeout` generously (e.g., 600s for relaxations) or use the HTTP transport below.
+
 ### HTTP (streamable-http)
 
 Start the server as a long-lived HTTP process, then connect from anywhere:
@@ -194,24 +196,28 @@ source venv/bin/activate
 # Single worker — local only
 python server.py --transport streamable-http --port 8500
 
-# Multiple workers — concurrent requests
+# Multiple workers — concurrent requests (recommended)
 python server.py --transport streamable-http --port 8500 --workers 4
 
 # Remote access — bind to all interfaces
 python server.py --transport streamable-http --host 0.0.0.0 --port 8500 --workers 4
 ```
 
+> **✅ Why HTTP + workers is recommended:** Each worker is an independent process, so a slow tool call (e.g., a 10-minute relaxation) on worker 1 doesn't block worker 2 from handling the next request. HTTP is also stateless, eliminating the protocol desynchronization risk that stdio faces when timeouts occur. For batch screening scripts making many sequential tool calls, this dramatically improves throughput and reliability.
+
 Switch the SDK to HTTP mode by editing `sdk/config.yaml`:
 ```yaml
 transport: http
 http:
   url: http://localhost:8500
+timeout: 600  # generous per-request timeout; no desync risk with HTTP
 ```
 
 Or set environment variables instead:
 ```bash
 export MATCLAW_TRANSPORT=http
 export MATCLAW_HTTP_URL=http://localhost:8500
+export MATCLAW_TIMEOUT=600
 ```
 
 ## Python SDK (`matclaw_sdk`)

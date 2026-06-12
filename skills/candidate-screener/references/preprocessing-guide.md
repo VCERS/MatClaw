@@ -1,25 +1,23 @@
 # Structure Ordering Preprocessing Guide
 
-Complete guide for handling disordered structures in screening workflows.
+Guide for handling disordered structures before screening.
 
 ---
 
-## Why Preprocessing is Mandatory
+## Why Preprocessing Matters
 
-### ASE Compatibility Constraint
+### ASE Compatibility
 
-MatGL and matcalc use ASE (Atomic Simulation Environment) as their structure representation backend. ASE has a fundamental limitation: **it cannot represent partial site occupancies**. Every atomic site must have occupancy = 1.0.
+MatGL and matcalc use ASE (Atomic Simulation Environment) as their structure representation backend. ASE **cannot represent partial site occupancies** — every atomic site must have occupancy = 1.0.
 
-When pymatgen structures with fractional occupancy (e.g., Sr₀.₉₇Sm₀.₀₃Nb₂O₆) are passed to MatGL/matcalc tools:
+When pymatgen structures with fractional occupancy (e.g., Sr₀.₉₇Sm₀.₀₃Nb₂O₆) are passed to MatGL/matcalc tools, you'll see:
 
 ```
 ERROR: Structure has partial site occupancies (disordered).
 MatGL and ASE require fully ordered structures.
-Use pymatgen_majority_orderer, pymatgen_enumeration_orderer,
-or pymatgen_sqs_orderer to convert to ordered structure first.
 ```
 
-This error is intentional and informative - the tool provides clear guidance on which ordering tools to use.
+This means the structure needs to be ordered before these tools can work with it. The choice of which ordering method to use depends on the doping level and the research question.
 
 ### When Disordered Structures Appear
 
@@ -40,67 +38,40 @@ Disordered structures in screening workflows come from three sources:
 
 ---
 
-## Preprocessing Decision Tree
+## Choosing an ordering strategy
 
-Add this logic **BEFORE Step 1 (Validation)** in screening workflow:
+There's no single right answer — the best strategy depends on the research question.
 
 ```
-STEP 0: PREPROCESSING (if disorder present)
+IF structure.is_ordered → Skip preprocessing (no action needed)
 
-FOR each candidate:
-    CHECK: structure.is_ordered
+ELIF metadata.requires_ordering is specified → Honor that choice
+
+ELSE → Choose based on doping level and research goals:
+
+    LOW DOPING (<5%):
+    ─────────────────
+    majority_orderer is a natural fit — the host lattice dominates,
+    so keeping the majority species per site preserves the physics.
     
-    IF TRUE (structure fully ordered):
-        → SKIP preprocessing
-        → CONTINUE to Step 1 (validation)
+    HIGHER DOPING (≥5%):
+    ────────────────────
+    You have a genuine choice. Consider:
     
-    ELSE (structure has partial occupancies):
-        
-        CHECK: metadata.requires_ordering exists?
-        
-        IF YES (metadata available):
-            IF requires_ordering == "majority":
-                → Apply pymatgen_majority_orderer
-                → Returns 1 structure
-                → CONTINUE to Step 1
-            
-            ELIF requires_ordering == "enumeration":
-                → Apply pymatgen_enumeration_orderer
-                → Returns MULTIPLE structures (10-50)
-                → Create separate candidates for each
-                → CONTINUE each to Step 1
-            
-            ELIF requires_ordering == "sqs":
-                → Apply pymatgen_sqs_orderer
-                → Returns 1 large supercell
-                → CONTINUE to Step 1
-            
-            ELSE:
-                → ERROR: Unknown ordering strategy
-        
-        ELSE (no metadata available):
-            → Use doping concentration heuristic:
-            
-            CALCULATE doping_concentration from formula:
-                minority_species_fraction = min(site_occupancies)
-                
-            IF doping_concentration < 0.10:
-                → Apply pymatgen_majority_orderer (safe default)
-                → WARN: "No metadata, using majority orderer"
-                → FLAG for validation review
-                → CONTINUE to Step 1
-            
-            ELIF doping_concentration > 0.20:
-                → REJECT candidate
-                → REASON: "High-concentration disorder requires SQS generation"
-                → Log to rejected_candidates
-            
-            ELSE (0.10 ≤ concentration ≤ 0.20):
-                → Apply pymatgen_majority_orderer
-                → WARN: "Intermediate doping, approximation questionable"
-                → FLAG: requires_dft_validation = True
-                → CONTINUE to Step 1
+    - enumeration_orderer: Explores all symmetry-distinct arrangements
+      of the dopant atoms, producing 10-50 structures ranked by Ewald
+      energy. Use when site-specific ordering matters, or when you need
+      the most stable ordering.
+    
+    - sqs_orderer: Creates one or a few supercells whose correlation
+      functions approximate random disorder. More accurate for
+      concentrated solid solutions. Use when you need random disorder
+      representation.
+    
+    If you're unsure which is appropriate, consult the user.
 ```
+
+**Key insight:** For low doping (<5%), majority ordering is a good approximation because dopant-dopant interactions are negligible. As doping increases, those interactions matter more, and you should decide with the user whether exhaustive enumeration or a representative SQS supercell better serves their question.
 
 ---
 
@@ -110,11 +81,11 @@ FOR each candidate:
 
 **Tool:** `pymatgen_majority_orderer`
 
-**Physical basis:** In the dilute limit (< 10% dopant), the host lattice structure and properties dominate. Dopants provide minor perturbations but don't fundamentally alter bonding or electronic structure. The majority-species approximation (keeping only the dominant species per site) is physically justified.
+**Physical basis:** In the dilute limit (roughly <5% dopant), the host lattice structure and properties dominate. Dopants provide minor perturbations but don't fundamentally alter bonding or electronic structure. The majority-species approximation (keeping only the dominant species per site) is physically justified.
 
 **When to use:**
-- Dilute doping (< 10% dopant concentration)
-- Fast high-throughput screening workflows
+- Low doping (roughly <5% dopant concentration)
+- Fast high-throughput screening
 - Dopant species has negligible structural impact
 - `metadata.requires_ordering == "majority"`
 
@@ -131,7 +102,7 @@ FOR each site in structure:
 
 **Example:**
 ```python
-# Input: Sr₀.₉₇Sm₀.₀₃Nb₂O₆ (disordered)
+# Input: Sr₀.₉₇Sm₀.₀₃Nb₂O₆ (disordered, 3% doping)
 result = pymatgen_majority_orderer(
     input_structures=disordered_cif,
     check_ordered_input=True,  # Skip if already ordered
@@ -142,10 +113,10 @@ result = pymatgen_majority_orderer(
 # Metadata: {'was_disordered': True, 'lost_species': ['Sm'], ...}
 ```
 
-**Physical validity:**
-- ✅ **Valid (<10% doping):** Host lattice dominates, minority species negligible
-- ⚠️ **Questionable (10-20%):** Use for screening only, validate top candidates with SQS
-- ❌ **Invalid (>20%):** Dopant-dopant interactions matter, SQS required
+**Physical guidance on validity:**
+- **Well-suited (<5% doping):** Host lattice dominates, minority species produces minor perturbation
+- **Potentially useful (5-20%):** Can still serve for initial screening, but consider discussing with user whether enumeration or SQS would better capture dopant interactions
+- **Not recommended (>20%):** Dopant-dopant interactions are significant — enumeration or SQS is more appropriate
 
 **Computational cost:** ~0.1s per structure (instant)
 
@@ -162,13 +133,12 @@ result = pymatgen_majority_orderer(
 }
 ```
 
-**Validation flags to attach:**
+**Optional validation flags to attach:**
 ```python
 candidate['validation_flags'] = {
     "preprocessing_applied": "majority_orderer",
-    "approximation_valid": (doping_concentration < 0.10),
-    "requires_dft_validation": (doping_concentration >= 0.10),
-    "confidence_penalty": 0.0 if doping_concentration < 0.10 else 0.2
+    "approximation_valid": (doping_concentration < 0.05),
+    "requires_dft_validation": (doping_concentration >= 0.05),
 }
 ```
 

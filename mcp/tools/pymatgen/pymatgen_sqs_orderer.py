@@ -42,10 +42,12 @@ def pymatgen_sqs_orderer(
             ge=1,
             le=64,
             description=(
-                "Target number of formula units in the SQS supercell (1–64). "
-                "The tool finds the smallest uniform scaling that meets or exceeds this value. "
-                "Larger supercells give better quasirandomness but are more expensive for DFT. "
-                "Typical values: 8–16 for binary, 12–24 for ternary. "
+                "Target minimum number of atoms in the SQS supercell (1–64). "
+                "The tool finds the smallest uniform expansion factor f such "
+                "that n_atoms_in_cell × f³ ≥ supercell_size. "
+                "This is NOT formula units — for a 24-atom cell, "
+                "supercell_size=8 gives f=1 (no expansion). "
+                "See docstring for integer-rounding guidance. "
                 "Ignored when supercell_matrix is provided. "
                 "Default: 8."
             )
@@ -70,9 +72,10 @@ def pymatgen_sqs_orderer(
             ge=1,
             le=20,
             description=(
-                "Number of independent SQS candidates to generate per input structure (1–20). "
-                "Each run starts from a different random initial configuration. "
-                "Candidates are ranked by SQS error (best first) when sort_by='sqs_error'. "
+                "Number of SQS candidates to generate per input structure (1–20). "
+                "Each candidate starts from a different random seed but the MC "
+                "optimiser may converge multiple seeds to the same structure. "
+                "Results are sorted by sqs_error (best first) when applicable. "
                 "Default: 3."
             )
         )
@@ -193,6 +196,25 @@ def pymatgen_sqs_orderer(
 
     The goal is not to find a ground-state ordering. The goal is to find a compact,
     ordered structure whose local correlations resemble random disorder.
+
+    ## Parameter guidance
+
+    **supercell_size** — Scales from the *number of atoms* in the input cell, not
+    formula units. The tool expands uniformly by the smallest integer factor `f`
+    such that `n_atoms × f³ ≥ supercell_size`. For a 24-atom cell, `supercell_size=8`
+    gives `f=1` — no expansion at all.
+
+    **Integer rounding of dopants** — Fractional occupancies are converted to integer
+    counts per sublattice using largest-remainder (`int(fraction × n_sites)`). Low
+    doping on few sites can silently round to zero, e.g. 3% Mg on 4 Ga sites gives
+    `int(0.03 × 4) = 0` Mg atoms, producing pure BGSe instead of doped material.
+    Ensure `n_sites_per_dopant_sublattice × (1 / min_doping_fraction) >= 1` to avoid
+    this. Use `supercell_matrix` for anisotropic expansion when one axis is short.
+
+    **n_structures diversity** — Each candidate starts from a different random seed
+    but the MC optimiser may converge all seeds to the same global minimum. Variants
+    are ranked by `sqs_error`; duplicates are NOT deduplicated. If you need multiple
+    distinct orderings, consider `pymatgen_enumeration_orderer` instead.
 
     Returns:
         dict:

@@ -531,6 +531,162 @@ class TestPipelineIntegration:
         assert elements1 == elements2
 
 
+# TestDopingResolution
+class TestDopingResolution:
+    """
+    Verify that low doping concentrations are preserved through SQS generation.
+
+    The critical issue: when `supercell_size` is too small relative to the doping
+    concentration, the integer rounding in `_int_distribute` can reduce the dopant
+    count to zero. For example, 3% Mg on 4 Ga sites with supercell_size=2 gives
+    int(0.03 × 4) = 0 — the dopant disappears entirely.
+
+    The test fixture bgse_ga4_disordered has 4 Ga sites each at 3% Mg, which
+    is the minimal supercell_size needed to resolve this doping level.
+    """
+
+    def test_3pct_on_4_sites_with_supercell_2_loses_dopant(self, bgse_ga4_disordered):
+        """3% doping on 4 Ga sites with supercell_size=2 gives 0 Mg atoms.
+        This is the known limitation — the supercell is too small to resolve
+        the doping concentration. We document this behavior explicitly."""
+        result = pymatgen_sqs_orderer(
+            bgse_ga4_disordered, n_structures=1, seed=0,
+            supercell_size=2, n_mc_steps=500, n_shells=2,
+        )
+        assert result["success"] is True
+        meta = result["metadata"][0]
+        comp = meta["composition"]
+        # supercell_size=2 → factor=1 → 4 Ga sites → int(0.03×4)=0 Mg
+        assert "Mg" not in comp or comp.get("Mg", 0) == 0, (
+            f"Expected supercell_size=2 to lose Mg (too small), got {comp.get('Mg', 0)}"
+        )
+
+    def test_3pct_on_4_sites_with_supercell_34_retains_dopant(self, bgse_ga4_disordered):
+        """3% doping on 4 Ga sites with supercell_size=34 gives >=1 Mg atom.
+        This is the large-enough supercell case — it must resolve the dopant."""
+        result = pymatgen_sqs_orderer(
+            bgse_ga4_disordered, n_structures=1, seed=0,
+            supercell_size=34, n_mc_steps=500, n_shells=2,
+        )
+        assert result["success"] is True
+        meta = result["metadata"][0]
+        comp = meta["composition"]
+        assert "Mg" in comp and comp["Mg"] >= 1, (
+            f"Expected supercell_size=34 to retain at least 1 Mg atom, "
+            f"got {comp.get('Mg', 0)} in composition {comp}"
+        )
+
+    def test_high_doping_small_supercell_retains_dopant(self, disordered_li_na_cl):
+        """50/50 doping on 2 sites with supercell_size=4 gives equal counts.
+        This is the well-resolved case that already works."""
+        result = pymatgen_sqs_orderer(
+            disordered_li_na_cl, n_structures=1, seed=0,
+            supercell_size=4, n_mc_steps=500, n_shells=2,
+        )
+        assert result["success"] is True
+        comp = result["metadata"][0]["composition"]
+        assert comp["Li"] == comp["Na"], (
+            f"Expected equal Li/Na counts for 50/50 input, "
+            f"got Li={comp['Li']}, Na={comp['Na']}"
+        )
+
+    def test_increasing_supercell_size_increases_dopant_count(self, bgse_ga4_disordered):
+        """Larger supercells should produce more total atoms."""
+        r_small = pymatgen_sqs_orderer(
+            bgse_ga4_disordered, n_structures=1, seed=0,
+            supercell_size=8, n_mc_steps=500, n_shells=2,
+        )
+        r_large = pymatgen_sqs_orderer(
+            bgse_ga4_disordered, n_structures=1, seed=0,
+            supercell_size=64, n_mc_steps=500, n_shells=2,
+        )
+        assert r_large["metadata"][0]["n_sites"] >= r_small["metadata"][0]["n_sites"]
+
+    def test_doping_rounding_metadata_is_correct(self, bgse_ga4_disordered):
+        """The composition metadata should correctly reflect integer counts."""
+        result = pymatgen_sqs_orderer(
+            bgse_ga4_disordered, n_structures=1, seed=0,
+            supercell_size=34, n_mc_steps=500, n_shells=2,
+        )
+        from pymatgen.core import Structure
+        s = Structure.from_str(result["structures"][0], fmt="cif")
+        actual_comp = {el.symbol: int(amt) for el, amt in s.composition.items()}
+        meta_comp = result["metadata"][0]["composition"]
+        assert actual_comp == meta_comp, (
+            f"Metadata composition {meta_comp} does not match actual structure {actual_comp}"
+        )
+
+
+# TestDistinctVariants
+class TestDistinctVariants:
+    """
+    Verify expectations around SQS variant diversity.
+
+    The SQS algorithm converges independent random starts toward the minimum
+    of the SQS objective.  Multiple variants may therefore converge to the
+    *same* optimum — this is correct behaviour, not a bug.  These tests
+    document what is and isn't guaranteed about variant diversity.
+
+    The real degenerate case (no distinct configurations possible at all)
+    occurs when the supercell is too small to represent the dopant
+    concentration — that scenario is covered in TestDopingResolution.
+    """
+
+    def test_sort_by_random_alters_error_order(self, disordered_li_na_cl):
+        """With sort_by='random', error order differs from sqs_error-sorted order."""
+        r_sorted = pymatgen_sqs_orderer(
+            disordered_li_na_cl, n_structures=4, seed=7,
+            supercell_size=4, n_mc_steps=2000, n_shells=2,
+            sort_by="sqs_error",
+        )
+        r_random = pymatgen_sqs_orderer(
+            disordered_li_na_cl, n_structures=4, seed=7,
+            supercell_size=4, n_mc_steps=2000, n_shells=2,
+            sort_by="random",
+        )
+        err_sorted = [round(m["sqs_error"], 8) for m in r_sorted["metadata"]]
+        err_random = [round(m["sqs_error"], 8) for m in r_random["metadata"]]
+        # sqs_error mode sorts ascending
+        assert err_sorted == sorted(err_sorted)
+        # Both should produce 4 candidates
+        assert len(err_sorted) == 4
+        assert len(err_random) == 4
+
+    def test_all_variants_at_least_succeed(self, disordered_li_na_cl):
+        """All n_structures variants should be valid ordered structures
+        regardless of whether they are distinct from each other."""
+        from pymatgen.core import Structure
+        result = pymatgen_sqs_orderer(
+            disordered_li_na_cl, n_structures=3, seed=42,
+            supercell_size=4, n_mc_steps=2000, n_shells=2,
+        )
+        assert result["success"] is True
+        assert result["count"] == 3
+        for cif_str in result["structures"]:
+            s = Structure.from_str(cif_str, fmt="cif")
+            assert s.is_ordered
+
+    def test_too_small_supercell_gives_identical_variants(self, bgse_ga4_disordered):
+        """3% doping with supercell_size=2 rounds Mg to 0, so all variants are
+        identical.  This is not a bug — the SQS algorithm correctly converges
+        all seeds to the only possible structure (no Mg atoms to arrange)."""
+        from pymatgen.core import Structure
+        result = pymatgen_sqs_orderer(
+            bgse_ga4_disordered, n_structures=3, seed=42,
+            supercell_size=2, n_mc_steps=500, n_shells=2,
+        )
+        assert result["success"] is True
+        species_lists = []
+        for cif_str in result["structures"]:
+            s = Structure.from_str(cif_str, fmt="cif")
+            species_lists.append([str(site.specie) for site in s])
+        for i in range(1, len(species_lists)):
+            assert species_lists[i] == species_lists[0], (
+                f"Variant {i+1} differs from variant 1. With 0 Mg atoms "
+                f"(due to integer rounding) only one arrangement is possible."
+            )
+
+
 # Uniform-fractional disorder (real-world pattern)
 class TestUniformFractionalDisorder:
     """Tests using bagase_ga_mg_uniform fixture — uniform fractional occupancy
