@@ -46,7 +46,6 @@ Phase 6: All → Per-candidate directory storage + ASE database index
 **Working principles:**
 1. **MCP tools generate complete structures** — Every tool returns CIF/POSCAR with atom positions, unit cell, spacegroup. Custom formula generators without structures cannot be validated or screened.
 2. **Organize candidates in a `candidates/` directory** — Each candidate gets its own subdirectory named clearly (e.g., `candidates/005_RbGaS2/`). This directory stores provenance metadata, unrelaxed structures, relaxed structures, and any downstream data for that candidate.
-3. **ASE database is central index** — Use ASE database for cross-candidate queries and property enrichment, but keep the canonical outputs in the per-candidate directory structure.
 4. **Metadata enables screening** — Tag structures with `requires_ordering`, `doping_concentration`, `host_formula` so candidate-screener knows how to handle disorder.
 5. **Scale requires planning** — For N > 20 candidates, create a planning file first to avoid tool timeout/memory issues (see [references/phase-guides.md](references/phase-guides.md)).
 
@@ -207,8 +206,6 @@ candidates/
 ```
 
 Naming convention: `NNN_Formula` where `NNN` is a zero-padded index and `Formula` is a clear, human-readable reduced formula. This makes candidates easy to reference across tools and scripts.
-
-**ASE database as cross-candidate index:** Store generated structures in ASE for downstream retrieval, property enrichment, and batch filtering. Convert CIF/POSCAR outputs with the dedicated ASE conversion step, then store with metadata:
 
 **Essential metadata fields:**
 ```python
