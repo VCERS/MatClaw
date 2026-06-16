@@ -4,6 +4,13 @@ MatClaw MCP Server
 
 from dotenv import load_dotenv
 import logging
+
+from utils.stdio_guard import redirect_stdout_to_stderr
+
+# Route stray stdout writes to stderr so they can't corrupt the MCP stdio JSON-RPC
+# stream. Must run before importing tools that may print at import time.
+redirect_stdout_to_stderr()
+
 from mcp.server.fastmcp import FastMCP
 from tools.pubchem import (
     pubchem_search_compounds,

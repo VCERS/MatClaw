@@ -12,7 +12,7 @@ docling>=2.84.0
 docling-core>=2.71.0
 dscribe>=2.1.2
 numpy>=2.4.4
-torch>=2.10.0
+torch==2.10.0
 torch-scatter # Requires GLIBC>=2.32. If GLIBC<2.32, use `conda install pytorch-scatter -c pyg`
 torch-geometric>=2.7.0
 torchdata>=0.7.1
@@ -24,7 +24,8 @@ pubchempy>=1.0.0
 mp-api>=0.46.0
 pymatgen>=2026.3.23
 matgl>=3.0.0 # Other versions have different available pretrained models
-matcalc>=0.4.5
+matcalc>=0.5.1 # >=0.5.x: load_fp resolves MACE/foundation models via matcalc.utils.MODEL_REGISTRY
+mace-torch>=0.3.16
 matminer>=0.9.0
 ase>=3.28.0
 dscribe>=2.1.2

@@ -62,7 +62,7 @@ def download_file(url: str, dest_path: Path, show_progress: bool = True) -> None
                 percent = min(100, (downloaded / total_size) * 100)
                 mb_downloaded = downloaded / (1024 * 1024)
                 mb_total = total_size / (1024 * 1024)
-                print(f'\rDownloading: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)', end='')
+                print(f'\rDownloading: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)', end='', file=sys.stderr)
         
         # Create temporary file
         temp_path = dest_path.with_suffix(dest_path.suffix + '.tmp')
@@ -71,7 +71,7 @@ def download_file(url: str, dest_path: Path, show_progress: bool = True) -> None
         urllib.request.urlretrieve(url, temp_path, _progress_hook if show_progress else None)
         
         if show_progress:
-            print()  # New line after progress
+            print(file=sys.stderr)  # New line after progress
         
         # Move to final location
         temp_path.rename(dest_path)
@@ -121,11 +121,11 @@ def get_model_path(model_key: str, force_download: bool = False) -> Path:
     
     # Download if needed
     if not model_path.exists() or force_download:
-        print(f"Downloading {model_key} from GitHub releases...")
-        print(f"URL: {url}")
-        print(f"Cache location: {model_path}")
+        print(f"Downloading {model_key} from GitHub releases...", file=sys.stderr)
+        print(f"URL: {url}", file=sys.stderr)
+        print(f"Cache location: {model_path}", file=sys.stderr)
         download_file(url, model_path)
-        print(f"[OK] Downloaded {model_key}")
+        print(f"[OK] Downloaded {model_key}", file=sys.stderr)
     
     return model_path
 
@@ -141,9 +141,9 @@ def clear_cache() -> None:
             for file in cache_dir.glob(ext):
                 file.unlink()
         
-        print(f"Cleared cache directory: {cache_dir}")
+        print(f"Cleared cache directory: {cache_dir}", file=sys.stderr)
     else:
-        print(f"Cache directory does not exist: {cache_dir}")
+        print(f"Cache directory does not exist: {cache_dir}", file=sys.stderr)
 
 
 def get_cache_info() -> dict:

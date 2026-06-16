@@ -54,8 +54,11 @@ def matcalc_calc_interface(
         Field(
             default="TensorNet-PES-MatPES-r2SCAN-2025.2",
             description=(
-                "Calculator/potential to use. "
-                "For the full list of available calculators, run `matgl.get_available_pretrained_models`"
+                "Foundation ML potential name. Options include "
+                "'MACE-MPA-0-medium', 'MACE-MP-0-medium', 'MACE-OMAT-0-medium', 'MACE-MatPES-r2SCAN-0', "
+                "'TensorNet-MatPES-r2SCAN-2025.2', 'CHGNet-MatPES-PBE-2025.2.10', 'M3GNet-MatPES-PBE-2025.1', "
+                "'SevenNet-0', 'ORB-v2', 'MatterSim-v1.0.0-5M'. "
+                "Default: TensorNet-PES-MatPES-r2SCAN-2025.2."
             )
         )
     ] = "TensorNet-PES-MatPES-r2SCAN-2025.2",
@@ -164,7 +167,7 @@ def matcalc_calc_interface(
     except Exception as e:
         return {
             "error": f"Failed to load calculator '{calculator}': {str(e)}",
-            "details": "Check that calculator is available using `matgl.get_available_pretrained_models()`"
+            "details": "Valid names are the keys of matcalc.utils.MODEL_REGISTRY (and MODEL_ALIASES for short names), e.g. 'MACE-MPA-0-medium' / alias 'mace' — MACE names additionally require the 'mace-torch' package."
         }
     
     # Create InterfaceCalc
