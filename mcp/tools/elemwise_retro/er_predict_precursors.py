@@ -21,6 +21,7 @@ from utils import model_downloader
 
 # Import model class for instantiation
 from .model import PrecursorClassifier
+from utils.torch_utils import get_torch_device
 
 
 def load_model_with_hyperparameters(file_path, device='cpu'):
@@ -431,7 +432,7 @@ class PrecursorPredictor:
             self.stoichiometry_dict = json.load(f)
         
         # Load model (downloaded from GitHub releases if not cached)
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = get_torch_device()
         model_path = model_downloader.get_model_path('elemwiseretro_precursor_predictor')
         # Load model with hyperparameters
         self.model = load_model_with_hyperparameters(model_path, device=self.device)
