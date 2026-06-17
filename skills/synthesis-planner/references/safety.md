@@ -11,8 +11,8 @@ robot will calibrate trust on it.
 | Source tier | Confidence | `review` | What it means |
 |-------------|-----------|----------|---------------|
 | Literature (Materials Project) | high | minimal | A published, community-validated procedure. Still: confirm precursor purity/availability and run a small test batch. |
-| ML prediction (solid-state) | medium | recommended | Statistically plausible, not validated for this composition. ±50–100 °C on temperature. Small-scale test and a literature cross-check before scale-up. |
-| Reasoned default | low | required | Chemistry-principles starting point only. Expert review, a literature search for analogues, and a small test are prerequisites. |
+| Reasoned route — close analogues | medium | recommended | Designed from well-precedented chemistry near known compounds. Plausible but unvalidated for this exact composition. Small-scale test and a literature cross-check before scale-up. |
+| Reasoned route — novel/exotic | low | required | Chemistry-principles starting point with weak precedent. Expert review, a literature search for analogues, and a small test are prerequisites. |
 
 `review` is a *recommended depth of human scrutiny*, not an execution verdict. Even
 "minimal" assumes a human signs off at the orchestration layer.
@@ -27,14 +27,14 @@ robot will calibrate trust on it.
 - Known competing or intermediate phases in the system.
 
 **Route confidence:**
-- ML precursor confidence < 0.4, or elements poorly represented in training data.
+- No close, well-characterized analogue to anchor the precursors or conditions on.
 - Temperatures, times, or precursor combinations far outside what analogous
   literature uses.
 - Conflicting or unusual atmosphere requirements.
 
 **Always include in warnings when relevant:**
-- the evidence tier and its limitation ("ML-predicted, not validated for this
-  composition"),
+- the evidence tier and its limitation ("reasoned from analogues, not validated for
+  this exact composition"),
 - quantitative uncertainty (e.g. "temperature ±50–100 °C"),
 - a recommendation to test at small scale before committing a full batch,
 - any precursor hazards worth surfacing to the handling layer.

@@ -15,13 +15,13 @@ synthesis hardware, and (c) has a physically reasonable range. Keep the set smal
 matter for *this* chemistry over an exhaustive list.
 
 ## Initial value vs. bounds
-- **Initial value:** the route's nominal setting (literature value, ML prediction,
-  or reasoned estimate). This is where the optimizer starts.
+- **Initial value:** the route's nominal setting (a literature value, or a reasoned
+  estimate from analogous systems). This is where the optimizer starts.
 - **Bounds:** the range worth exploring — wide enough to contain the likely
   optimum, narrow enough to stay physical and safe. Anchor bounds to the evidence:
-  for a literature route, bracket the value seen in the literature; for an ML
-  temperature, use roughly ±(the stated uncertainty) and a bit more; for a reasoned
-  route, use the typical range for analogous systems.
+  for a literature route, bracket the value seen in the literature; for a reasoned
+  route, use the typical range seen in analogous systems (and widen a little to
+  reflect that the value is an estimate, not a measurement).
 - Mark each variable `continuous` or `categorical`, and include `choices` for
   categoricals.
 

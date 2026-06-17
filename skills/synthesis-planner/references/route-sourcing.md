@@ -1,11 +1,10 @@
 # Sourcing the Route
 
-Pick the synthesis route from the strongest evidence available, falling back
-deliberately and labeling which tier you used. The reasoning: a published recipe
-has been shown to work; an ML prediction is statistically plausible but unproven
-for this exact composition; a chemistry-principles guess is only a starting
-point. Confidence — and the human-review depth you recommend — follows directly
-from which tier produced the route.
+Pick the synthesis route from the strongest evidence available. The reasoning: a
+published recipe has been shown to work, so it comes first; absent that, a route
+reasoned from solid-state chemistry and close analogues is a defensible starting
+point. Confidence — and the human-review depth you recommend — follows from which
+tier produced the route.
 
 ## Tier 1 — Literature (try first, always)
 
@@ -30,64 +29,44 @@ mp_search_recipe(
 - Apply the user's constraints as search filters (`temperature_max`,
   `synthesis_type`, `keywords`) rather than filtering after the fact.
 
-If literature returns nothing, fall through.
+If literature returns nothing, reason the route out (Tier 2).
 
-## Tier 2 — ML prediction (solid-state inorganic only)
+## Tier 2 — Reasoned route (when there is no literature)
 
-Only valid when the route is, or can reasonably be, **solid-state**. The models
-are trained on solid-state literature; using them for hydrothermal/sol-gel/CVD
-will produce confident nonsense. If the user explicitly asked for a non-solid-state
-method, skip to Tier 3.
+With no published recipe, design the route yourself from materials-chemistry
+principles and analogous known systems. This is your core competency here — careful
+chemical reasoning over close analogues is more reliable than a black-box predictor,
+so invest in it:
 
-```
-prec = er_predict_precursors(target_formula="Li7La3Zr2O12", top_k=5)
-# → {"top_prediction": {"precursors": [...], "confidence": 0.61},
-#    "precursor_sets": [ {precursors, confidence}, ... ]}
-
-temp = er_predict_temperature(
-    target_formula="Li7La3Zr2O12",
-    precursors=prec["top_prediction"]["precursors"],
-)
-# → {"temperature_celsius": 908.3, ...}
-```
-
-- If `top_prediction.confidence < ~0.2`, treat the prediction as unreliable and
-  fall through to Tier 3 (or present it only as a weak suggestion).
-- `er_predict_temperature` validates that precursor elements cover the target's
-  elements and raises `ValueError` on mismatch — if the top precursor set errors,
-  try the next set in `precursor_sets` before giving up.
-- Build a standard solid-state route: mix & grind → calcine at the predicted
-  temperature (air for oxides) → (optional regrind/re-fire). Medium confidence;
-  attach the precursor confidence and the ±50–100 °C temperature uncertainty as
-  warnings.
-
-## Tier 3 — Reasoned default (last resort)
-
-When there's no literature and ML doesn't apply (non-solid-state target, or
-ML failed/low-confidence), propose a route from materials-chemistry principles:
-
-- Analyze the target — element types, oxidation states, volatility, moisture/air
-  sensitivity, analogous known compounds.
-- Choose a method appropriate to the morphology/phase (e.g. hydrothermal for
-  nanostructures, sol-gel for homogeneous multi-cation oxides).
-- Name plausible precursors (common salts/oxides/hydroxides), a temperature range
-  from analogous systems, and the key processing steps.
-- Mark confidence **low** and review **required**. Be explicit that it is
-  unvalidated for this exact composition.
+- **Analyze the target** — element types and oxidation states, volatility, air/moisture
+  sensitivity, and (most useful) the closest well-characterized compounds you know.
+- **Choose a method** suited to the desired phase/morphology: conventional solid-state
+  (mix–grind–calcine) for most bulk oxides and chalcogenides; sol-gel for homogeneous
+  multi-cation oxides; hydrothermal for nanostructures or metastable phases.
+- **Pick precursors** that decompose cleanly to the product — typically carbonates,
+  oxides, nitrates, or hydroxides for the cations, mirroring what works for the
+  analogues (e.g. Li2CO3 / La2O3 / ZrO2 for a Li–La–Zr garnet oxide). For a solid-state
+  route, make sure the chosen precursors together supply every product element.
+- **Set conditions** — temperature, atmosphere, dwell, ramp — bracketed from those
+  analogous systems (e.g. ~900–1100 °C in air for many complex oxides; inert or sealed
+  ampoule for sulfides and reduced phases).
+- **Calibrate confidence to the analogues.** When the chemistry is well-precedented
+  (a layered oxide, garnet, spinel, etc. near known members), this is a *medium*-
+  confidence route. When the composition or method is genuinely novel or exotic, mark
+  it *low*. Either way, state plainly that it is unvalidated for this exact composition,
+  name the analogues you reasoned from, and recommend a small test batch (and, for low
+  confidence, a literature search for analogues first).
 
 ## Decision summary
 
 ```
 mp_search_recipe(format_routes=True)
         │ n_routes > 0 ?
-   yes ─┴─▶ Tier 1: literature route        (confidence high,   review minimal)
+   yes ─┴─▶ Tier 1: literature route   (confidence high,       review minimal)
     no
-        │ solid-state AND ML applicable ?
-   yes ─┴─▶ er_predict_precursors → er_predict_temperature
-        │        confidence ≥ ~0.2 ?
-   yes ─┴─▶ Tier 2: ML route                (confidence medium, review recommended)
-    no
-        └──▶ Tier 3: reasoned default       (confidence low,    review required)
+        └──▶ Tier 2: reasoned route     (confidence medium/low, review recommended/required)
+                     medium if grounded in close, well-precedented analogues;
+                     low if the composition or method is novel/exotic.
 ```
 
 ## Worked examples
@@ -96,11 +75,14 @@ mp_search_recipe(format_routes=True)
 top route: Li2CO3 + Co3O4, calcine 850 °C / 12 h / air, confidence high. Report
 the route + alternatives + DOI.
 
-**Novel solid-state (Tier 2).** `Li7La3Zr2O12` → no literature → `er_predict_precursors`
-→ Li2CO3 + La2O3 + ZrO2 (0.61) → `er_predict_temperature` → ~908 °C. Medium
-confidence; warn on ±50–100 °C and unproven composition; suggest a small test batch.
+**Novel solid-state, close analogues (Tier 2, medium).** `Li7La3Zr2O12` → no literature
+→ reason from the garnet / complex-oxide family: cation precursors Li2CO3 + La2O3 + ZrO2
+(a carbonate and oxides that fire cleanly to the oxide), mix–grind–calcine in air at
+~900–1000 °C with a regrind, plus a Li-excess knob for Li volatility. Medium confidence;
+note it is unvalidated for this exact composition and suggest a small test batch.
 
-**Non-solid-state, novel (Tier 3).** "Hydrothermal NiO nanowires" → no literature,
-ML inapplicable → reasoned route: Ni(NO3)2·6H2O + NaOH, 150–180 °C, 12–24 h
-autoclave, surfactant/template for morphology, pH-sensitive. Low confidence; review
-required; recommend literature search for analogous nanostructures first.
+**Novel, weak analogues (Tier 2, low).** "Hydrothermal NiO nanowires" → no literature and
+no close precedent for the exact morphology → reasoned route: Ni(NO3)2·6H2O + NaOH,
+150–180 °C, 12–24 h autoclave, surfactant/template for morphology, pH-sensitive. Low
+confidence; review required; recommend a literature search for analogous nanostructures
+first.

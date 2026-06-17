@@ -1,7 +1,7 @@
 ---
 name: synthesis-planner
 description: >
-  Generate a good first-guess synthesis recipe for an inorganic material as the seed of a lab campaign. Sources the route by best available evidence: literature-validated recipes (Materials Project) first, then ML precursor/temperature prediction for solid-state, then a reasoned chemistry default. Produces a structured, robot-middleware-ready recipe (precursors with forms, ordered steps with parameters), defines the tunable parameter search space for downstream Bayesian-optimization refinement, and can quantify precursor masses for a target batch size. Use this skill WHENEVER the user wants a synthesis route, recipe, or procedure; asks how to make / prepare / synthesize a compound or formula; needs precursors, calcination/annealing conditions, or a solid-state route; or when a DFT-validated candidate needs a first synthesis plan to hand to a robotic lab. It does NOT execute synthesis or approve autonomous runs — a separate experiment-orchestration skill plus a human gate own that — and it does NOT run the optimization loop itself (the active-learning skill does).
+  Generate a good first-guess synthesis recipe for an inorganic material as the seed of a lab campaign. Sources the route by best available evidence: literature-validated recipes (Materials Project) first, then a route reasoned from solid-state chemistry and analogous known systems. Produces a structured, robot-middleware-ready recipe (precursors with forms, ordered steps with parameters), defines the tunable parameter search space for downstream Bayesian-optimization refinement, and can quantify precursor masses for a target batch size. Use this skill WHENEVER the user wants a synthesis route, recipe, or procedure; asks how to make / prepare / synthesize a compound or formula; needs precursors, calcination/annealing conditions, or a solid-state route; or when a DFT-validated candidate needs a first synthesis plan to hand to a robotic lab. It does NOT execute synthesis or approve autonomous runs — a separate experiment-orchestration skill plus a human gate own that — and it does NOT run the optimization loop itself (the active-learning skill does).
 ---
 
 # Synthesis Planner Skill
@@ -40,12 +40,10 @@ parameter space (for the optimizer), rather than a single take-it-or-leave-it ro
 
 ## Tools
 
-| Tier | Tool | Role |
-|------|------|------|
-| 1 — best | `mp_search_recipe` | Literature-validated recipes from Materials Project. Try first. |
-| 2 — ML | `er_predict_precursors` | ML precursor prediction — **solid-state inorganic only**. |
-| 2 — ML | `er_predict_temperature` | ML calcination-temperature estimate (±50–100 °C) — **solid-state only**. |
-| util | `synthesis_recipe_quantifier` | Convert stoichiometry → precursor **masses (g)** for a target batch size. |
+| Tool | Role |
+|------|------|
+| `mp_search_recipe` | Literature-validated recipes from Materials Project. **Try this first** — it is the only sourcing tool. If it returns nothing, you reason the route out yourself (no tool for that tier — it's your chemistry judgment). |
+| `synthesis_recipe_quantifier` | Convert stoichiometry → precursor **masses (g)** for a target batch size. |
 
 Upstream context often comes from `candidate-screener` / `vasp` / `orca` (a DFT-validated
 formula to make). Downstream you hand to the experiment-orchestration and `active-learning`
@@ -64,22 +62,26 @@ Establish the target and the campaign context:
   yes in this pipeline; it tells you to populate the parameter space carefully.)
 
 ### 2. Source the route — by best available evidence
-Always start from literature, fall back deliberately. The principle: *literature is
-proven, ML is plausible, reasoning is a starting point* — so prefer the strongest
+Always start from literature; if there is none, reason the route out yourself. The
+principle: *a published recipe is proven; a route reasoned from solid-state chemistry
+and close analogues is a strong, defensible starting point* — so prefer the strongest
 evidence available and be honest about which tier you landed on. Full algorithm,
 tool arguments, and worked examples in
 [references/route-sourcing.md](references/route-sourcing.md). In brief:
 
 1. **Literature first** — `mp_search_recipe(target_formula, format_routes=True)`. If it
    returns routes, use them; this is the high-confidence path.
-2. **ML for solid-state** — if no literature *and* the route is (or can be) solid-state:
-   `er_predict_precursors` → `er_predict_temperature`. Medium confidence; flag it.
-3. **Reasoned default** — if neither applies (e.g. a hydrothermal target with no
-   literature), propose a route from materials-chemistry principles and analogous
-   systems. Low confidence; say so plainly and require human review.
+2. **Reasoned route** — if there's no literature, design the route from
+   materials-chemistry principles and analogous known systems: pick precursors (common
+   carbonates, oxides, nitrates, or hydroxides that decompose cleanly to the product
+   and together supply every product element), a method suited to the phase, and
+   conditions (temperature, atmosphere, time) bracketed from compounds known to behave
+   similarly. Calibrate confidence to the analogues — *medium* when the chemistry is
+   well-precedented (e.g. a layered oxide or garnet near known ones), *low* when it is
+   novel or exotic. Name the analogues you reasoned from and require human review.
 
-Don't use the ML tools for non-solid-state methods — they're trained on solid-state only
-and will mislead.
+Careful chemical reasoning over close analogues is the heart of this tier — it is more
+reliable than a black-box predictor, so invest in it rather than reaching for a shortcut.
 
 ### 3. Parameterize for optimization
 A first guess that's a single fixed recipe wastes the lab loop. Identify the **knobs the
@@ -112,7 +114,7 @@ structure, not a rigid literal — include what you have, omit what you don't):
 ```
 {
   "target_formula": "...",
-  "source": "literature | ml | reasoned",        # which evidence tier you used
+  "source": "literature | reasoned",             # which evidence tier you used
   "confidence": "high | medium | low",
   "method": "solid_state | hydrothermal | sol-gel | ...",
 
@@ -150,7 +152,7 @@ sourced the route. See [references/safety.md](references/safety.md) for the conf
 tiers, the review depth each implies, and the red flags that should raise caution.
 
 ## Reference files
-- [references/route-sourcing.md](references/route-sourcing.md) — the tiered algorithm, tool arguments, decision points, and worked examples (literature / ML / reasoned).
+- [references/route-sourcing.md](references/route-sourcing.md) — the tiered algorithm, tool arguments, decision points, and worked examples (literature / reasoned).
 - [references/parameterization.md](references/parameterization.md) — choosing tunable knobs, initial values, and bounds per synthesis method; building the BO search space.
 - [references/handoff-contracts.md](references/handoff-contracts.md) — the recipe artifact for the robot-middleware layer and the search-space schema for the active-learning skill.
 - [references/safety.md](references/safety.md) — confidence tiers, human-review depth, and red-flag conditions.
