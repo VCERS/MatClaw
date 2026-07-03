@@ -10,47 +10,90 @@ Complete detailed instructions for each workflow phase in the candidate generati
 
 **Skip if:** You already have the seed structure from a CIF, POSCAR, or ASE database
 
-### Four Strategies
+### Core principle: Search different databases in parallel
 
-#### 1. Exact Seed Retrieval from Materials Project
+MP and COD are complementary. MP has DFT-validated structures with computed properties (formation energy, band gap, elastic constants). COD has experimentally determined crystal structures from published literature, often covering chemistries never computed in MP. Search both.
 
-**Tools:** `mp_search_materials`, `mp_get_material_properties`
+### Two-Phase Retrieval
 
-**Best for:**
-- Starting from a known seed formula that exists in MP
-- Reusing an experimentally or computationally validated structure
-- Fastest path into substitution or disorder workflows
+#### Phase A: Parallel Database Search
 
-**Algorithm:**
+**Tools:** `mp_search_materials` + `mp_get_material_properties`, `cod_search_structures`
+
+**Search different databases — they cover different chemical spaces:**
+
+| Aspect | Materials Project | Crystallography Open Database |
+|--------|-------------------|-------------------------------|
+| **Coverage** | ~150K computed compounds | ~500K+ experimentally determined |
+| **Completeness** | Computationally validated (DFT) | Published crystal structures (XRD, neutron) |
+| **Property data** | Formation energy, band gap, elastic tensor, density of states | No computed properties (pure structure data) |
+| **Specialties** | Stable battery cathodes, well-studied oxides | Niche chalcogenides, quaternary compounds, MOFs, minerals, incommensurate structures |
+| **Output format** | Material ID (mp-XXXX) + structure dict/CIF | COD ID + CIF string |
+
+**Algorithm — parallel search:**
+
 ```python
-seed_formula = 'LiFePO4'
+seed_formula = 'RbCd4Ga3S9'
 
-seed_search = mp_search_materials(
+# Search both databases simultaneously
+cod_results = cod_search_structures(
     formula=seed_formula,
-    limit=1
+    max_results=5,
+    include_cifs=True
 )
 
-if seed_search['count'] == 0:
-    raise ValueError(f"No Materials Project structure found for {seed_formula}")
-
-seed_props = mp_get_material_properties(
-    material_ids=[seed_search['material_ids'][0]],
-    properties=['structure']
+mp_results = mp_search_materials(
+    formula=seed_formula,
+    max_results=5
 )
 
-seed_structure = seed_props['properties'][0]['structure']
+# Evaluate both results
+found_in_cod = cod_results['count'] > 0
+found_in_mp = mp_results['count'] > 0
+
+if found_in_cod and found_in_mp:
+    # Both have it — choose based on your goal:
+    # COD if you want the experimentally refined structure
+    # MP if you want computed property data alongside the geometry
+    cod_seed = cod_results['structures'][0]['cif']
+    mp_seed = mp_get_material_properties(
+        material_ids=[mp_results['materials'][0]['material_id']],
+        properties=['structure']
+    )
+    print("Choose COD (experimental) or MP (DFT-validated + properties)")
+elif found_in_cod:
+    # COD has it, MP doesn't — use the experimental structure
+    seed_cif = cod_results['structures'][0]['cif']
+elif found_in_mp:
+    # MP has it, COD doesn't — use the computed structure
+    seed_props = mp_get_material_properties(
+        material_ids=[mp_results['materials'][0]['material_id']],
+        properties=['structure']
+    )
+    seed_structure = seed_props['properties'][0]['structure']
+else:
+    # Not found in either — fall back to prototype building
+    print("Not in COD or MP. Building from prototype.")
 ```
 
-**Output:** One seed structure ready for Phase 2
+**When to prefer COD over MP for the seed structure:**
+- You're working from a specific paper's experimental data — COD entries often have bibliographic info (DOI, journal, year)
+- The compound has complex chemistry (quaternary+, chalcogenides, intermetallics) unlikely to be computed
+- The MP entry has multiple polymorphs and you're not sure which matches your target — COD provides the experimentally observed phase
 
-#### 2. Template Search Around a Seed Family
+**When to prefer MP over COD:**
+- You need computed properties (formation energy, band gap) for screening
+- The MP entry is the only available structure
+- You're doing high-throughput screening across many seeds and want consistent DFT-level geometry
 
-**Tool:** `mp_search_materials`
+#### Phase B: Template Search Around a Seed Family
+
+**Tool:** `mp_search_materials` or `cod_search_structures`
 
 **Best for:**
 - Known analogue families exist
 - Multiple plausible seeds are acceptable
-- You want to choose among stable materials before generating variants
+- You want to choose among stable or experimentally-reported materials before generating variants
 
 **Algorithm:**
 ```python
@@ -61,44 +104,17 @@ templates = mp_search_materials(
     max_results=10
 )
 
-# Pick one seed formula or material ID for downstream generation
-seed_mp_id = templates['materials'][0]['material_id']
+# Or search COD for all compounds in a chemical system
+cod_templates = cod_search_structures(
+    elements=['Li', 'Fe', 'P', 'O'],
+    max_results=20,
+    include_cifs=False
+)
 ```
 
-**Output:** 5-10 candidate seed materials to choose from
+**Output:** 5-20 candidate seed materials from either or both databases
 
-#### 3. COD Search (Crystallography Open Database)
-
-**Tool:** `cod_search_structures`
-
-**Best for:**
-- Niche, multinary, or experimental compounds not in MP (e.g., quaternary chalcogenides)
-- Experimentally synthesized materials that MP filtered out as thermodynamically metastable
-- Looking up published crystal structures from literature
-- Compounds from the paper you're reading that may or may not be in computational databases
-
-**Algorithm:**
-```python
-# Try MP first, fall back to COD
-seed_search = mp_search_materials(formula='RbCd4Ga3S9', limit=1)
-if seed_search['count'] == 0:
-    # Not in MP — try COD (experimental database)
-    cod_results = cod_search_structures(
-        formula='RbCd4Ga3S9',
-        max_results=5,
-        include_cifs=True
-    )
-    if cod_results['count'] > 0:
-        # Use first result as seed structure
-        seed_cif = cod_results['structures'][0]['cif']
-        # Convert CIF string → pymatgen Structure for downstream tools
-        from pymatgen.core import Structure
-        seed_structure = Structure.from_str(seed_cif, fmt='cif')
-```
-
-**Output:** One or more seed structure(s) with CIF content, or empty if not in any database
-
-#### 4. ICSD Substitution Prediction from a Seed
+#### Phase C: Substitution Prediction from a Seed
 
 **Tool:** `pymatgen_substitution_predictor`
 
@@ -123,12 +139,16 @@ predictions = pymatgen_substitution_predictor(
 
 ```
 Do you already know the seed formula?
-└─ YES: Query MP first → found? Use MP structure (rich properties).
-│       Not in MP? → Query COD → found? Use COD experimental CIF.
-│       Not in either? → Build from prototype (Phase 1).
+└─ YES: Search COD and MP.
+    ├─ Found in BOTH — Choose based on need:
+    │   - Experimental geometry + literature metadata → COD
+    │   - DFT-validated geometry + computed properties → MP
+    ├─ Found in COD only — Use COD experimental structure (perfectly valid)
+    ├─ Found in MP only — Use MP DFT structure (with property data)
+    └─ Found in NEITHER — Build from prototype (Phase 1)
 └─ NO:
     └─ Is there a known material family or analogue set?
-        └─ YES: Search MP templates → choose seed
+        └─ YES: Search both databases for templates → choose seed
         └─ NO: Use substitution prediction or external literature first
 ```
 
@@ -136,9 +156,9 @@ Do you already know the seed formula?
 
 ## Phase 1: Seed Structure Building
 
-**When to use:** Need to build structure from scratch (no MP structure available)
+**When to use:** Need to build structure from scratch (not found in MP, COD, CIF, or ASE database)
 
-**Skip if:** Structure already exists from MP, CIF, or ASE database
+**Skip if:** Structure already exists from MP, COD, CIF, or ASE database
 
 ### Common Crystal Prototypes
 
@@ -176,11 +196,22 @@ O_radius = Species("O", -2).ionic_radius
 a = 2 * (Li_radius + O_radius)
 ```
 
-3. **Database lookup from similar:**
+3. **Database lookup from similar (search both databases):**
 ```python
-# Find similar material in MP
-similar = mp_search_materials(elements=['Li', 'Fe', 'O'])
-a_estimate = similar[0]['lattice']['a']
+# Find similar material in MP or COD for lattice parameter estimates
+mp_similar = mp_search_materials(elements=['Li', 'Fe', 'O'])
+cod_similar = cod_search_structures(elements=['Li', 'Fe', 'O'], max_results=5)
+
+# Use whichever gives you the closest analogue
+if mp_similar['count'] > 0:
+    a_estimate = mp_similar['materials'][0].get('lattice', {}).get('a', 4.2)
+elif cod_similar['count'] > 0:
+    # COD doesn't return lattice params in metadata, so fetch the CIF
+    cod_cif = cod_search_structures(
+        elements=['Li', 'Fe', 'O'], max_results=1, include_cifs=True
+    )
+    # Parse from CIF to extract lattice parameters
+    a_estimate = 4.2  # fallback if parsing fails
 ```
 
 ### Building Example
@@ -616,18 +647,36 @@ for i, poscar_string in enumerate(result['structures']):
 ### Sequential Workflow Example
 
 ```python
-# Phase 0: Choose a seed material
-seed_formula = 'LiVO2'
-seed_search = mp_search_materials(formula=seed_formula, limit=1)
+# Phase 0: Choose a seed material — search both MP and COD
+seed_formula = 'RbCd4Ga3S9'
 
-# Phase 1: Retrieve seed structure from MP or build a prototype fallback
-if seed_search['count'] > 0:
+cod_results = cod_search_structures(
+    formula=seed_formula, max_results=5, include_cifs=True
+)
+mp_results = mp_search_materials(formula=seed_formula, limit=5)
+
+# Phase 1: Retrieve seed structure — use whichever source found it
+seeds = []
+
+if cod_results['count'] > 0:
+    # COD has the experimentally determined structure
+    seed_cif = cod_results['structures'][0]['cif']
+    seeds.append(seed_cif)
+    logger.info(f"Using COD structure: {cod_results['structures'][0]['cod_id']}")
+
+elif mp_results['count'] > 0:
+    # MP has a DFT-validated structure with property data
+    mp_id = mp_results['materials'][0]['material_id']
     seed_props = mp_get_material_properties(
-        material_ids=[seed_search['material_ids'][0]],
+        material_ids=[mp_id],
         properties=['structure']
     )
-    seeds = [seed_props['properties'][0]['structure']]
-else:
+    if 'structure' in seed_props['properties'][0]:
+        seeds.append(seed_props['properties'][0]['structure']['cif'])
+        logger.info(f"Using MP structure: {mp_id}")
+
+if not seeds:
+    # Neither database — build from prototype
     seed = pymatgen_prototype_builder(
         spacegroup=225,
         species=['Li', 'V', 'O', 'O'],
@@ -663,12 +712,21 @@ for struct in ordered:
 ### Branching Workflow Example
 
 ```python
-# Start with MP structure
-base = mp_get_material_properties(material_ids=['mp-24850'])
+# Start with structure from MP or COD
+try:
+    # Prefer MP for property-rich seeds
+    base = mp_get_material_properties(material_ids=['mp-24850'])
+    base_structure = base['properties'][0]['structure']['cif']
+    logger.info("Using MP seed (with DFT property data available)")
+except:
+    # Fall back to COD experimental structure
+    cod = cod_search_structures(formula='LiCoO2', max_results=1, include_cifs=True)
+    base_structure = cod['structures'][0]['cif']
+    logger.info("Using COD seed (experimentally determined)")
 
 # Branch A: Ion exchange for battery analogues
 ion_exchanged = pymatgen_ion_exchange_generator(
-    input_structures=base['structure'],
+    input_structures=base_structure,
     replace_ion='Li+',
     with_ions=['Na+', 'Mg2+', 'Ca2+'],
     ...
@@ -676,7 +734,7 @@ ion_exchanged = pymatgen_ion_exchange_generator(
 
 # Branch B: Substitution for composition space
 substituted = pymatgen_substitution_generator(
-    input_structures=base['structure'],
+    input_structures=base_structure,
     substitutions={'Co': ['Ni', 'Mn', 'Fe']},
     ...
 )

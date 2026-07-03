@@ -37,11 +37,13 @@ as CIF files in the output directory.
 #    - Customize: Add tool name validation, default tools per batch type
 #
 # 2. BASE STRUCTURE RESOLUTION (line ~475-510)
-#    - Default: Tries multiple fallback options:
-#      * tool_parameters.base_mp_id (direct MP ID)
-#      * candidate.base_composition (formula to search)
-#      * batch.base_structure_query.formula (batch-level default)
-#      * batch.base_structure_query.mp_id (batch-level direct ID)
+#    - Default: Tries multiple sources in priority order:
+#      * tool_parameters.base_mp_id / base_cod_id / material_id
+#      * candidate.base_mp_id / base_cod_id / material_id
+#      * candidate.base_composition (formula to search MP, fallback COD)
+#      * batch.base_structure_query.mp_id / cod_id / formula
+#    - COD support: pass base_cod_id for direct COD lookups, or just a formula
+#      and the generator will try MP first, then COD
 #    - Customize: Add support for local CIF files, prototype generation, etc.
 #
 # 3. TOOL PARAMETERS (line ~325)
@@ -148,10 +150,14 @@ class BatchGenerator:
     
     async def get_base_structure(self, material_id: str) -> Optional[str]:
         """
-        Get base structure from Materials Project with caching.
+        Get base structure from Materials Project or COD with caching.
+
+        Supports both MP IDs (e.g., "mp-4591") and COD IDs (e.g., "cod-1522217").
+        If the ID starts with "mp-", queries MP. If it starts with "cod-",
+        queries COD. Otherwise, treats as an MP ID.
 
         Args:
-            material_id: Materials Project ID (e.g., "mp-4591")
+            material_id: Material ID (e.g., "mp-4591" or "cod-1522217")
 
         Returns:
             CIF string or None if error
@@ -160,8 +166,49 @@ class BatchGenerator:
         if material_id in self.base_cache:
             logger.debug(f"Using cached base structure {material_id}")
             return self.base_cache[material_id]
-        
-        # Fetch from Materials Project
+
+        # Route to the right database based on ID prefix
+        is_cod = material_id.lower().startswith("cod-")
+        db_name = "COD" if is_cod else "Materials Project"
+
+        if is_cod:
+            cod_id = material_id.replace("cod-", "")
+            try:
+                cod_id_int = int(cod_id)
+            except ValueError:
+                logger.error(f"[ERROR] Invalid COD ID: {material_id}")
+                return None
+
+            logger.info(f"Fetching base structure {material_id} from COD...")
+            try:
+                result = await async_call_tool(
+                    "cod_search_structures",
+                    cod_ids=[cod_id_int],
+                    include_cifs=True,
+                    max_results=1
+                )
+
+                if result and result.get('count', 0) > 0:
+                    structure_data = result['structures'][0]
+                    cif_string = structure_data.get('cif')
+                    if cif_string:
+                        self.base_cache[material_id] = cif_string
+                        logger.info(f"[OK] Fetched {material_id} from COD "
+                                    f"({structure_data.get('formula', '?')})")
+                        return cif_string
+                    else:
+                        logger.error(f"[ERROR] No CIF data in COD result for {material_id}")
+                else:
+                    logger.error(f"[ERROR] COD ID {material_id} not found")
+                return None
+
+            except Exception as e:
+                import traceback
+                logger.error(f"[ERROR] Error fetching {material_id} from COD: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return None
+
+        # MP path (existing logic)
         logger.info(f"Fetching base structure {material_id} from Materials Project...")
         try:
             result = await async_call_tool(
@@ -262,19 +309,23 @@ class BatchGenerator:
     
     async def find_material_id(self, formula: str) -> Optional[str]:
         """
-        Find Materials Project ID for a given formula.
+        Find structure ID for a given formula.
+
+        Searches MP first (for rich property data), then falls back to COD
+        if not found. Returns "mp-XXXX" or "cod-XXXX" format IDs.
 
         Args:
             formula: Chemical formula (e.g., "SrNb2O6")
 
         Returns:
-            Material ID (e.g., "mp-4591") or None if not found
+            Material ID (e.g., "mp-4591" or "cod-1522217") or None if not found
         """
         # Check cache first
         if formula in self.formula_to_id_cache:
             logger.debug(f"  Using cached material ID for {formula}")
             return self.formula_to_id_cache[formula]
         
+        # Try MP first
         try:
             logger.info(f"  Searching Materials Project for {formula}...")
             result = await async_call_tool(
@@ -285,9 +336,8 @@ class BatchGenerator:
 
             if not result or 'materials' not in result:
                 logger.error(f"  Error parsing mp_search_materials response. Check tool response format.")
-                return None
-            
-            if len(result['materials']) > 0:
+                # Fall through to COD
+            elif len(result['materials']) > 0:
                 # Prefer stable materials (energy_above_hull = 0)
                 stable_materials = [
                     m for m in result['materials'] 
@@ -296,22 +346,44 @@ class BatchGenerator:
                 
                 if stable_materials:
                     material_id = stable_materials[0]['material_id']
-                    logger.info(f"  Found stable material: {material_id}")
+                    logger.info(f"  Found stable material on MP: {material_id}")
                 else:
                     # No stable materials, take the first one
                     material_id = result['materials'][0]['material_id']
-                    logger.warning(f"  No stable materials found, using {material_id}")
+                    logger.warning(f"  No stable materials found on MP, using {material_id}")
                 
                 # Cache the result
                 self.formula_to_id_cache[formula] = material_id
                 return material_id
             else:
-                logger.error(f"  No materials found for formula {formula}")
-                return None
+                logger.warning(f"  No materials found on MP for {formula}")
+        except Exception as e:
+            logger.warning(f"  MP search error for {formula}: {e}")
+        
+        # Fall back to COD
+        try:
+            logger.info(f"  Searching COD for {formula}...")
+            cod_result = await async_call_tool(
+                "cod_search_structures",
+                formula=formula,
+                max_results=5,
+                include_cifs=False
+            )
+
+            if cod_result and cod_result.get('count', 0) > 0:
+                # Use the first matching COD entry
+                cod_id = cod_result['structures'][0]['cod_id']
+                material_id = f"cod-{cod_id}"
+                logger.info(f"  Found structure on COD: {material_id}")
+                self.formula_to_id_cache[formula] = material_id
+                return material_id
+            else:
+                logger.error(f"  No structures found on COD for {formula}")
                 
         except Exception as e:
-            logger.error(f"  Error searching for {formula}: {e}")
-            return None
+            logger.error(f"  COD search error for {formula}: {e}")
+        
+        return None
     
     def save_structure(self, candidate_id: str, formula: str, structure_data: str) -> Path:
         """
@@ -370,28 +442,35 @@ class BatchGenerator:
             # =========================================================
             # FLEXIBLE BASE STRUCTURE RESOLUTION
             # Tries multiple sources in priority order:
-            # 1. Direct MP ID in tool_parameters
-            # 2. Direct MP ID in candidate
-            # 3. Formula in candidate (search MP)
-            # 4. Formula in batch query (search MP)
-            # 5. Direct MP ID in batch query
+            # 1. Direct MP/COD ID in tool_parameters
+            # 2. Direct MP/COD ID in candidate
+            # 3. Formula in candidate (search MP, fallback COD)
+            # 4. Formula in batch query (search MP, fallback COD)
+            # 5. Direct MP/COD ID in batch query
             # =========================================================
             
             base_cif = None
             base_id = None
             
-            # Priority 1: Direct MP ID in tool_parameters
+            # Priority 1: Direct MP or COD ID in tool_parameters
             tool_params = candidate.get('tool_parameters', {})
-            if 'base_mp_id' in tool_params:
-                base_id = tool_params['base_mp_id']
-                logger.debug(f"  Using base_mp_id from tool_parameters: {base_id}")
-                base_cif = await self.get_base_structure(base_id)
+            for id_key in ('base_mp_id', 'base_cod_id', 'material_id'):
+                if id_key in tool_params:
+                    base_id = tool_params[id_key]
+                    logger.debug(f"  Using {id_key} from tool_parameters: {base_id}")
+                    base_cif = await self.get_base_structure(base_id)
+                    if base_cif:
+                        break
             
-            # Priority 2: Direct MP ID at candidate level
-            elif 'base_mp_id' in candidate:
-                base_id = candidate['base_mp_id']
-                logger.debug(f"  Using base_mp_id from candidate: {base_id}")
-                base_cif = await self.get_base_structure(base_id)
+            # Priority 2: Direct MP or COD ID at candidate level
+            if not base_cif:
+                for id_key in ('base_mp_id', 'base_cod_id', 'material_id'):
+                    if id_key in candidate:
+                        base_id = candidate[id_key]
+                        logger.debug(f"  Using {id_key} from candidate: {base_id}")
+                        base_cif = await self.get_base_structure(base_id)
+                        if base_cif:
+                            break
             
             # Priority 3: Formula in candidate (search MP)
             elif 'base_composition' in candidate:
@@ -404,11 +483,15 @@ class BatchGenerator:
             # Priority 4 & 5: Batch-level defaults
             elif 'base_structure_query' in batch:
                 base_query = batch['base_structure_query']
-                
-                # Try direct MP ID first
+            
+                # Try direct MP ID or COD ID first
                 if 'mp_id' in base_query:
                     base_id = base_query['mp_id']
                     logger.debug(f"  Using mp_id from batch query: {base_id}")
+                    base_cif = await self.get_base_structure(base_id)
+                elif 'cod_id' in base_query:
+                    base_id = f"cod-{base_query['cod_id']}"
+                    logger.debug(f"  Using cod_id from batch query: {base_id}")
                     base_cif = await self.get_base_structure(base_id)
                 
                 # Fall back to formula search
@@ -423,7 +506,7 @@ class BatchGenerator:
             if not base_cif:
                 raise ValueError(
                     f"Could not resolve base structure. Tried: "
-                    f"tool_parameters.base_mp_id, candidate.base_mp_id, "
+                    f"tool_parameters.base_mp_id/base_cod_id, candidate.base_mp_id/base_cod_id, "
                     f"candidate.base_composition, batch.base_structure_query"
                 )
             
