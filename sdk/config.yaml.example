@@ -18,7 +18,7 @@ transport: http
 http:
   url: http://localhost:5000
   verify_ssl: true
-  timeout: 180
+  timeout: 600
 
 # Stdio Configuration (used when transport: stdio)
 # Uncomment and configure if using stdio transport
@@ -26,4 +26,4 @@ http:
 #   command: "python /path/to/MatClaw/mcp/server.py"
 
 # Global timeout (seconds) - used by both transports
-timeout: 180
+timeout: 600

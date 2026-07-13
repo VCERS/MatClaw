@@ -4,6 +4,13 @@ MatClaw MCP Server
 
 from dotenv import load_dotenv
 import logging
+
+from utils.stdio_guard import redirect_stdout_to_stderr
+
+# Route stray stdout writes to stderr so they can't corrupt the MCP stdio JSON-RPC
+# stream. Must run before importing tools that may print at import time.
+redirect_stdout_to_stderr()
+
 from mcp.server.fastmcp import FastMCP
 from tools.pubchem import (
     pubchem_search_compounds,
@@ -106,6 +113,26 @@ from tools.urdf import (
 from tools.lula import (
     lula_generate_robot_description,
 )
+from tools.dft import (
+    dft_prepare_calculation,
+    dft_submit_calculation,
+    dft_get_calculation_status,
+    dft_fetch_results,
+    dft_cancel_calculation,
+    dft_restart_calculation,
+)
+from tools.orca import (
+    orca_scan_output_files,
+    orca_pick_output,
+    orca_summarize_output,
+    orca_batch_summarize_outputs,
+    orca_validate_environment,
+    orca_validate_calc_dir,
+    orca_find_matching_gbw,
+    orca_generate_mo_cube,
+    orca_generate_homo_lumo_cubes,
+    orca_generate_density_esp_cubes,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -116,6 +143,11 @@ load_dotenv()
 
 # Initialize MCP server
 mcp = FastMCP(name="matclaw-mcp-server")
+# Disable DNS rebinding protection — server host binding is controlled via --host
+mcp.settings.transport_security = None
+# Enable stateless JSON mode for HTTP transport (required for multi-worker)
+mcp.settings.stateless_http = True
+mcp.settings.json_response = True
 
 # Add tools
 # COD tools
@@ -215,6 +247,30 @@ mcp.tool()(urdf_inspect)
 # Lula robot description generation
 mcp.tool()(lula_generate_robot_description)
 
+# DFT job-lifecycle tools (VASP + ORCA via engine dispatch)
+mcp.tool()(dft_prepare_calculation)
+mcp.tool()(dft_submit_calculation)
+mcp.tool()(dft_get_calculation_status)
+mcp.tool()(dft_fetch_results)
+mcp.tool()(dft_cancel_calculation)
+mcp.tool()(dft_restart_calculation)
+
+# ORCA analysis and cube-generation tools
+mcp.tool()(orca_scan_output_files)
+mcp.tool()(orca_pick_output)
+mcp.tool()(orca_summarize_output)
+mcp.tool()(orca_batch_summarize_outputs)
+mcp.tool()(orca_validate_environment)
+mcp.tool()(orca_validate_calc_dir)
+mcp.tool()(orca_find_matching_gbw)
+mcp.tool()(orca_generate_mo_cube)
+mcp.tool()(orca_generate_homo_lumo_cubes)
+mcp.tool()(orca_generate_density_esp_cubes)
+
+
+def get_http_app():
+    """Return the streamable-http Starlette app (for multi-worker uvicorn)."""
+    return mcp.streamable_http_app()
 
 
 if __name__ == "__main__":
@@ -238,6 +294,12 @@ if __name__ == "__main__":
         default="127.0.0.1",
         help="Host for streamable-http transport (default: 127.0.0.1)"
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of uvicorn workers for HTTP mode (default: 1)"
+    )
     args = parser.parse_args()
 
     if args.transport == "stdio":
@@ -246,11 +308,20 @@ if __name__ == "__main__":
     else:
         logger.info(
             f"Starting MatClaw MCP Server ({args.transport}) "
-            f"on {args.host}:{args.port}"
+            f"on {args.host}:{args.port} with {args.workers} worker(s)"
         )
-        # Enable stateless JSON mode for HTTP transport
-        mcp.settings.stateless_http = True
-        mcp.settings.json_response = True
         mcp.settings.host = args.host
         mcp.settings.port = args.port
-        mcp.run(transport=args.transport)
+
+        if args.workers > 1:
+            import uvicorn
+            uvicorn.run(
+                "server:get_http_app",
+                host=args.host,
+                port=args.port,
+                workers=args.workers,
+                log_level=mcp.settings.log_level.lower(),
+                factory=True,
+            )
+        else:
+            mcp.run(transport=args.transport)

@@ -11,7 +11,7 @@ description: |
   - Materials classes: "battery cathodes", "perovskites", "isostructural analogues", "high-entropy oxides", "defects"
   - Configuration space: "enumerate orderings", "SQS generation", "disorder-to-ordered", "vacancy defects", "interstitials"
   - Scale: "generate 50 structures", "100 candidates", "high-throughput", "ML training set", "candidate library"
-  - Starting points: Element lists ("Li-Mn-P-O system"), formulas ("LiCoO2 analogues"), structure types ("olivine"), ICSD/MP/COD IDs
+  - Starting points: Element lists ("Li-Mn-P-O system"), formulas ("LiCoO2 analogues"), structure types ("olivine"), ICSD/MP/COD IDs, COD entries ("cod-1522217")
   - Workflows: "prototype matching", "lattice perturbation", "supercell expansion"
   
   **Complete pipeline coverage:**
@@ -30,7 +30,8 @@ Structure generation follows a **funnel process**: start broad (many composition
 
 **Complete pipeline:**
 ```
-Phase 1: Compositions → Seed Structures (if no template exists)  
+Phase 0: Compositions → Seed Retrieval (search MP + COD in parallel)
+Phase 1: Prototype Building (only if neither database has the compound)  
 Phase 2: Seed Structures → Chemical Variants (substitution, doping, ion exchange)
 Phase 3: Ordered/Disordered → Resolved Structures (enumeration, SQS, majority-species)
 Phase 4: Structures → Defect Supercells (vacancies, substitutions, interstitials)
@@ -40,20 +41,19 @@ Phase 6: All → Per-candidate directory storage + ASE database index
 
 **Entry points match your starting information:**
 - Elements only (Li-Mn-P-O)? → Start Phase 1
-- Composition known (LiMnPO₄) but no structure? → **Search both `mp_search_materials` and `cod_search_structures`** for a seed before falling back to prototype building.
+- Composition known (LiMnPO₄) but no structure? → **Search BOTH `mp_search_materials` and `cod_search_structures` in parallel** for a seed before falling back to prototype building. These databases are complementary — COD has experimental structures from published literature, MP has DFT-validated structures with computed properties. Use whichever source gives you the best starting point (see Phase 0 in phase-guides).
 - Structure from MP/COD/CIF/ASE exists? → Start Phase 2 (or skip to Phase 3-5)
 
 **Working principles:**
 1. **MCP tools generate complete structures** — Every tool returns CIF/POSCAR with atom positions, unit cell, spacegroup. Custom formula generators without structures cannot be validated or screened.
 2. **Organize candidates in a `candidates/` directory** — Each candidate gets its own subdirectory named clearly (e.g., `candidates/005_RbGaS2/`). This directory stores provenance metadata, unrelaxed structures, relaxed structures, and any downstream data for that candidate.
-3. **ASE database is central index** — Use ASE database for cross-candidate queries and property enrichment, but keep the canonical outputs in the per-candidate directory structure.
 4. **Metadata enables screening** — Tag structures with `requires_ordering`, `doping_concentration`, `host_formula` so candidate-screener knows how to handle disorder.
 5. **Scale requires planning** — For N > 20 candidates, create a planning file first to avoid tool timeout/memory issues (see [references/phase-guides.md](references/phase-guides.md)).
 
 > **Why use MCP tools instead of scripts?** Because materials discovery needs real crystal structures (atom positions + lattice parameters) to:
 > - Validate geometry (coordination, bond lengths) before expensive calculations
 > - Run ML predictions (MatGL) or DFT (VASP) on actual atomic configurations
-> - Check thermodynamic stability (energy above hull from Materials Project API)  
+> - Check thermodynamic stability (energy above hull from MP's API) or match experimental XRD (COD's experimental structures)  
 > - Export to synthesis planning (experimental precursor prediction needs spatial arrangement)
 >
 > A formula string like "LiₓCoO₂" without atomic positions is scientifically invalid for screening
@@ -64,14 +64,28 @@ Phase 6: All → Per-candidate directory storage + ASE database index
 
 **For complete detailed instructions, algorithms, parameter tables, and decision logic, see [references/phase-guides.md](references/phase-guides.md).**
 
-### Phase 1: Seed Structure Building
+### Phase 1: Seed Structure Retrieval
 
-**When:** Need to build structure from scratch (no MP/COD/CIF template available)  
+**When:** Need a crystal structure from a known composition (formula or ID)  
 **Skip if:** Structure already exists
 
+**Always search both databases in parallel — they are complementary sources:**
+
+| Source | What it provides | Best for |
+|--------|-----------------|----------|
+| `cod_search_structures` | Experimentally determined structures from published crystallography | Novel compounds, niche chemistries, literature-matched seeds, quaternary+ chalcogenides, anything unlikely to be in computational databases |
+| `mp_search_materials` | DFT-validated structures with computed properties | Seeds where you want thermodynamic stability data, band structure, elastic constants alongside the geometry |
+
+**Search strategy:**
+1. **Both databases simultaneously** — Don't assume one will miss. Many compounds exist in both, some only in one.
+2. **If both find structures:** COD often has more chemistries (experimentally observed phases), MP has richer metadata. Pick the better seed for your goal — not just whichever you check first.
+3. **If only COD finds it:** Use the COD CIF directly. This is the experimentally verified structure — perfectly valid for generation.
+4. **If only MP finds it:** Use the MP structure and enjoy the free property data.
+5. **If neither finds it:** Fall back to prototype building (see [references/phase-guides.md](references/phase-guides.md)).
+
 **Before falling back to prototype building, always search both databases:**
-1. `mp_search_materials(formula=...)` — rich DFT properties available if found
-2. `cod_search_structures(formula=...)` — fills the gap for experimental/niche compounds not in MP
+1. `cod_search_structures(formula=...)` — experimentally verified structures
+2. `mp_search_materials(formula=...)` — rich DFT properties available if found
 
 Only reach for `pymatgen_prototype_builder` when neither database has the compound.
 
@@ -208,8 +222,6 @@ candidates/
 
 Naming convention: `NNN_Formula` where `NNN` is a zero-padded index and `Formula` is a clear, human-readable reduced formula. This makes candidates easy to reference across tools and scripts.
 
-**ASE database as cross-candidate index:** Store generated structures in ASE for downstream retrieval, property enrichment, and batch filtering. Convert CIF/POSCAR outputs with the dedicated ASE conversion step, then store with metadata:
-
 **Essential metadata fields:**
 ```python
 metadata = {
@@ -253,10 +265,10 @@ ase_store_result(
 
 | Phase | Tool | Purpose | Key Decision |
 |-------|------|---------|--------------|
+| 0 | `mp_search_materials` + `mp_get_material_properties` | Template structures (DFT) | Elements, stability filter; best for property-rich seeds |
+| 0 | `cod_search_structures` | Template structures (experimental) | Experimentally-verified compounds; best for niche chemistries |
 | 0 | `pymatgen_substitution_predictor` | ICSD-guided substitutions | Uses lambda-scaling |
-| 0 | `mp_search_materials` | Template structures (DFT) | Elements, stability filter |
-| 0 | `cod_search_structures` | Template structures (experimental) | Niche/niche compounds not in MP |
-| 1 | `pymatgen_prototype_builder` | Build from spacegroup | Need lattice parameter estimate |
+| 1 | `pymatgen_prototype_builder` | Build from spacegroup (fallback) | Need lattice parameter estimate |
 | 2A | `pymatgen_ion_exchange_generator` | Charge-neutral substitution | Auto stoichiometry adjustment |
 | 2B | `pymatgen_substitution_generator` | Ordered enumeration | Integer occupancy |
 | 3 | `pymatgen_disorder_generator` | Create fractional occupancy | Statistical doping |
@@ -290,9 +302,11 @@ ase_store_result(
 
 ```
 What do you have?
-├─ Composition (LiCoO₂) → Check MP for structure
-│   ├─ Found on MP → Phase 2 (chemical exploration)
-│   └─ Not found → Phase 1 (prototype building)
+├─ Composition (LiCoO₂) → Search MP AND COD in parallel for structure
+│   ├─ Found on MP → Phase 2 (chemical exploration, with DFT properties available)
+│   ├─ Found on COD only → Phase 2 (experimentally-verified structure)
+│   ├─ Found on both → Prefer COD for experimental chemistry, MP for property-rich DFT seed
+│   └─ Not found in either → Phase 1 (prototype building)
 ├─ Structure (CIF/POSCAR) → Phase 2/3/4/5 depending on goal
 │   ├─ Want chemical variants? → Phase 2
 │   ├─ Has disorder? → Phase 3
@@ -360,9 +374,14 @@ Is structure disordered?
 ```python
 # Goal: Screen Li-O, Na-O, K-O, Mg-O rocksalt structures
 
-# Get rocksalt template (LiF)
+# Get rocksalt template (LiF) — try MP or COD
 mp_result = mp_search_materials(formula="LiF", limit=1)
-lif_structure_cif = mp_result['structures'][0]
+if mp_result['count'] > 0:
+    lif_structure_cif = mp_result['structures'][0]
+else:
+    # Fall back to COD
+    cod_result = cod_search_structures(formula="LiF", max_results=1, include_cifs=True)
+    lif_structure_cif = cod_result['structures'][0]['cif']
 
 # Phase 2: Substitute Li with Na, K, Mg
 result = pymatgen_substitution_generator(

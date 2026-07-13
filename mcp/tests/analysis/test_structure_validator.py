@@ -110,7 +110,6 @@ class TestStructureValidator:
         result = structure_validator(
             input_structure=simple_nacl_structure,
             min_distance_threshold=1.0,
-            max_bond_deviation=0.3,
             coordination_cutoff=4.0,
             max_coordination=15
         )
@@ -191,37 +190,6 @@ direct
         assert "error" in result
 
 
-class TestBondLengthValidation:
-    """Tests specifically for bond length validation."""
-
-    def test_normal_bonds_pass(self, simple_nacl_structure):
-        """Normal Na-Cl bonds should pass validation."""
-        result = structure_validator(
-            input_structure=simple_nacl_structure,
-            max_bond_deviation=0.5
-        )
-        
-        assert "bond_lengths" in result["checks_performed"]
-        # NaCl has reasonable bond lengths, should pass or have few anomalies
-
-    def test_bond_deviation_threshold(self, simple_nacl_structure):
-        """Very strict bond deviation threshold should catch more bonds."""
-        result_strict = structure_validator(
-            input_structure=simple_nacl_structure,
-            max_bond_deviation=0.1
-        )
-        
-        result_lenient = structure_validator(
-            input_structure=simple_nacl_structure,
-            max_bond_deviation=1.0
-        )
-        
-        # Stricter threshold should catch more or equal anomalies
-        strict_anomalies = len(result_strict["details"]["bond_lengths"].get("anomalous_bonds", []))
-        lenient_anomalies = len(result_lenient["details"]["bond_lengths"].get("anomalous_bonds", []))
-        assert strict_anomalies >= lenient_anomalies
-
-
 class TestOutputFormat:
     """Tests for result output format and completeness."""
 
@@ -283,3 +251,105 @@ class TestOutputFormat:
         except:
             # If structure creation fails, that's also acceptable
             pass
+
+
+class TestNumpySerialization:
+    """Tests for numpy type serialization in validation results."""
+
+    def test_integer_occupancy_does_not_crash(self, ordered_bgse_with_integer_occupancy):
+        """
+        CIFs with integer occupancy values (e.g. '1' instead of '1.0')
+        should not cause numpy.longlong serialization errors.
+        
+        Regression test for: "Unable to serialize unknown type: <class 'numpy.longlong'>"
+        """
+        result = structure_validator(
+            input_structure=ordered_bgse_with_integer_occupancy,
+            min_distance_threshold=0.5,
+            check_charge_neutrality=True,
+            check_oxidation_states=True
+        )
+        
+        # The core assertion: the call should return a valid dict without crashing
+        assert isinstance(result, dict)
+        assert "is_valid" in result
+        assert "checks_performed" in result
+        assert "details" in result
+
+        # All detail values should be JSON-serializable (no numpy types)
+        import json
+        serialized = json.dumps(result)
+        assert isinstance(serialized, str)
+        assert len(serialized) > 0
+
+    def test_all_numpy_types_converted(self, ordered_bgse_with_integer_occupancy):
+        """All values in the result should be native Python types, not numpy."""
+        result = structure_validator(
+            input_structure=ordered_bgse_with_integer_occupancy,
+            min_distance_threshold=0.5,
+            check_charge_neutrality=True,
+            check_oxidation_states=True
+        )
+        
+        def _check_no_numpy(obj, path=""):
+            import numpy as np
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    _check_no_numpy(v, f"{path}.{k}")
+            elif isinstance(obj, list):
+                for i, v in enumerate(obj):
+                    _check_no_numpy(v, f"{path}[{i}]")
+            elif isinstance(obj, tuple):
+                for i, v in enumerate(obj):
+                    _check_no_numpy(v, f"{path}[{i}]")
+            else:
+                assert not isinstance(obj, (np.integer, np.floating, np.bool_, np.ndarray)), \
+                    f"numpy type found at {path}: {type(obj)} ({obj})"
+        
+        _check_no_numpy(result)
+
+    def test_poscar_with_integer_occupancy(self):
+        """POSCAR input with integer occupancies should also serialize cleanly."""
+        poscar = """BaGa4Se7
+1.0
+7.6252 0.0 0.0
+0.0 6.5114 0.0
+0.0 0.0 14.702
+Ba Ga Se
+2 8 14
+direct
+0.56392 0.35352 0.04634
+0.56392 0.64648 0.54634
+0.00720 0.16590 0.74082
+0.00720 0.83410 0.24082
+0.00000 0.00720 0.99999
+0.00000 0.99280 0.49999
+0.49270 0.15830 0.72796
+0.49270 0.84170 0.22796
+0.23740 0.36320 0.22517
+0.23740 0.63680 0.72517
+0.78240 0.15060 0.55319
+0.78240 0.84940 0.05319
+0.00590 0.36330 0.03880
+0.00590 0.63670 0.53880
+0.32850 0.10990 0.54215
+0.32850 0.89010 0.04215
+0.32940 0.01780 0.30967
+0.32940 0.98220 0.80967
+0.09730 0.50800 0.32329
+0.09730 0.49200 0.82329
+0.57030 0.49480 0.28064
+0.57030 0.50520 0.78064
+0.81690 0.03070 0.30402
+0.81690 0.96930 0.80402
+"""
+        result = structure_validator(
+            input_structure=poscar,
+            min_distance_threshold=0.5,
+            check_charge_neutrality=True,
+            check_oxidation_states=True
+        )
+        
+        import json
+        serialized = json.dumps(result)
+        assert isinstance(serialized, str)

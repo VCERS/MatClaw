@@ -23,9 +23,9 @@ Design conventions:
 - Parsing is heuristic and assumes standard ORCA output formatting
 
 Recommended usage with MCP and skills:
-1. Use `summarize_orca_output()` as the main single-file analysis entry point.
-2. Use `batch_summarize_orca_outputs()` for recursive batch analysis.
-3. Use `pick_orca_output()` only when the workflow truly needs automatic
+1. Use `orca_summarize_output()` as the main single-file analysis entry point.
+2. Use `orca_batch_summarize_outputs()` for recursive batch analysis.
+3. Use `orca_pick_output()` only when the workflow truly needs automatic
    selection from a directory with one or more candidate `.out` files.
 4. Always inspect `warnings` before presenting results as fully reliable.
 
@@ -162,12 +162,12 @@ def _looks_like_orca_output(text: str) -> bool:
     return any(m in text for m in markers)
 
 
-def scan_orca_output_files(root_dir: str) -> Dict[str, Any]:
+def orca_scan_output_files(root_dir: str) -> Dict[str, Any]:
     """Recursively scan a directory for ORCA `.out` files.
 
     Recommended use:
     - Use this as a low-level discovery helper in batch workflows.
-    - Higher-level skills usually should prefer `batch_summarize_orca_outputs()`
+    - Higher-level skills usually should prefer `orca_batch_summarize_outputs()`
       instead of using this function directly.
 
     Args:
@@ -220,7 +220,7 @@ def scan_orca_output_files(root_dir: str) -> Dict[str, Any]:
     }
 
 
-def pick_orca_output(calc_dir: str, preference: str = "optimization") -> Dict[str, Any]:
+def orca_pick_output(calc_dir: str, preference: str = "optimization") -> Dict[str, Any]:
     """Select the most relevant ORCA output file from a calculation directory.
 
     This is a low-level helper for directory-based workflows. It scores `.out`
@@ -390,11 +390,11 @@ def pick_orca_output(calc_dir: str, preference: str = "optimization") -> Dict[st
     }
 
 
-def check_orca_convergence(out_file: str) -> Dict[str, Any]:
+def _check_orca_convergence(out_file: str) -> Dict[str, Any]:
     """Check normal termination and inferred convergence state for an ORCA output.
 
     This function is intended for single-file analysis workflows and is commonly
-    used inside `summarize_orca_output()`.
+    used inside `orca_summarize_output()`.
 
     Args:
         out_file:
@@ -485,7 +485,7 @@ def check_orca_convergence(out_file: str) -> Dict[str, Any]:
     }
 
 
-def extract_final_single_point_energy(out_file: str) -> Dict[str, Any]:
+def _extract_final_single_point_energy(out_file: str) -> Dict[str, Any]:
     """Extract the last `FINAL SINGLE POINT ENERGY` from an ORCA output file.
 
     This function is suitable for standard ORCA outputs that include a
@@ -537,7 +537,7 @@ def extract_final_single_point_energy(out_file: str) -> Dict[str, Any]:
     }
 
 
-def extract_homo_lumo(out_file: str) -> Dict[str, Any]:
+def _extract_homo_lumo(out_file: str) -> Dict[str, Any]:
     """Extract HOMO/LUMO orbital indices and energies from an ORCA output file.
 
     This function is intended for standard ORCA orbital tables and is most
@@ -675,7 +675,7 @@ def extract_homo_lumo(out_file: str) -> Dict[str, Any]:
     }
 
 
-def check_imaginary_frequencies(out_file: str) -> Dict[str, Any]:
+def _check_imaginary_frequencies(out_file: str) -> Dict[str, Any]:
     """Detect imaginary vibrational frequencies in an ORCA output file.
 
     This function is intended for standard ORCA frequency-analysis outputs.
@@ -752,7 +752,7 @@ def check_imaginary_frequencies(out_file: str) -> Dict[str, Any]:
     }
 
 
-def summarize_orca_output(out_file: str) -> Dict[str, Any]:
+def orca_summarize_output(out_file: str) -> Dict[str, Any]:
     """Summarize key information from a single ORCA output file.
 
     This is a recommended high-level entry point for single-file ORCA analysis
@@ -783,10 +783,10 @@ def summarize_orca_output(out_file: str) -> Dict[str, Any]:
     - Inspect nested warnings before presenting the summary as fully reliable,
       especially for orbital and frequency interpretation.
     """
-    conv = check_orca_convergence(out_file)
-    energy = extract_final_single_point_energy(out_file)
-    orb = extract_homo_lumo(out_file)
-    freq = check_imaginary_frequencies(out_file)
+    conv = _check_orca_convergence(out_file)
+    energy = _extract_final_single_point_energy(out_file)
+    orb = _extract_homo_lumo(out_file)
+    freq = _check_imaginary_frequencies(out_file)
 
     summary_success = all(item.get("success", False) for item in (conv, energy, orb, freq))
     warnings = _merge_warnings(conv, energy, orb, freq)
@@ -802,7 +802,7 @@ def summarize_orca_output(out_file: str) -> Dict[str, Any]:
     }
 
 
-def batch_summarize_orca_outputs(root_dir: str) -> Dict[str, Any]:
+def orca_batch_summarize_outputs(root_dir: str) -> Dict[str, Any]:
     """Summarize all ORCA output files found under a root directory.
 
     This is a recommended high-level entry point for recursive batch analysis
@@ -829,14 +829,14 @@ def batch_summarize_orca_outputs(root_dir: str) -> Dict[str, Any]:
     - In mixed directories, results may include multiple related outputs.
       Present paths clearly and do not assume one result per project.
     """
-    scanned = scan_orca_output_files(root_dir)
+    scanned = orca_scan_output_files(root_dir)
     if not scanned["success"]:
         return scanned
 
     results = []
     all_warnings = _merge_warnings(scanned)
     for file_path in scanned["files"]:
-        result = summarize_orca_output(file_path)
+        result = orca_summarize_output(file_path)
         results.append(result)
         all_warnings = _merge_warnings(all_warnings, result)
 

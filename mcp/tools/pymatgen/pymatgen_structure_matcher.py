@@ -216,6 +216,13 @@ def pymatgen_structure_matcher(
                 - lattice_parameter_mismatch
                 - site_position_mismatch
                 - space_group_mismatch
+            - composition_similarity (dict): Composition-level comparison:
+                - distance (float): Manhattan distance between normalized element
+                  fractions. 0.0 = identical composition; 2.0 = completely different.
+                - element_contributions (dict): Per-element contribution to the
+                  distance (|frac1 - frac2| for each element).
+                - formula_1 (str): Reduced formula of structure_1.
+                - formula_2 (str): Reduced formula of structure_2.
             - parameters (dict): Tolerances and comparator used for comparison
             - warnings (list): Any warnings generated
             - error (str): Error message if comparison failed
@@ -363,6 +370,29 @@ def pymatgen_structure_matcher(
         struct1_info = get_structure_info(struct1, "structure_1")
         struct2_info = get_structure_info(struct2, "structure_2")
 
+        # Compute compositional similarity (Manhattan distance between normalized element fractions)
+        comp1 = struct1.composition
+        comp2 = struct2.composition
+        all_elements = set(comp1.elements) | set(comp2.elements)
+        total_atoms_1 = comp1.num_atoms
+        total_atoms_2 = comp2.num_atoms
+        
+        composition_distance = 0.0
+        element_contributions = {}
+        for el in sorted(all_elements, key=str):
+            frac1 = comp1.get_atomic_fraction(el) if total_atoms_1 > 0 else 0.0
+            frac2 = comp2.get_atomic_fraction(el) if total_atoms_2 > 0 else 0.0
+            contrib = abs(frac1 - frac2)
+            element_contributions[str(el)] = contrib
+            composition_distance += contrib
+        
+        composition_similarity = {
+            "distance": composition_distance,
+            "element_contributions": element_contributions,
+            "formula_1": comp1.reduced_formula,
+            "formula_2": comp2.reduced_formula,
+        }
+
         
         # Set up comparator
         comparator_map = {
@@ -466,6 +496,7 @@ def pymatgen_structure_matcher(
                 "max_distance": max_distance,
                 "structure_1_info": struct1_info,
                 "structure_2_info": struct2_info,
+                "composition_similarity": composition_similarity,
                 "comparison_details": {
                     "method": comparison_method,
                     "supercell_relation": supercell_relation,

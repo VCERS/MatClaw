@@ -1,0 +1,39 @@
+# MatClaw MCP — DFT tools configuration (example)
+#
+# Copy to `config.yaml` (next to server.py) and edit. Every value can also be
+# overridden by a MATCLAW_DFT_* environment variable (see .env.example).
+# Precedence: environment variable > config.yaml > built-in default.
+#
+# Point MATCLAW_DFT_CONFIG at this file to load it from another location.
+
+dft:
+  # Root directory for per-job working dirs and (by default) the sqlite DB.
+  # On an HPC this should live on shared/scratch storage visible to compute nodes.
+  workdir: /scratch/matclaw/dft_jobs
+
+  # Job-record database. Omit to default to sqlite at <workdir>/dft_jobs.db.
+  # The persistence layer is SQLAlchemy-backed, so any SQL URL works:
+  #   sqlite:////scratch/matclaw/dft_jobs/dft_jobs.db
+  #   postgresql+psycopg://matclaw:secret@db-host:5432/matclaw   # pip install "psycopg[binary]"
+  #   mysql+pymysql://matclaw:secret@db-host:3306/matclaw        # pip install pymysql
+  database_url: null
+
+  scheduler:
+    type: slurm            # "slurm" for HPC, "local" for dev/CI (detached process)
+    account: null
+    partition: null
+    qos: null
+    default_nodes: 1
+    default_ntasks: 16
+    default_walltime: "24:00:00"
+    modules:               # emitted as `module load ...` in the batch script
+      - vasp/6.4.2
+    prologue:              # extra lines run before the calculation
+      - source ~/.matclaw_env
+
+  engines:
+    # Command templates: ${ntasks}, ${input_file}, ${output_file}, ${orca_bin}
+    vasp_command: "srun vasp_std"
+    orca_command: "${orca_bin}/orca ${input_file} > ${output_file}"
+    vasp_pp_path: /opt/vasp/potentials   # exported as VASP_PP_PATH / PMG_VASP_PSP_DIR
+    orca_bin: /opt/orca_6_0_0

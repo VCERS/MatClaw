@@ -26,9 +26,9 @@ Design conventions:
 - File writes, renames, and deletions are handled defensively
 
 Recommended usage with MCP and skills:
-1. Call `validate_environment()` before any cube-generation workflow.
-2. Call `validate_orca_calc_dir()` before selecting outputs or GBW files.
-3. Prefer `generate_homo_lumo_cubes()` or `generate_density_and_esp_cubes()`
+1. Call `orca_validate_environment()` before any cube-generation workflow.
+2. Call `orca_validate_calc_dir()` before selecting outputs or GBW files.
+3. Prefer `orca_generate_homo_lumo_cubes()` or `orca_generate_density_esp_cubes()`
    over lower-level helpers unless the workflow truly needs granular control.
 4. Always inspect `warnings` before presenting generated cubes as fully reliable.
 
@@ -56,8 +56,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .orca_analysis_tools import (
     _merge_warnings,
-    extract_homo_lumo,
-    pick_orca_output,
+    _extract_homo_lumo,
+    orca_pick_output,
 )
 
 
@@ -312,15 +312,15 @@ def _find_executable(explicit_env_var: str, command_name: str) -> str:
     )
 
 
-def validate_environment(test_dir: Optional[str] = None) -> Dict[str, Any]:
+def orca_validate_environment(test_dir: Optional[str] = None) -> Dict[str, Any]:
     """Validate host-environment assumptions for ORCA cube-generation workflows.
 
     This is a recommended high-level preflight function for skills and MCP
     workflows that plan to call cube-generation tools.
 
     Recommended use:
-    - Call before `generate_homo_lumo_cubes()`
-    - Call before `generate_density_and_esp_cubes()`
+    - Call before `orca_generate_homo_lumo_cubes()`
+    - Call before `orca_generate_density_esp_cubes()`
 
     What it checks:
     - Python version
@@ -435,7 +435,7 @@ def validate_environment(test_dir: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-def validate_orca_calc_dir(calc_dir: str) -> Dict[str, Any]:
+def orca_validate_calc_dir(calc_dir: str) -> Dict[str, Any]:
     """Validate whether a calculation directory looks safe for cube workflows.
 
     This is a recommended high-level preflight function for directory-based
@@ -443,8 +443,8 @@ def validate_orca_calc_dir(calc_dir: str) -> Dict[str, Any]:
     GBW files, or generating cubes.
 
     Recommended use:
-    - Call before `generate_homo_lumo_cubes()`
-    - Call before `generate_density_and_esp_cubes()`
+    - Call before `orca_generate_homo_lumo_cubes()`
+    - Call before `orca_generate_density_esp_cubes()`
 
     What it checks:
     - Whether the directory exists
@@ -534,7 +534,7 @@ def validate_orca_calc_dir(calc_dir: str) -> Dict[str, Any]:
     }
 
 
-def find_matching_gbw(calc_dir: str, out_file: Optional[str] = None) -> Dict[str, Any]:
+def orca_find_matching_gbw(calc_dir: str, out_file: Optional[str] = None) -> Dict[str, Any]:
     """Find the most appropriate `.gbw` file for a calculation directory.
 
     This is a low-level helper used by cube-generation workflows.
@@ -632,7 +632,7 @@ def find_matching_gbw(calc_dir: str, out_file: Optional[str] = None) -> Dict[str
     }
 
 
-def generate_mo_cube(
+def orca_generate_mo_cube(
     calc_dir: str,
     mo_number: int,
     output_label: str,
@@ -643,7 +643,7 @@ def generate_mo_cube(
     """Generate a molecular-orbital cube file using `orca_plot`.
 
     This is a lower-level helper for cube generation. Most skill-driven
-    workflows should prefer `generate_homo_lumo_cubes()` unless a specific
+    workflows should prefer `orca_generate_homo_lumo_cubes()` unless a specific
     orbital number is explicitly required.
 
     Args:
@@ -722,7 +722,7 @@ def generate_mo_cube(
     except Exception as e:
         return {"success": False, "error": str(e), "warnings": warnings}
 
-    gbw_info = find_matching_gbw(str(calc_path), out_file=out_file)
+    gbw_info = orca_find_matching_gbw(str(calc_path), out_file=out_file)
     warnings = _merge_warnings(warnings, gbw_info)
     if not gbw_info["success"]:
         return gbw_info
@@ -814,7 +814,7 @@ def generate_mo_cube(
     }
 
 
-def generate_homo_lumo_cubes(
+def orca_generate_homo_lumo_cubes(
     calc_dir: str,
     preference: str = "optimization",
     ngrid: str = "80 80 80",
@@ -866,16 +866,16 @@ def generate_homo_lumo_cubes(
 
     Guidance for MCP/skills:
     - Recommended preflight sequence:
-      `validate_environment()` -> `validate_orca_calc_dir()` -> `generate_homo_lumo_cubes()`
+      `orca_validate_environment()` -> `orca_validate_calc_dir()` -> `orca_generate_homo_lumo_cubes()`
     - If warnings indicate open-shell parsing or ambiguous matching, explicitly
       communicate reduced confidence.
     """
-    picked = pick_orca_output(calc_dir, preference=preference)
+    picked = orca_pick_output(calc_dir, preference=preference)
     if not picked["success"]:
         return picked
 
     out_file = picked["selected_file"]
-    orbital_info = extract_homo_lumo(out_file)
+    orbital_info = _extract_homo_lumo(out_file)
     warnings = _merge_warnings(picked, orbital_info)
 
     if not orbital_info["success"]:
@@ -887,7 +887,7 @@ def generate_homo_lumo_cubes(
             "warnings": warnings,
         }
 
-    homo_result = generate_mo_cube(
+    homo_result = orca_generate_mo_cube(
         calc_dir=calc_dir,
         mo_number=orbital_info["homo_no"],
         output_label="HOMO",
@@ -896,7 +896,7 @@ def generate_homo_lumo_cubes(
         out_file=out_file,
     )
 
-    lumo_result = generate_mo_cube(
+    lumo_result = orca_generate_mo_cube(
         calc_dir=calc_dir,
         mo_number=orbital_info["lumo_no"],
         output_label="LUMO",
@@ -919,7 +919,7 @@ def generate_homo_lumo_cubes(
     }
 
 
-def generate_density_and_esp_cubes(
+def orca_generate_density_esp_cubes(
     calc_dir: str,
     preference: str = "optimization",
     ngrid: str = "80 80 80",
@@ -979,7 +979,7 @@ def generate_density_and_esp_cubes(
 
     Guidance for MCP/skills:
     - Recommended preflight sequence:
-      `validate_environment()` -> `validate_orca_calc_dir()` -> `generate_density_and_esp_cubes()`
+      `orca_validate_environment()` -> `orca_validate_calc_dir()` -> `orca_generate_density_esp_cubes()`
     - If warnings mention ambiguous matching or unexpected output naming,
       tell the user that manual verification is recommended.
     """
@@ -1014,7 +1014,7 @@ def generate_density_and_esp_cubes(
             "warnings": warnings,
         }
 
-    picked = pick_orca_output(str(calc_path), preference=preference)
+    picked = orca_pick_output(str(calc_path), preference=preference)
     warnings = _merge_warnings(warnings, picked)
     if not picked.get("success"):
         return {
@@ -1026,7 +1026,7 @@ def generate_density_and_esp_cubes(
 
     out_file = picked["selected_file"]
 
-    gbw_result = find_matching_gbw(str(calc_path), out_file=out_file)
+    gbw_result = orca_find_matching_gbw(str(calc_path), out_file=out_file)
     warnings = _merge_warnings(warnings, gbw_result)
     if not gbw_result.get("success"):
         return {

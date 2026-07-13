@@ -11,6 +11,8 @@ from pathlib import Path
 from PIL import Image
 import shutil
 import torch.nn.functional as F
+
+from utils.torch_utils import get_torch_device
 CLASS_NAMES = ['NONSEM', 'SEM']
 
 def download_with_python_wget(url, output_dir="."):
@@ -29,7 +31,7 @@ def download_with_python_wget(url, output_dir="."):
 url = "https://github.com/VCERS/MatClaw/releases/download/v0.0.1/convnextv2_base-finetuned-sem-classifier.pth"
 MODEL_NAME = 'convnextv2_base.fcmae_ft_in22k_in1k'
 MODEL_PATH = './models/convnextv2_base-finetuned-sem-classifier.pth'
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = get_torch_device()
 
 def load_model():
     """load model"""
