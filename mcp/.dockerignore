@@ -1,0 +1,18 @@
+# Keep the build context small and free of local state.
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.git/
+.gitignore
+
+# Local secrets and local DFT config — these come from the environment /
+# mounted config in production, never from the image.
+.env
+config.yaml
+
+# Not needed at runtime
+tests/
+setup.sh
+README.md

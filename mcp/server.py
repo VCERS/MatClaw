@@ -4,6 +4,7 @@ MatClaw MCP Server
 
 from dotenv import load_dotenv
 import logging
+import os
 
 from utils.stdio_guard import redirect_stdout_to_stderr
 
@@ -12,127 +13,6 @@ from utils.stdio_guard import redirect_stdout_to_stderr
 redirect_stdout_to_stderr()
 
 from mcp.server.fastmcp import FastMCP
-from tools.pubchem import (
-    pubchem_search_compounds,
-    pubchem_get_compound_properties,
-    pubchem_get_safety_data,
-)
-from tools.cod import (
-    cod_search_structures,
-)
-from tools.materials_project import (
-    mp_search_materials,
-    mp_get_material_properties,
-    mp_get_detailed_property_data,
-    mp_search_recipe
-)
-from tools.molport import (
-    molport_search_molecules,
-    molport_get_molecule_info,
-)
-from tools.ase import (
-    ase_connect_or_create_db,
-    ase_store_result,
-    ase_query,
-    ase_get_atoms,
-    ase_list_databases
-)
-from tools.pymatgen import (
-    pymatgen_structure_matcher,
-    pymatgen_prototype_builder,
-    pymatgen_substitution_generator,
-    pymatgen_substitution_predictor,
-    pymatgen_ion_exchange_generator,
-    pymatgen_perturbation_generator,
-    pymatgen_defect_generator,
-    pymatgen_disorder_generator,
-    pymatgen_structure_editor,
-    pymatgen_majority_orderer,
-    pymatgen_enumeration_orderer,
-    pymatgen_sqs_orderer,
-)
-from tools.analysis import (
-    structure_validator,
-    composition_analyzer,
-    structure_analyzer,
-    structure_fingerprinter,
-)
-from tools.matgl import (
-    matgl_relax_structure,
-    matgl_predict_bandgap,
-    matgl_predict_eform
-)
-from tools.matcalc import (
-    matcalc_calc_adsorption,
-    matcalc_calc_elasticity,
-    matcalc_calc_energetics,
-    matcalc_calc_eos,
-    matcalc_calc_interface,
-    matcalc_calc_md,
-    matcalc_calc_neb,
-    matcalc_calc_phonon,
-    matcalc_calc_phonon3,
-    matcalc_calc_qha,
-    matcalc_calc_surface
-)
-from tools.chem_llm import (
-    predict_molecule_binding,
-    predict_molecule_synthesizability,
-)
-from tools.selection import (
-    multi_objective_ranker,
-)
-from tools.synthesis_planning import (
-    synthesis_recipe_quantifier,
-)
-from tools.elemwise_retro import (
-    er_predict_precursors,
-    er_predict_temperature,
-)
-from tools.arrows import (
-    arrows_initialize_campaign,
-    arrows_suggest_experiment,
-    arrows_record_result,
-)
-from tools.bayesian_optimization import (
-    bo_initialize_campaign,
-    bo_suggest_experiment,
-    bo_record_result,
-)
-from tools.characterization import (
-    xrd_analyze_pattern,
-)
-from tools.characterization import (
-    xrd_analyze_pattern,
-)
-from tools.urdf import (
-    urdf_validate,
-    urdf_fix,
-    urdf_inspect,
-)
-from tools.lula import (
-    lula_generate_robot_description,
-)
-from tools.dft import (
-    dft_prepare_calculation,
-    dft_submit_calculation,
-    dft_get_calculation_status,
-    dft_fetch_results,
-    dft_cancel_calculation,
-    dft_restart_calculation,
-)
-from tools.orca import (
-    orca_scan_output_files,
-    orca_pick_output,
-    orca_summarize_output,
-    orca_batch_summarize_outputs,
-    orca_validate_environment,
-    orca_validate_calc_dir,
-    orca_find_matching_gbw,
-    orca_generate_mo_cube,
-    orca_generate_homo_lumo_cubes,
-    orca_generate_density_esp_cubes,
-)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -149,123 +29,352 @@ mcp.settings.transport_security = None
 mcp.settings.stateless_http = True
 mcp.settings.json_response = True
 
-# Add tools
-# COD tools
-mcp.tool()(cod_search_structures)
-# Pubchem tools
-mcp.tool()(pubchem_search_compounds)
-mcp.tool()(pubchem_get_compound_properties)
-mcp.tool()(pubchem_get_safety_data)
 
-# Materials Project tools
-mcp.tool()(mp_search_materials)
-mcp.tool()(mp_get_material_properties)
-mcp.tool()(mp_get_detailed_property_data)
-mcp.tool()(mp_search_recipe)
+# ─────────────────────────────────────────────────────────────────────────────
+# Tool groups
+#
+# Each loader imports its own tools and returns them, so a deployment that
+# enables only some groups never imports the others. That matters for two
+# reasons: an image can ship without the dependencies of the groups it does not
+# serve, and every registered tool costs schema tokens in the client's context
+# on every turn.
+#
+# Selection is via the MATCLAW_ENABLED_GROUPS environment variable, not a CLI
+# flag, because registration has to happen at import time — with --workers > 1,
+# uvicorn imports `server:get_http_app` in each worker process, where the
+# __main__ block never runs. Environment is the one source of truth that both
+# the parent and the workers see.
+# ─────────────────────────────────────────────────────────────────────────────
 
-# Molport tools
-mcp.tool()(molport_search_molecules)
-mcp.tool()(molport_get_molecule_info)
 
-# ASE database tools
-mcp.tool()(ase_connect_or_create_db)
-mcp.tool()(ase_store_result)
-mcp.tool()(ase_query)
-mcp.tool()(ase_get_atoms)
-mcp.tool()(ase_list_databases)
+def _load_cod():
+    from tools.cod import cod_search_structures
+    return [cod_search_structures]
 
-# Pymatgen structure generation tools
-mcp.tool()(pymatgen_structure_matcher)
-mcp.tool()(pymatgen_prototype_builder)
-mcp.tool()(pymatgen_substitution_generator)
-mcp.tool()(pymatgen_substitution_predictor)
-mcp.tool()(pymatgen_ion_exchange_generator)
-mcp.tool()(pymatgen_perturbation_generator)
-mcp.tool()(pymatgen_defect_generator)
-mcp.tool()(pymatgen_disorder_generator)
-mcp.tool()(pymatgen_structure_editor)
-mcp.tool()(pymatgen_majority_orderer)
-mcp.tool()(pymatgen_enumeration_orderer)
-mcp.tool()(pymatgen_sqs_orderer)
 
-# Analysis tools for materials screening
-mcp.tool()(structure_validator)
-mcp.tool()(composition_analyzer)
-mcp.tool()(structure_analyzer)
-mcp.tool()(structure_fingerprinter)
+def _load_pubchem():
+    from tools.pubchem import (
+        pubchem_search_compounds,
+        pubchem_get_compound_properties,
+        pubchem_get_safety_data,
+    )
+    return [
+        pubchem_search_compounds,
+        pubchem_get_compound_properties,
+        pubchem_get_safety_data,
+    ]
 
-# Machine learning prediction tools
-mcp.tool()(matgl_relax_structure)
-mcp.tool()(matgl_predict_bandgap)
-mcp.tool()(matgl_predict_eform)
 
-# Material property calculation tools
-mcp.tool()(matcalc_calc_adsorption)
-mcp.tool()(matcalc_calc_elasticity)
-mcp.tool()(matcalc_calc_energetics)
-mcp.tool()(matcalc_calc_eos)
-mcp.tool()(matcalc_calc_interface)
-mcp.tool()(matcalc_calc_md)
-mcp.tool()(matcalc_calc_neb)
-mcp.tool()(matcalc_calc_phonon)
-mcp.tool()(matcalc_calc_phonon3)
-mcp.tool()(matcalc_calc_qha)
-mcp.tool()(matcalc_calc_surface)
+def _load_materials_project():
+    from tools.materials_project import (
+        mp_search_materials,
+        mp_get_material_properties,
+        mp_get_detailed_property_data,
+        mp_search_recipe,
+    )
+    return [
+        mp_search_materials,
+        mp_get_material_properties,
+        mp_get_detailed_property_data,
+        mp_search_recipe,
+    ]
 
-# Fine-tuned LLM prediction tools
-mcp.tool()(predict_molecule_binding)
-mcp.tool()(predict_molecule_synthesizability)
 
-# Selection and ranking tools
-mcp.tool()(multi_objective_ranker)
+def _load_molport():
+    from tools.molport import (
+        molport_search_molecules,
+        molport_get_molecule_info,
+    )
+    return [molport_search_molecules, molport_get_molecule_info]
 
-# Synthesis planning tools
-mcp.tool()(synthesis_recipe_quantifier)
 
-# ElemwiseRetro tools
-mcp.tool()(er_predict_precursors)
-mcp.tool()(er_predict_temperature)
+def _load_ase():
+    from tools.ase import (
+        ase_connect_or_create_db,
+        ase_store_result,
+        ase_query,
+        ase_get_atoms,
+        ase_list_databases,
+    )
+    return [
+        ase_connect_or_create_db,
+        ase_store_result,
+        ase_query,
+        ase_get_atoms,
+        ase_list_databases,
+    ]
 
-# ARROWS active learning tools
-mcp.tool()(arrows_initialize_campaign)
-mcp.tool()(arrows_suggest_experiment)
-mcp.tool()(arrows_record_result)
 
-# Bayesian optimization tools
-mcp.tool()(bo_initialize_campaign)
-mcp.tool()(bo_suggest_experiment)
-mcp.tool()(bo_record_result)
+def _load_pymatgen():
+    from tools.pymatgen import (
+        pymatgen_structure_matcher,
+        pymatgen_prototype_builder,
+        pymatgen_substitution_generator,
+        pymatgen_substitution_predictor,
+        pymatgen_ion_exchange_generator,
+        pymatgen_perturbation_generator,
+        pymatgen_defect_generator,
+        pymatgen_disorder_generator,
+        pymatgen_structure_editor,
+        pymatgen_majority_orderer,
+        pymatgen_enumeration_orderer,
+        pymatgen_sqs_orderer,
+    )
+    return [
+        pymatgen_structure_matcher,
+        pymatgen_prototype_builder,
+        pymatgen_substitution_generator,
+        pymatgen_substitution_predictor,
+        pymatgen_ion_exchange_generator,
+        pymatgen_perturbation_generator,
+        pymatgen_defect_generator,
+        pymatgen_disorder_generator,
+        pymatgen_structure_editor,
+        pymatgen_majority_orderer,
+        pymatgen_enumeration_orderer,
+        pymatgen_sqs_orderer,
+    ]
 
-# XRD analysis tools
-mcp.tool()(xrd_analyze_pattern)
 
-# URDF validation and fixing tools
-mcp.tool()(urdf_validate)
-mcp.tool()(urdf_fix)
-mcp.tool()(urdf_inspect)
+def _load_analysis():
+    from tools.analysis import (
+        structure_validator,
+        composition_analyzer,
+        structure_analyzer,
+        structure_fingerprinter,
+    )
+    return [
+        structure_validator,
+        composition_analyzer,
+        structure_analyzer,
+        structure_fingerprinter,
+    ]
 
-# Lula robot description generation
-mcp.tool()(lula_generate_robot_description)
 
-# DFT job-lifecycle tools (VASP + ORCA via engine dispatch)
-mcp.tool()(dft_prepare_calculation)
-mcp.tool()(dft_submit_calculation)
-mcp.tool()(dft_get_calculation_status)
-mcp.tool()(dft_fetch_results)
-mcp.tool()(dft_cancel_calculation)
-mcp.tool()(dft_restart_calculation)
+def _load_matgl():
+    from tools.matgl import (
+        matgl_relax_structure,
+        matgl_predict_bandgap,
+        matgl_predict_eform,
+    )
+    return [matgl_relax_structure, matgl_predict_bandgap, matgl_predict_eform]
 
-# ORCA analysis and cube-generation tools
-mcp.tool()(orca_scan_output_files)
-mcp.tool()(orca_pick_output)
-mcp.tool()(orca_summarize_output)
-mcp.tool()(orca_batch_summarize_outputs)
-mcp.tool()(orca_validate_environment)
-mcp.tool()(orca_validate_calc_dir)
-mcp.tool()(orca_find_matching_gbw)
-mcp.tool()(orca_generate_mo_cube)
-mcp.tool()(orca_generate_homo_lumo_cubes)
-mcp.tool()(orca_generate_density_esp_cubes)
+
+def _load_matcalc():
+    from tools.matcalc import (
+        matcalc_calc_adsorption,
+        matcalc_calc_elasticity,
+        matcalc_calc_energetics,
+        matcalc_calc_eos,
+        matcalc_calc_interface,
+        matcalc_calc_md,
+        matcalc_calc_neb,
+        matcalc_calc_phonon,
+        matcalc_calc_phonon3,
+        matcalc_calc_qha,
+        matcalc_calc_surface,
+    )
+    return [
+        matcalc_calc_adsorption,
+        matcalc_calc_elasticity,
+        matcalc_calc_energetics,
+        matcalc_calc_eos,
+        matcalc_calc_interface,
+        matcalc_calc_md,
+        matcalc_calc_neb,
+        matcalc_calc_phonon,
+        matcalc_calc_phonon3,
+        matcalc_calc_qha,
+        matcalc_calc_surface,
+    ]
+
+
+def _load_chem_llm():
+    from tools.chem_llm import (
+        predict_molecule_binding,
+        predict_molecule_synthesizability,
+    )
+    return [predict_molecule_binding, predict_molecule_synthesizability]
+
+
+def _load_selection():
+    from tools.selection import multi_objective_ranker
+    return [multi_objective_ranker]
+
+
+def _load_synthesis_planning():
+    from tools.synthesis_planning import synthesis_recipe_quantifier
+    return [synthesis_recipe_quantifier]
+
+
+def _load_elemwise_retro():
+    from tools.elemwise_retro import (
+        er_predict_precursors,
+        er_predict_temperature,
+    )
+    return [er_predict_precursors, er_predict_temperature]
+
+
+def _load_arrows():
+    from tools.arrows import (
+        arrows_initialize_campaign,
+        arrows_suggest_experiment,
+        arrows_record_result,
+    )
+    return [
+        arrows_initialize_campaign,
+        arrows_suggest_experiment,
+        arrows_record_result,
+    ]
+
+
+def _load_bayesian_optimization():
+    from tools.bayesian_optimization import (
+        bo_initialize_campaign,
+        bo_suggest_experiment,
+        bo_record_result,
+    )
+    return [bo_initialize_campaign, bo_suggest_experiment, bo_record_result]
+
+
+def _load_characterization():
+    from tools.characterization import xrd_analyze_pattern
+    return [xrd_analyze_pattern]
+
+
+def _load_urdf():
+    from tools.urdf import urdf_validate, urdf_fix, urdf_inspect
+    return [urdf_validate, urdf_fix, urdf_inspect]
+
+
+def _load_lula():
+    from tools.lula import lula_generate_robot_description
+    return [lula_generate_robot_description]
+
+
+def _load_dft():
+    from tools.dft import (
+        dft_prepare_calculation,
+        dft_submit_calculation,
+        dft_get_calculation_status,
+        dft_fetch_results,
+        dft_cancel_calculation,
+        dft_restart_calculation,
+    )
+    return [
+        dft_prepare_calculation,
+        dft_submit_calculation,
+        dft_get_calculation_status,
+        dft_fetch_results,
+        dft_cancel_calculation,
+        dft_restart_calculation,
+    ]
+
+
+def _load_orca():
+    from tools.orca import (
+        orca_scan_output_files,
+        orca_pick_output,
+        orca_summarize_output,
+        orca_batch_summarize_outputs,
+        orca_validate_environment,
+        orca_validate_calc_dir,
+        orca_find_matching_gbw,
+        orca_generate_mo_cube,
+        orca_generate_homo_lumo_cubes,
+        orca_generate_density_esp_cubes,
+    )
+    return [
+        orca_scan_output_files,
+        orca_pick_output,
+        orca_summarize_output,
+        orca_batch_summarize_outputs,
+        orca_validate_environment,
+        orca_validate_calc_dir,
+        orca_find_matching_gbw,
+        orca_generate_mo_cube,
+        orca_generate_homo_lumo_cubes,
+        orca_generate_density_esp_cubes,
+    ]
+
+
+TOOL_GROUPS = {
+    "cod": _load_cod,
+    "pubchem": _load_pubchem,
+    "materials_project": _load_materials_project,
+    "molport": _load_molport,
+    "ase": _load_ase,
+    "pymatgen": _load_pymatgen,
+    "analysis": _load_analysis,
+    "matgl": _load_matgl,
+    "matcalc": _load_matcalc,
+    "chem_llm": _load_chem_llm,
+    "selection": _load_selection,
+    "synthesis_planning": _load_synthesis_planning,
+    "elemwise_retro": _load_elemwise_retro,
+    "arrows": _load_arrows,
+    "bayesian_optimization": _load_bayesian_optimization,
+    "characterization": _load_characterization,
+    "urdf": _load_urdf,
+    "lula": _load_lula,
+    "dft": _load_dft,
+    "orca": _load_orca,
+}
+
+
+def selected_groups():
+    """Resolve which tool groups to register from MATCLAW_ENABLED_GROUPS.
+
+    Unset or "all" means every group, which is the historical behaviour. An
+    unknown group name raises rather than being skipped: a typo in a deployment
+    config should fail loudly at startup instead of quietly serving a smaller
+    toolset that nobody notices for weeks.
+    """
+    raw = os.getenv("MATCLAW_ENABLED_GROUPS", "").strip()
+    if not raw or raw.lower() == "all":
+        return list(TOOL_GROUPS)
+
+    names = [n.strip() for n in raw.split(",") if n.strip()]
+    unknown = [n for n in names if n not in TOOL_GROUPS]
+    if unknown:
+        raise ValueError(
+            f"Unknown tool group(s) in MATCLAW_ENABLED_GROUPS: {', '.join(unknown)}. "
+            f"Valid groups: {', '.join(TOOL_GROUPS)}"
+        )
+    # dict.fromkeys de-duplicates while preserving order
+    return list(dict.fromkeys(names))
+
+
+def register_tools():
+    """Register the enabled groups' tools on the server. Returns the tool count.
+
+    A group whose import fails is logged and skipped rather than taking the whole
+    server down — one unmet optional dependency should not cost you the other
+    nineteen groups.
+    """
+    total = 0
+    skipped = []
+    for name in selected_groups():
+        try:
+            tools = TOOL_GROUPS[name]()
+        except Exception as exc:
+            logger.error("Tool group '%s' failed to load and was skipped: %s", name, exc)
+            skipped.append(name)
+            continue
+        for tool in tools:
+            mcp.tool()(tool)
+        total += len(tools)
+        logger.info("Registered tool group '%s' (%d tool(s))", name, len(tools))
+
+    if skipped:
+        logger.error("Skipped tool group(s): %s", ", ".join(skipped))
+    logger.info("MatClaw MCP server exposing %d tool(s)", total)
+    return total
+
+
+# Registration runs at import time so uvicorn workers, which import this module
+# rather than execute it, register the same tools as the parent process.
+register_tools()
 
 
 def get_http_app():

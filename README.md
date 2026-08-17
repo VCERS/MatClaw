@@ -295,6 +295,27 @@ async def main():
 asyncio.run(main())
 ```
 
+## Releasing the MCP image
+
+The [`publish-mcp`](.github/workflows/publish-mcp.yml) workflow builds
+`mcp/Dockerfile` and pushes it to GHCR as
+`ghcr.io/<owner>/matclaw-mcp`.
+
+### What each trigger produces
+
+| you do this | image tags produced | pinnable by a deployment? |
+| --- | --- | --- |
+| push to `main` (touching `mcp/**`) | `:main`, `:sha-<short>` | no |
+| push a `v*` tag | `:X.Y.Z`, `:X.Y`, `:sha-<short>` | **yes** |
+| run it manually from `main` | `:main`, `:sha-<short>` | no |
+| run it manually **with a tag selected** | `:X.Y.Z`, `:X.Y`, `:sha-<short>` | yes |
+
+Only a tag produces a version you can pin, because the semver tags come from
+`docker/metadata-action`'s `type=semver`, which evaluates on a tag ref and
+nothing else. Re-running the workflow from `main` after a missed tag build does
+**not** give you a version — select the tag as the ref instead.
+
+
 ## Development Status
 
 ⚠️ **This project is under active development.** APIs and workflows may change.

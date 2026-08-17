@@ -1,0 +1,38 @@
+# MatClaw MCP — production dependency set
+#
+# This file covers ONLY the tool groups the production image serves, which are
+# selected at runtime by MATCLAW_ENABLED_GROUPS (see server.py). It is
+# deliberately not requirements.txt: the full set pulls torch-scatter, dgl,
+# docling, opencv, transformers and autoXRD for groups production does not
+# expose, which multiplies image size and build fragility for no benefit.
+#
+# Currently scoped to:  matgl, matcalc
+#
+# If you add a group to MATCLAW_ENABLED_GROUPS, add its dependencies here too,
+# or the group will fail to import and be skipped at startup (with an error in
+# the container logs).
+#
+# torch is NOT listed here. It is installed by the Dockerfile from the CUDA
+# wheel index, because the PyPI build is CPU-only. See mcp/Dockerfile.
+
+# MCP server runtime
+mcp>=1.0.0
+python-dotenv>=1.0.0
+
+# Shared scientific stack
+numpy>=2.4.4
+pymatgen>=2026.3.23
+ase>=3.28.0
+
+# matgl group — pretrained MEGNet / M3GNet / TensorNet models
+# (matgl >=4 dropped dgl in favour of torch-geometric)
+matgl>=4.0.1
+
+# matcalc group — property calculators over foundation potentials.
+# >=0.5.x: load_fp resolves MACE/foundation models via matcalc.utils.MODEL_REGISTRY.
+# phonopy/phono3py come in transitively and are required by the phonon tools.
+matcalc>=0.5.1
+
+# Required for the MACE-* entries in MODEL_REGISTRY; the default calculator
+# (TensorNet-PES-MatPES-r2SCAN-2025.2) is served by matgl.
+mace-torch>=0.3.16

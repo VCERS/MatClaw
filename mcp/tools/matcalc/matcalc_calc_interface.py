@@ -17,6 +17,8 @@ from pydantic import Field
 import matcalc as mtc
 from pymatgen.core import Structure
 
+from utils.model_cache import load_calculator
+
 
 def matcalc_calc_interface(
     interface_structure: Annotated[
@@ -163,7 +165,7 @@ def matcalc_calc_interface(
     
     # Load calculator
     try:
-        calc = mtc.load_fp(calculator)
+        calc = load_calculator(calculator)
     except Exception as e:
         return {
             "error": f"Failed to load calculator '{calculator}': {str(e)}",

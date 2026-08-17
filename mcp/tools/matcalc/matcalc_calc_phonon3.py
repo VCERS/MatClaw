@@ -14,6 +14,8 @@ import numpy as np
 from pydantic import Field
 from pymatgen.core import Structure
 
+from utils.model_cache import load_calculator
+
 
 @contextmanager
 def _temporary_working_directory():
@@ -142,7 +144,6 @@ def matcalc_calc_phonon3(
     """
     try:
         from matcalc import Phonon3Calc
-        import matcalc as mtc
     except ImportError as err:
         return {
             "success": False,
@@ -193,7 +194,7 @@ def matcalc_calc_phonon3(
 
     # Load calculator
     try:
-        calc = mtc.load_fp(calculator)
+        calc = load_calculator(calculator)
     except Exception as e:
         return {
             "success": False,

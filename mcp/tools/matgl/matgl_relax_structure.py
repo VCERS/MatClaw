@@ -15,6 +15,8 @@ Use this tool to:
 from typing import Dict, Any, Optional, Annotated, Literal
 from pydantic import Field
 
+from utils.model_cache import load_potential
+
 
 def matgl_relax_structure(
     input_structure: Annotated[
@@ -201,7 +203,7 @@ def matgl_relax_structure(
         
         # Load ML potential model
         try:
-            pot = matgl.load_model(model)
+            pot = load_potential(model)
         except Exception as e:
             return {
                 "success": False,

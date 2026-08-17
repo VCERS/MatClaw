@@ -15,6 +15,8 @@ Use this tool to:
 from typing import Dict, Any, Optional, Union, Annotated, List
 from pydantic import Field
 
+from utils.model_cache import load_calculator
+
 
 def matcalc_calc_surface(
     structure_input: Annotated[
@@ -200,7 +202,7 @@ def matcalc_calc_surface(
     
     # Load calculator
     try:
-        calc = mtc.load_fp(calculator)
+        calc = load_calculator(calculator)
     except Exception as e:
         return {
             "error": f"Failed to load calculator '{calculator}': {str(e)}",
