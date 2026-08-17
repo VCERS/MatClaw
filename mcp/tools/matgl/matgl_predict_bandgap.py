@@ -15,6 +15,8 @@ Use this tool to:
 from typing import Dict, Any, Annotated, Literal
 from pydantic import Field
 
+from utils.model_cache import load_potential
+
 
 def matgl_predict_bandgap(
     input_structure: Annotated[
@@ -129,7 +131,7 @@ def matgl_predict_bandgap(
         
         # Load the band gap prediction model
         try:
-            ml_model = matgl.load_model(model)
+            ml_model = load_potential(model)
         except Exception as e:
             return {
                 "success": False,

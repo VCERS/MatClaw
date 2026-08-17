@@ -16,6 +16,8 @@ from typing import Dict, Any, Optional, Union, Annotated, List
 from pydantic import Field
 import numpy as np
 
+from utils.model_cache import load_calculator
+
 
 def matcalc_calc_elasticity(
     input_structure: Annotated[
@@ -253,7 +255,7 @@ def matcalc_calc_elasticity(
         
         # Load calculator
         try:
-            calc_obj = mtc.load_fp(calculator)
+            calc_obj = load_calculator(calculator)
         except Exception as e:
             return {
                 "success": False,

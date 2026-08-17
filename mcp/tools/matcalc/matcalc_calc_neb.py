@@ -14,6 +14,8 @@ Use this tool to:
 from typing import Dict, Any, Optional, Union, Annotated, List
 from pydantic import Field
 
+from utils.model_cache import load_calculator
+
 
 def matcalc_calc_neb(
     images: Annotated[
@@ -213,7 +215,7 @@ def matcalc_calc_neb(
     
     # Load calculator
     try:
-        calc = mtc.load_fp(calculator)
+        calc = load_calculator(calculator)
     except Exception as e:
         return {
             "success": False,

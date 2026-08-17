@@ -15,6 +15,8 @@ Use this tool to:
 from typing import Dict, Any, Optional, Union, Annotated
 from pydantic import Field
 
+from utils.model_cache import load_calculator
+
 
 def matcalc_calc_energetics(
     structure_input: Annotated[
@@ -188,7 +190,7 @@ def matcalc_calc_energetics(
     
     # Load calculator
     try:
-        calc = mtc.load_fp(calculator)
+        calc = load_calculator(calculator)
     except Exception as e:
         return {
             "success": False,

@@ -19,6 +19,8 @@ import matcalc as mtc
 from pymatgen.core import Structure, Molecule
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
+from utils.model_cache import load_calculator
+
 
 def matcalc_calc_adsorption(
     clean_slab_structure: Annotated[
@@ -320,7 +322,7 @@ def matcalc_calc_adsorption(
     
     # Load calculator
     try:
-        calc = mtc.load_fp(calculator)
+        calc = load_calculator(calculator)
     except Exception as e:
         return {
             "error": f"Failed to load calculator '{calculator}': {str(e)}",

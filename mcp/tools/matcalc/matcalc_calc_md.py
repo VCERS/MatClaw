@@ -11,6 +11,8 @@ import numpy as np
 from pydantic import Field
 from pymatgen.core import Structure
 
+from utils.model_cache import load_calculator
+
 
 def matcalc_calc_md(
     structure_input: Annotated[
@@ -193,7 +195,6 @@ def matcalc_calc_md(
     """
     try:
         from matcalc import MDCalc
-        import matcalc as mtc
     except ImportError as err:
         return {
             "success": False,
@@ -211,7 +212,7 @@ def matcalc_calc_md(
 
     # Load calculator
     try:
-        calc = mtc.load_fp(calculator)
+        calc = load_calculator(calculator)
     except Exception as e:
         return {
             "success": False,
